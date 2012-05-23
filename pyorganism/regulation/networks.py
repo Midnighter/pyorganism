@@ -29,7 +29,7 @@ import networkx as nx
 from datetime import date
 from operator import itemgetter
 from .. import miscellaneous as misc
-from ..parsers import open_file
+from ..parsers import open_file, parser_warning
 from ..errors import PyOrganismError
 
 
@@ -126,7 +126,6 @@ class TRN(nx.MultiDiGraph):
             if line == "" or line.startswith("#"):
                 continue
             partners = line.split("\t")
-            LOGGER.debug(str(partners))
             if partners[2] == "-":
                 self.add_edge(partners[0], partners[1], effect=-1,
                         evidence=partners[3])
@@ -194,7 +193,7 @@ class GPNGenerator(object):
                     gpn.add_edge(self.i2name[i], self.i2name[j])
         return gpn
 
-    def read_regulondb_file(self, filename, gene_identifier="name",
+    def read_regulondb_file(self, filename, gene_identifier="name", comment="#",
             encoding="utf-8", mode="rb", **kw_args):
         """
         Retrieve the gene locations from a RegulonDB flat file and construct the
@@ -209,6 +208,8 @@ class GPNGenerator(object):
                 * 'name' for the gene name in that organism
                 * 'blattner' for the Blattner number
                 * 'regulondb' for the unique identifier assigned by RegulonDB
+        comment: str (optional)
+            The sign denoting a comment line.
         encoding: str (optional)
             The file encoding.
         mode: str (optional)
@@ -231,9 +232,10 @@ class GPNGenerator(object):
             raise PyOrganismError("unrecognised gene identifier '%s'",
                     gene_identifier)
         count = 1
+        warnings = parser_warning
         for line in interactions:
             line = line.strip()
-            if line == "" or line.startswith("#"):
+            if line == "" or line.startswith(comment):
                 continue
             partners = line.split("\t")
             if len(partners) > 4 and idn(partners) and partners[3] and partners[4]:
@@ -245,7 +247,8 @@ class GPNGenerator(object):
                 genes.append([name, int(partners[3]),
                         int(partners[4])] + partners[5:])
             else:
-                LOGGER.warn("unable to parse information for:\n\t%s", line)
+                warnings(line)
+                warnings = LOGGER.warn
         LOGGER.warn("%d phantom genes included", count - 1)
         name = itemgetter(0)
         start = itemgetter(1)

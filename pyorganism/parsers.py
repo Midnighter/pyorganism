@@ -31,6 +31,10 @@ LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(misc.NullHandler())
 
 
+def parser_warning(msg):
+    LOGGER.warn("unable to parse information for:")
+    LOGGER.warn(msg)
+
 def _open_tar(path, **kw_args):
     import tarfile
     kw_args["mode"] = kw_args["mode"].strip("b")
