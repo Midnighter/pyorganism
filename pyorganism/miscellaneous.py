@@ -18,7 +18,7 @@ Library Miscellanea
 """
 
 
-__all__ = ["OptionsManager"]
+__all__ = ["OptionsManager", "convert"]
 
 
 import sys
@@ -44,25 +44,30 @@ class OptionsManager(Singleton):
     """
 
     def __init__(self, *args, **kw_args):
-        Singleton.__init__(self, *args, **kw_args)
+        super(OptionsManager, self).__init__(*args, **kw_args)
         self.num_proc = 1
 
 def load_module(module, name=False, url=False):
-    if not sys.modules.has_key(module):
-        try:
-            __import__(module)
-        except ImportError:
-            if not name:
-                name = module
-            msg = list()
-            msg.append(u"%s is required for this functionality." % name)
-            msg.append(u"Please specify a different external dependency in the")
-            msg.append(u"options or double-check your installation and necessary")
-            msg.append(u"Python bindings.")
-            if url:
-                msg.append(u"Please see %s for detailed installation" % url)
-                msg.append(u"instructions.")
-            raise ImportError(" ".join(msg))
-    return sys.modules[module]
+    try:
+        mod = sys.modules.get(module, __import__(module))
+    except ImportError:
+        if not name:
+            name = module
+        msg = list()
+        msg.append(u"{0} is required for this functionality.".format(name))
+        msg.append(u"Please specify a different external dependency in the")
+        msg.append(u"options or double-check your installation and necessary")
+        msg.append(u"Python bindings.")
+        if url:
+            msg.append(u"Please see {0} for detailed installation".format(url))
+            msg.append(u"instructions.")
+        raise ImportError(" ".join(msg))
+    return mod
 
+
+def convert(item, cls, default=None):
+    """
+    Convert the item to the specified type unless item is `None`.
+    """
+    return default if item is None else cls(item)
 

@@ -43,29 +43,22 @@ class PyOrganismError(StandardError):
 
         Examples
         --------
-        >>> err = PyMetabolismError("It's too %s outside!", "rainy")
+        >>> err = PyMetabolismError("It's too {0} outside!", "rainy")
         >>> print(err)
         It's too rainy outside!
         >>> print(err.errno)
         1
         """
-        super(PyOrganismError, self).__init__()
-        self.args = (msg,) + args
+        super(PyOrganismError, self).__init__(msg, *args)
         self.errno = kw_args.get("errno", 1)
-        try:
-            self.strerror = msg % args
-        except TypeError:
-            try:
-                self.strerror = msg % kw_args
-            except TypeError:
-                self.strerror = msg.format(*args, **kw_args)
+        if isinstance(msg, str):
+            self.strerror = msg.format(*args, **kw_args)
+        else:
+            self.strerror = ""
 
     def __str__(self):
-        """
-        Returns
-        -------
-        str:
-            Simply returns the formatted string.
-        """
-        return self.strerror
+        return str(self.strerror)
+
+    def __unicode__(self):
+        return unicode(self.strerror)
 

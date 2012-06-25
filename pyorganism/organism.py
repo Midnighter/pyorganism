@@ -22,17 +22,19 @@ __all__ = ["Organism"]
 
 
 import logging
+import numpy
+import random
+import multiprocessing
 
 from operator import itemgetter
 from . import miscellaneous as misc
-from .parsers import open_file, parser_warning
+from .io.generic import open_file, parser_warning
 from .errors import PyOrganismError
+from .statistics import compute_zscore
 
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(misc.NullHandler())
-
-OPTIONS = misc.OptionsManager.get_instance()
 
 
 class Organism(object):
@@ -47,9 +49,11 @@ class Organism(object):
 
     Examples
     --------
+
+
     """
 
-    def __init__(self, name):
+    def __init__(self, name, *args, **kw_args):
         """
         Parameters
         ----------
@@ -57,13 +61,20 @@ class Organism(object):
             The name of the organism. Should be unique but that's not a
             requirement.
         """
-        object.__init__(self)
+        super(Organism, self).__init__(*args, **kw_args)
+        self.name = name
         self.trn = None
         self.gpn = None
         self.go = None
         self.couplons = None
         self.activity = dict()
         self.metabolism = None
+
+    def __str__(self):
+        return str(self)
+
+    def __unicode__(self):
+        return unicode(self)
 
     def read_activity(self, filename, description, sep="\t",
             gene_identifier="name", skip_header=1, comment="#",
@@ -113,7 +124,8 @@ class Organism(object):
             if line == "" or line.startswith(comment):
                 continue
             partners = line.split(sep)
-            if len(partners) > 4 and idn(partners) and partners[2]:
+            # functional description is not important here
+            if len(partners) > 3 and idn(partners) and partners[2]:
                 genes.append((idn(partners), float(partners[2])))
             else:
                 warnings(line)
@@ -123,7 +135,7 @@ class Organism(object):
 
     def digital_control(self, active):
         """
-        Compute the digital control from the effective TRN.
+        Compute the digital control from an effective TRN.
 
         Parameters
         ----------
@@ -134,15 +146,63 @@ class Organism(object):
         Warning
         -------
         Unknown gene names are silently ignored.
+
+        References
+        ----------
+        [1] Marr, C., Geertz, M., Hütt, M.-T., Muskhelishvili, G., 2008.
+            Dissecting the logical types of network control in gene expression profiles.
+            BMC Systems Biology 2, 18.
         """
-        assert self.trn
         subnet = self.trn.subgraph(active)
+        if subnet.order() == 0:
+            LOGGER.warn("set of active genes unknown")
+            return numpy.nan
         controlled = sum(1 for (node, deg) in subnet.degree_iter() if deg > 0)
-        return controlled / float(subnet.order())
+#        return controlled / float(subnet.order())
+        size = subnet.order()
+        if controlled == size:
+            return numpy.nan
+        else:
+            return controlled / float(subnet.order() - controlled)
+
+    def digital_ctc(self, active, random_num=10000, parallel=False,
+            return_sample=False):
+        """
+        Compute the digital control type confidence of an effective TRN.
+
+        Parameters
+        ----------
+        active: iterable
+            An iterable with names of genes that are active in a specific
+            condition.
+
+        Warning
+        -------
+        Unknown gene names are silently ignored.
+
+        References
+        ----------
+        [1] Marr, C., Geertz, M., Hütt, M.-T., Muskhelishvili, G., 2008.
+            Dissecting the logical types of network control in gene expression profiles.
+            BMC Systems Biology 2, 18.
+        """
+        original = self.digital_control(active)
+        genes = self.trn.nodes()
+        length = len(active)
+#        if parallel:
+#            pool = multiprocessing.Pool()
+#            map = pool.map
+        sample = map(self.digital_control, [random.sample(genes, length)\
+                for i in range(random_num)])
+        z_score = compute_zscore(original, sample)
+        if return_sample:
+            return (z_score, sample)
+        else:
+            return z_score
 
     def analog_control(self, active):
         """
-        Compute the digital control from the effective GPN.
+        Compute the analog control from an effective GPN.
 
         Parameters
         ----------
@@ -153,9 +213,57 @@ class Organism(object):
         Warning
         -------
         Unknown gene names are silently ignored.
+
+        References
+        ----------
+        [1] Marr, C., Geertz, M., Hütt, M.-T., Muskhelishvili, G., 2008.
+            Dissecting the logical types of network control in gene expression profiles.
+            BMC Systems Biology 2, 18.
         """
-        assert self.gpn
         subnet = self.gpn.subgraph(active)
+        if subnet.order() == 0:
+            LOGGER.warn("set of active genes unknown")
+            return numpy.nan
         controlled = sum(1 for (node, deg) in subnet.degree_iter() if deg > 0)
-        return controlled / float(subnet.order())
+#        return controlled / float(subnet.order())
+        size = subnet.order()
+        if controlled == size:
+            return numpy.nan
+        else:
+            return controlled / float(subnet.order() - controlled)
+
+    def analog_ctc(self, active, random_num=10000, parallel=False,
+            return_sample=False):
+        """
+        Compute the analog control from an effective GPN.
+
+        Parameters
+        ----------
+        active: iterable
+            An iterable with names of genes that are active in a specific
+            condition.
+
+        Warning
+        -------
+        Unknown gene names are silently ignored.
+
+        References
+        ----------
+        [1] Marr, C., Geertz, M., Hütt, M.-T., Muskhelishvili, G., 2008.
+            Dissecting the logical types of network control in gene expression profiles.
+            BMC Systems Biology 2, 18.
+        """
+        original = self.analog_control(active)
+        genes = self.gpn.nodes()
+        length = len(active)
+#        if parallel:
+#            pool = multiprocessing.Pool()
+#            map = pool.map
+        sample = map(self.analog_control, [random.sample(genes, length)\
+                for i in range(random_num)])
+        z_score = compute_zscore(original, sample)
+        if return_sample:
+            return (z_score, sample)
+        else:
+            return z_score
 

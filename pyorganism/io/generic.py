@@ -3,19 +3,18 @@
 
 
 """
-=============
-Model Parsers
-=============
+================
+Generic File I/O
+================
 
 :Authors:
     Moritz Emanuel Beber
-    Nikolaus Sonnenschein
 :Date:
-    2011-04-07
+    2012-06-03
 :Copyright:
-    Copyright(c) 2011 Jacobs University of Bremen. All rights reserved.
+    Copyright(c) 2012 Jacobs University of Bremen. All rights reserved.
 :File:
-    parsers.py
+    generic.py
 """
 
 
@@ -24,7 +23,7 @@ import codecs
 import logging
 
 from contextlib import contextmanager
-from . import miscellaneous as misc
+from .. import miscellaneous as misc
 
 
 LOGGER = logging.getLogger(__name__)

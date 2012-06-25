@@ -29,8 +29,9 @@ setup(
     author_email = "moritz (dot) beber (at) googlemail (dot) com",
     url = "http://github.com/Midnighter/pyorganism",
     packages = ["pyorganism",
-            "pyorganism.tests",
-            "pyorganism.regulation"],
+            "pyorganism.metabolism",
+            "pyorganism.regulation",
+            "pyorganism.tests"],
     package_data = {"pyorganism": ["data/*.xml", "data/*.txt", "data/*.tsv"]},
     )
 
