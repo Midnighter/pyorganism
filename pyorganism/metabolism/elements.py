@@ -41,14 +41,14 @@ class BasicCompound(UniqueBase):
     name.
     """
 
-    def __init__(self, name="", *args, **kw_args):
+    def __init__(self, unique_id="", **kw_args):
         """
         Parameters
         ----------
-        name: str (optional)
+        unique_id: str (optional)
             A string uniquely identifying the compound among its class.
         """
-        super(BasicCompound, self).__init__(name, *args, **kw_args)
+        super(BasicCompound, self).__init__(unique_id=unique_id, **kw_args)
 
 
 class BasicReaction(UniqueBase):
@@ -64,16 +64,16 @@ class BasicReaction(UniqueBase):
     its reversibility.
     """
 
-    def __init__(self, name="", reversible=False, *args, **kw_args):
+    def __init__(self, unique_id="", reversible=False, **kw_args):
         """
         Parameters
         ----------
-        name: str (optional)
+        unique_id: str (optional)
             A string uniquely identifying the reaction among its class.
         reversible: bool (optional)
             Reversibility information of the reaction.
         """
-        super(BasicReaction, self).__init__(name, *args, **kw_args)
+        super(BasicReaction, self).__init__(unique_id=unique_id, **kw_args)
         self.reversible = reversible
 
 
@@ -83,15 +83,30 @@ class BasicCompartment(UniqueBase):
     and name.
     """
 
-    def __init__(self, name="", *args, **kw_args):
+    def __init__(self, unique_id="", **kw_args):
         """
         Parameters
         ----------
-        name: str
+        unique_id: str
             A string uniquely identifying the compartment among its class.
         """
-        super(BasicCompartment, self).__init__(name, *args, **kw_args)
+        super(BasicCompartment, self).__init__(unique_id=unique_id, **kw_args)
         self._contained = set()
+
+    def __contains__(self, element):
+        """
+        Tests for the existance of `element` in this compartment.
+        """
+        if isinstance(element, BasicCompound):
+            return element in self._contained
+        if isinstance(element, BasicCompartmentCompound):
+            return element.compartment == self
+        else:
+            raise PyOrganismError(u"unrecognised metabolic component '{0}'",
+                    element)
+
+    def __iter__(self):
+        return iter(self._contained)
 
     def register(self, element):
         """
@@ -101,18 +116,6 @@ class BasicCompartment(UniqueBase):
             Compound that is found in this compartment.
         """
         self._contained.add(element)
-
-    def __contains__(self, element):
-        """
-        Tests for the existance of `element` in this compartment.
-        """
-        if isinstance(element, BasicCompound):
-            return element in self._contained
-        elif isinstance(element, SBMLReaction):
-            return all(cmpd in self._contained for cmpd in element)
-        else:
-            raise PyOrganismError(u"unrecognised metabolic component '{0}'",
-                    element)
 
 
 class BasicCompartmentCompound(BasicCompound):
@@ -124,17 +127,19 @@ class BasicCompartmentCompound(BasicCompound):
     compound instance that already exists and the compartment.
     """
 
-    def __init__(self, name="", compound=None, compartment=None, *args, **kw_args):
+    def __init__(self, unique_id="", compound=None, compartment=None, **kw_args):
         """
         Parameters
         ----------
+        unique_id: str (optional)
+            A string uniquely identifying the compartmentalized compound among
+            its class.
         compound: BasicCompound
             An instance of BasicCompound that is then attached to a compartment.
         compartment: BasicCompartment
             An instance of BasicCompartment in which the compound is located.
         """
-        super(BasicCompartmentCompound, self).__init__(name, *args,
-                **kw_args)
+        super(BasicCompartmentCompound, self).__init__(unique_id=unique_id, **kw_args)
         self.compound = compound
         self.compartment = compartment
         if not self.compartment is None:
@@ -149,14 +154,17 @@ class SBMLCompartment(BasicCompartment):
     A cellular compartment as defined per SBML standard.
     """
 
-    def __init__(self, name="", outside=None, constant=True, suffix="",
-            spatial_dimensions=None, size=None, units=None, *args, **kw_args):
+    def __init__(self, unique_id="", name="", outside=None, constant=True,
+            suffix="", spatial_dimensions=None, size=None, units=None,
+            **kw_args):
         """
         Parameters
         ----------
-        name: str
+        unique_id: str (optional)
             A string uniquely identifying the compartment among its class.
-        outside: str
+        name: str (optional)
+            The full name of the compartment.
+        outside: str (optional)
             The name of the compartment that surrounds this one.
         constant: bool (optional)
             Determines whether the size attribute is allowed to change during
@@ -175,7 +183,8 @@ class SBMLCompartment(BasicCompartment):
         The constant attribute is so far only kept for compatibility with SBML,
         it's not actually required. This behaviour may change in future.
         """
-        super(SBMLCompartment, self).__init__(name, *args, **kw_args)
+        super(SBMLCompartment, self).__init__(unique_id=unique_id, **kw_args)
+        self.name = name
         self.outside = misc.convert(outside, SBMLCompartment)
         self.constant = bool(constant)
         self.suffix = suffix
@@ -183,13 +192,11 @@ class SBMLCompartment(BasicCompartment):
         self.size = size
         self.units = units
 
-    def __contains__(self, item):
-        if isinstance(item, SBMLReaction):
-            return all(cmpd.compartment == self for cmpd in item)
-        elif isinstance(item, SBMLCompartmentCompound):
-            return item.compartment == self
+    def __contains__(self, element):
+        if isinstance(element, SBMLReaction):
+            return all(cmpd in self for cmpd in element.compounds())
         else:
-            raise PyOrganismError("unrecognised metabolic component '%s'", item)
+            super(SBMLCompartment, self).__contains__(element)
 
 
 class SBMLCompound(BasicCompound):
@@ -197,17 +204,22 @@ class SBMLCompound(BasicCompound):
     A molecular compound as defined per SBML standard.
     """
 
-    def __init__(self, identifier, extended_name="", formula=None, in_chl=None,
-            in_chl_key=None, smiles=None, charge=None, mass=None, *args, **kw_args):
+    def __init__(self, unique_id="", name="", formula=None, kegg_id=None,
+            cas_id=None, in_chl=None, in_chl_key=None, smiles=None, charge=None,
+            mass=None, **kw_args):
         """
         Parameters
         ----------
-        identifier: str
-            A shorthand string uniquely identifying the compound among its class.
-        extended_name: str
+        unique_id: str (optional)
+            A string uniquely identifying the compound among its class.
+        name: str (optional)
             A string uniquely identifying the compound.
         formula: str (optional)
             Molecular formula as a simple string, e.g., C6H12O6.
+        kegg_id: str (optional)
+            The KEGG id of the compound.
+        cas_id: str (optional)
+            The CAS id of the compound.
         in_chl: str (optional)
             An IUPAC compliant identifier in InChl format.
         in_chl_key: int (optional)
@@ -219,10 +231,11 @@ class SBMLCompound(BasicCompound):
         mass: float (optional)
             A unit-less magnitude determining the mass of the compound.
         """
-        super(SBMLCompound, self).__init__(identifier, *args, **kw_args)
-        self.identifier = identifier
-        self.extended_name = extended_name
+        super(SBMLCompound, self).__init__(unique_id=unique_id, **kw_args)
+        self.name = name
         self.formula = formula
+        self.kegg_id = kegg_id
+        self.cas_id = cas_id
         self.in_chl = in_chl
         self.in_chl_key = in_chl_key
         self.smiles = smiles
@@ -245,42 +258,45 @@ class SBMLCompartmentCompound(BasicCompartmentCompound):
     compound instance that already exists and the compartment.
     """
 
-    def __init__(self, name="", compound=None, compartment=None, *args, **kw_args):
+    def __init__(self, unique_id="", compound=None, compartment=None, **kw_args):
         """
         Parameters
         ----------
+        unique_id: str (optional)
+            A string uniquely identifying the compartmentalized compound among
+            its class.
         compound: SBMLCompound
             An instance of SBMLCompound that is then attached to a compartment.
         compartment: SBMLCompartment
             An instance of SBMLCompartment in which the compound is located.
         """
-        super(SBMLCompartmentCompound, self).__init__(name, compound,
-                compartment, *args, **kw_args)
+        super(SBMLCompartmentCompound, self).__init__(unique_id=unique_id,
+                compound=compound, compartment=compartment, **kw_args)
 
 class SBMLReaction(BasicReaction):
     """
     A biochemical reaction as defined per SBML standard.
     """
 
-    def __init__(self, identifier, substrates, products, reversible=False,
-            extended_name="", synonyms=None, rate_constant=None,
+    def __init__(self, unique_id="", reversible=False, substrates=None,
+            products=None, name="", synonyms=None, rate_constant=None,
             lower_bound=None, upper_bound=None, objective_coefficient=None,
-            flux_value=None, reduced_cost=None, notes=False, *args, **kw_args):
+            flux_value=None, reduced_cost=None, notes=None, **kw_args):
         """
         Parameters
         ----------
-        identifier: str
-            A shorthand string uniquely identifying the reaction among its class.
-        substrates: dict
+        unique_id: str (optional)
+            A string uniquely identifying the reaction among its class.
+        substrates: dict (optional)
             A map from the reaction educts to the aboslute value of their
             stoichiometric factors in the reaction.
-        products: dict
+        products: dict (optional)
             A map from the reaction products to the aboslute value of their
             stoichiometric factors in the reaction.
         reversible: bool (optional)
             Whether this reaction is known to occur in both directions in an
             organism.
-        extended_name: str
+        name: str (optional)
             A string uniquely identifying the reaction.
         synonyms: str (optional)
             Additional identifiers of the reaction.
@@ -289,19 +305,18 @@ class SBMLReaction(BasicReaction):
         notes: dict (optional)
             Additional notes, for example, from parsing an SBML model.
         """
-        super(SBMLReaction, self).__init__(identifier, reversible, *args,
+        super(SBMLReaction, self).__init__(unique_id=unique_id, reversible=reversible,
                 **kw_args)
-        self.identifier = identifier
-        self.extended_name = extended_name
-        self.substrates = substrates
-        self.products = products
+        self.name = name
+        self.substrates = misc.convert(substrates, dict, dict())
+        self.products = misc.convert(products, dict, dict())
         self.reversible = bool(reversible)
-        self.synonyms = synonyms
+        self.synonyms = misc.convert(synonyms, list, list())
         self.rate_constant = misc.convert(rate_constant, float)
-        self.lower_bound = lower_bound
-        self.upper_bound = upper_bound
+        self.lower_bound = misc.convert(lower_bound, float)
+        self.upper_bound = misc.convert(upper_bound, float)
         self.objective_coefficient = misc.convert(objective_coefficient, float)
-        self.flux_value = flux_value
+        self.flux_value = misc.convert(flux_value, float)
         self.notes = misc.convert(notes, dict, dict())
 #        self._consistency_check()
 
@@ -332,7 +347,7 @@ class SBMLReaction(BasicReaction):
                 yield str(cmpd)
                 if not (cmpd == compounds[-1]):
                     yield "+"
-        rxn = ["%s:" % str(self.identifier)]
+        rxn = ["%s:" % str(self.unique_id)]
         rxn.extend([e for e in util(self.substrates.keys())])
         if self.reversible:
             rxn.append("<=>")
@@ -409,7 +424,7 @@ class SBMLReaction(BasicReaction):
                     self.substrates.iteritems()) == sum(cmpd.mass * coeff
                     for (cmpd, coeff) in self.products.iteritems()),\
                     "There is a mass imbalance in reaction '{0}'".format(\
-                    self.identifier)
+                    self.unique_id)
         # charge balancing
         if all(cmpd.charge for cmpd in self.substrates.keys() +
                 self.products.keys()):
@@ -417,7 +432,7 @@ class SBMLReaction(BasicReaction):
                     self.substrates.iteritems()) == sum(cmpd.charge * coeff
                     for (cmpd, coeff) in self.products.iteritems()),\
                     "There is a charge imbalance in reaction '{0}'".format(\
-                    self.identifier)
+                    self.unique_id)
 
     def is_substrate(self, compound):
         """

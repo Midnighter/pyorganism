@@ -27,13 +27,10 @@ from ..base import UniqueBase
 def test_components():
     foo = UniqueBase("foo")
     nt.assert_equal(foo, UniqueBase("foo"))
-    args = tuple([None] * 10)
-    bar = UniqueBase("bar", *args)
-    nt.assert_equal(bar, UniqueBase("bar"))
-    kw_args = {"a": 1, "b": 2, "c": 3}
-    snafu = UniqueBase("snafu", *args, **kw_args)
-    nt.assert_equal(snafu, UniqueBase("snafu"))
-    objs = [foo, bar, snafu, UniqueBase()]
+    kw_args = {"name": "bar"}
+    bar = UniqueBase(**kw_args)
+    nt.assert_equal(bar, UniqueBase(**kw_args))
+    objs = [foo, bar, UniqueBase()]
     check.check__str__(objs)
     check.check__unicode__(objs)
     check.check__repr__(objs)

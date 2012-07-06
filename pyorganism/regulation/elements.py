@@ -33,19 +33,18 @@ LOGGER.addHandler(misc.NullHandler())
 
 class Gene(UniqueBase):
 
-    def __init__(self, name="", eck12="", bnumber="", synonyms=None,
-            position=None, strand=None, product=None,
-            *args, **kw_args):
-        super(Gene, self).__init__(name=name, *args, **kw_args)
+    def __init__(self, unique_id="", eck12="", bnumber="", synonyms=None,
+            position=None, strand=None, product=None, **kw_args):
+        super(Gene, self).__init__(unique_id=unique_id, **kw_args)
         self.eck12 = eck12
         self.bnumber = bnumber
         self.synonyms = misc.convert(synonyms, list, list())
-        self.position = position
+        self.position = misc.convert(position, int)
         self.strand = strand
         self.product = product
 
     def __contains__(self, element):
-        if element == self.name:
+        if element == self.unique_id:
             return True
         elif element == self.bnumber:
             return True
@@ -59,14 +58,14 @@ class Gene(UniqueBase):
 
 class TranscriptionalRegulator(UniqueBase):
 
-    def __init__(self, name="", synonyms=None, go=None, *args, **kw_args):
-        super(TranscriptionalRegulator, self).__init__(name=name, *args,
+    def __init__(self, unique_id="", synonyms=None, go=None, **kw_args):
+        super(TranscriptionalRegulator, self).__init__(unique_id=unique_id,
                 **kw_args)
         self.synonyms = misc.convert(synonyms, list, list())
         self.go = go
 
     def __contains__(self, element):
-        if element == self.name:
+        if element == self.unique_id:
             return True
         elif element in self.synonyms:
             return True

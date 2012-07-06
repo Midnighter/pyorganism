@@ -103,51 +103,118 @@ def find_organism(self, organism, wsdl="http://soap.genome.jp/KEGG.wsdl",
     organism = mobj.group(1)
     return organism
 
-    def read_kegg_information(self, organism,
-            wsdl="http://soap.genome.jp/KEGG.wsdl", num_threads=20):
-        """
-        A threaded method that extracts reactions information from KEGG
-        pathways.
+def read_reaction_information(organism, wsdl="http://soap.genome.jp/KEGG.wsdl",
+        num_threads=20):
+    """
+    A threaded method that extracts reactions information from KEGG
+    pathways.
 
-        Compound-reaction pairs are added as links to the network. A
-        link attribute "rpair" contains the reaction pair information "main",
-        "trans", or "leave".
+    Parameters
+    ----------
+    organism: str
+        KEGG Organism identifier consisting of 3-4 lower case letters.
+    wsdl: str (optional)
+        URL of the KEGG WSDL server.
+    num_threads: int (optional)
+        The number of desired simultaneous connections to the KEGG WSDL
+        server.
 
-        Parameters
-        ----------
-        organism: str
-            KEGG Organism identifier consisting of 3-4 lower case letters.
-        wsdl: str (optional)
-            URL of the KEGG WSDL server.
-        num_threads: int (optional)
-            The number of desired simultaneous connections to the KEGG WSDL
-            server.
+    Notes
+    -----
+    Requires SOAPpy and an active internet connection.
+    """
+    from .wsdl import ThreadedWSDLFetcher
+    from Queue import Queue
+    # establish connection to DBGET server
+    serv = SOAPpy.WSDL.Proxy(wsdl)
+    pathways = serv.list_pathways(organism)
+    LOGGER.info("KEGG contains {0:d} pathways for the organism '{1}'.",
+            len(pathways), organism)
+    # use a threaded approach to server querying
+    tasks = Queue()
+    for i in range(num_threads):
+        thrd = ThreadedWSDLFetcher(tasks, wsdl)
+        thrd.start()
+    reactions = list()
+    for path in pathways:
+        tasks.put(("get_reactions_by_pathway", path.entry_id, reactions))
+    tasks.join()
+    reactions = set([rxn for objs in reactions for rxn in objs])
+    LOGGER.info("The pathways contain %d unique reactions", len(reactions))
+    descriptions = list()
+    for rxn in reactions:
+        tasks.put(("bget", rxn, descriptions))
+    tasks.join()
+    return descriptions
 
-        Notes
-        -----
-        Requires SOAPpy and an active internet connection.
-        """
-        from .wsdl import ThreadedWSDLFetcher
-        from Queue import Queue
-        # establish connection to DBGET server
-        serv = SOAPpy.WSDL.Proxy(wsdl)
-        pathways = serv.list_pathways(organism)
-        LOGGER.info("KEGG contains {0:d} pathways for the organism '{1}'.",
-                len(pathways), organism)
-        # use a threaded approach to server querying
-        tasks = Queue()
-        for i in range(num_threads):
-            thrd = ThreadedWSDLFetcher(tasks, wsdl)
-            thrd.start()
-        reactions = list()
-        for path in pathways:
-            tasks.put(("get_reactions_by_pathway", path.entry_id, reactions))
-        tasks.join()
-        reactions = set([rxn for objs in reactions for rxn in objs])
-        LOGGER.info("The pathways contain %d unique reactions", len(reactions))
-        descriptions = list()
-        for rxn in reactions:
-            tasks.put(("bget", rxn, descriptions))
-        tasks.join()
-        return descriptions
+def read_compound_information(compounds, wsdl="http://soap.genome.jp/KEGG.wsdl",
+        num_threads=20):
+    """
+    A threaded method that extracts compound information from KEGG
+    pathways.
+
+    Parameters
+    ----------
+    compounds: iterable
+        KEGG compound identifiers.
+    wsdl: str (optional)
+        URL of the KEGG WSDL server.
+    num_threads: int (optional)
+        The number of desired simultaneous connections to the KEGG WSDL
+        server.
+
+    Notes
+    -----
+    Requires SOAPpy and an active internet connection.
+    """
+    from .wsdl import ThreadedWSDLFetcher
+    from Queue import Queue
+    tasks = Queue()
+    for i in range(num_threads):
+        thrd = ThreadedWSDLFetcher(tasks, wsdl)
+        thrd.start()
+    descriptions = list()
+    for cmpd in compounds:
+        tasks.put(("bget", "cpd:" + cmpd, descriptions))
+    tasks.join()
+    return descriptions
+
+def parse_reaction_descriptions(descriptions):
+    attr = re.compile(r"[A-Z]", re.UNICODE)
+    contd = re.compile(r"\S", re.UNICODE)
+    reactions = dict()
+    for info in descriptions:
+        rxn = dict()
+        info = info.split("\n")
+        name = info[0].split()[1]
+        prop = None
+        strn = list()
+        for line in info[1:]:
+            if attr.match(line):
+                if prop:
+                    rxn[prop] = "\n".join(strn)
+                strn = list()
+                tmp = line.split()
+                prop = tmp[0].lower()
+                strn.append(" ".join(tmp[1:]))
+            elif contd.match(line):
+                line = line.strip()
+                strn.append(line)
+            elif line.startswith("///"):
+                break
+            else:
+                LOGGER.warn("malformed KEGG reaction description:\n{0}",
+                        "\n".join(info))
+        rpairs = rxn.get("rpair")
+        if not rpairs is None:
+            try:
+                rpair = dict()
+                for line in rpairs.split("\n"):
+                    line = line.split()
+                    rpair[line[2]] = line[1].split("_")
+            except IndexError:
+                print rpairs
+            rxn["rpair"] = rpair
+        reactions[name] = rxn
+    return reactions
 

@@ -45,6 +45,15 @@ class OptionsManager(Singleton):
 
     def __init__(self, *args, **kw_args):
         super(OptionsManager, self).__init__(*args, **kw_args)
+        self.compound_prefix = "M_"
+        self.reaction_prefix = "R_"
+        self.reversible_suffix = "_Rev"
+        self.compartments = {"_c": "Cytosol", "_e": "Extra_organism",
+                "_b": "Exchange", "_p": "Periplasm"}
+        self.lp_solver = "gurobi"
+        self.lower_bound = 0.0
+        self.upper_bound = 1000.0
+        self.numeric_threshold = 1E-09
         self.num_proc = 1
 
 def load_module(module, name=False, url=False):
@@ -67,7 +76,7 @@ def load_module(module, name=False, url=False):
 
 def convert(item, cls, default=None):
     """
-    Convert the item to the specified type unless item is `None`.
+    Convert an argument to a new type unless it is `None`.
     """
     return default if item is None else cls(item)
 

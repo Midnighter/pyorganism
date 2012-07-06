@@ -43,7 +43,7 @@ class MetabolicSystem(object):
     """
 
     def __init__(self, name="", reactions=None, compartments=None,
-            compounds=None, *args, **kw_args):
+            compounds=None, **kw_args):
         """
         Parameters
         ----------
@@ -59,7 +59,7 @@ class MetabolicSystem(object):
             Additional compounds not contained in the reactions that should be
             added to the system.
         """
-        super(MetabolicSystem, self).__init__()
+        super(MetabolicSystem, self).__init__(**kw_args)
         self.name = name
         self.compartments = misc.convert(compartments, set, set())
         self.reactions = misc.convert(reactions, set, set())
@@ -294,44 +294,42 @@ class MetabolicSystem(object):
         """
         from .networks import MetabolicNetwork
         net = MetabolicNetwork(name=self.name)
+        for cmpd in self.compounds:
+            net.add_node(cmpd)
         for rxn in self.reactions:
+            net.add_node(rxn)
             for cmpd in rxn.substrates:
                 if stoichiometric_coefficients:
-                    net.add_edge(BasicCompound(cmpd.name),
-                            BasicReaction(rxn.name, rxn.reversible),
+                    net.add_edge(cmpd, rxn,
                             stoichiometry=abs(rxn.stoichiometric_coefficient(cmpd)))
                 else:
-                    net.add_edge(BasicCompound(cmpd.name),
-                            BasicReaction(rxn.name, rxn.reversible))
+                    net.add_edge(cmpd, rxn)
             for cmpd in rxn.products:
                 if stoichiometric_coefficients:
-                    net.add_edge(BasicReaction(rxn.name, rxn.reversible),
-                            BasicCompound(cmpd.name),
+                    net.add_edge(rxn, cmpd,
                             stoichiometry=abs(rxn.stoichiometric_coefficient(cmpd)))
                 else:
-                    net.add_edge(BasicReaction(rxn.name, rxn.reversible),
-                            BasicCompound(cmpd.name))
-            if disjoint_reversible and rxn.reversible:
-                for cmpd in rxn.substrates:
-                    if stoichiometric_coefficients:
-                        net.add_edge(BasicReaction(
-                                rxn.name + OPTIONS.reversible_suffix,
-                                rxn.reversible), BasicCompound(cmpd.name),
-                                stoichiometry=abs(rxn.stoichiometric_coefficient(cmpd)))
-                    else:
-                        net.add_edge(BasicReaction(
-                                rxn.name + OPTIONS.reversible_suffix,
-                                rxn.reversible), BasicCompound(cmpd.name))
-                for cmpd in rxn.products:
-                    if stoichiometric_coefficients:
-                        net.add_edge(BasicCompound(cmpd.name),
-                                BasicReaction(
-                                        rxn.name + OPTIONS.reversible_suffix,
-                                        rxn.reversible),
-                                        stoichiometry=abs(rxn.stoichiometric_coefficient(cmpd)))
-                    else:
-                        net.add_edge(BasicCompound(cmpd.name),
-                                BasicReaction(rxn.name, rxn.reversible))
+                    net.add_edge(rxn, cmpd)
+#            if disjoint_reversible and rxn.reversible:
+#                for cmpd in rxn.substrates:
+#                    if stoichiometric_coefficients:
+#                        net.add_edge(BasicReaction(
+#                                rxn.name + OPTIONS.reversible_suffix,
+#                                rxn.reversible), cmpd,
+#                                stoichiometry=abs(rxn.stoichiometric_coefficient(cmpd)))
+#                    else:
+#                        net.add_edge(BasicReaction(
+#                                rxn.name + OPTIONS.reversible_suffix,
+#                                rxn.reversible), cmpd)
+#                for cmpd in rxn.products:
+#                    if stoichiometric_coefficients:
+#                        net.add_edge(cmpd,
+#                                BasicReaction(
+#                                        rxn.name + OPTIONS.reversible_suffix,
+#                                        rxn.reversible),
+#                                        stoichiometry=abs(rxn.stoichiometric_coefficient(cmpd)))
+#                    else:
+#                        net.add_edge(cmpd, rxn)
         return net
 
 

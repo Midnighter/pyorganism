@@ -43,11 +43,11 @@ class SBMLParser(Singleton):
 
     _sbml = False
 
-    def __init__(self):
+    def __init__(self, **kw_args):
         if not self.__class__._sbml:
             self.__class__._sbml = misc.load_module("libsbml", "SBML",
                     "http://sbml.org/Software/libSBML")
-        super(SBMLParser, self).__init__()
+        super(SBMLParser, self).__init__(**kw_args)
 
     def from_string(self, xml):
         """
@@ -76,7 +76,8 @@ class SBMLParser(Singleton):
         for (suff, name) in OPTIONS.compartments.iteritems():
             if name == compartment.getId():
                 suffix = suff
-        return pymet.SBMLCompartment(name=compartment.getId(),
+        return pymet.SBMLCompartment(unique_id=compartment.getId(),
+                name=compartment.getName(),
                 outside=compartment.getOutside(),
                 constant=compartment.getConstant(),
                 spatial_dimensions=compartment.getSpatialDimensions(),
@@ -92,7 +93,7 @@ class SBMLParser(Singleton):
             if identifier.endswith(suffix):
                 identifier = identifier[:-len(suffix)]
                 compartment = pymet.SBMLCompartment(
-                        OPTIONS.compartments[suffix], suffix=suffix)
+                        unique_id=OPTIONS.compartments[suffix], suffix=suffix)
                 break
         return (identifier, compartment)
 
@@ -103,15 +104,16 @@ class SBMLParser(Singleton):
         @todo: Check for meta information and parse if available
         """
         (identifier, comp) = self._strip_species_id(compound.getId())
-        if not comp:
+        if comp is None:
             comp = pymet.SBMLCompartment(compound.getCompartment())
         name = compound.getName()
-        cmpd = pymet.SBMLCompound(identifier, extended_name=name,
+        cmpd = pymet.SBMLCompound(unique_id=identifier, name=name,
                 charge=compound.getCharge())
         if not comp:
             return cmpd
         else:
-            return pymet.SBMLCompartmentCompound(cmpd, comp)
+            return pymet.SBMLCompartmentCompound(unique_id=identifier + comp.suffix,
+                    compound=cmpd, compartment=comp)
 
     def _strip_reaction_id(self, name):
         identifier = name
@@ -150,7 +152,7 @@ class SBMLParser(Singleton):
                     key = item[0].strip().lower().replace(" ", "_")
                     value = item[1].strip()
                     info[key] = value
-        return pymet.SBMLReaction(identifier, substrates, products,
-                reversible=reaction.getReversible(), extended_name=name,
-                notes=info, **params)
+        return pymet.SBMLReaction(unique_id=identifier, substrates=substrates,
+                products=products, reversible=reaction.getReversible(),
+                name=name, notes=info, **params)
 

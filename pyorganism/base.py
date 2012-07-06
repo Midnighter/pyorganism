@@ -43,39 +43,37 @@ class MetaBase(type):
     creating each class with a different empty dict.
 
     Overriding the __call__ method ensures that existing instances (identified
-    by the name) are not re-initialised with different arguments.
+    by the unique_id) are not re-initialised with different arguments.
     """
     def __new__(mcls, cls_name, cls_bases, cls_dct):
         """
         Adds a unique `dict` to each class.
         """
-        memory = cls_dct.get("_memory")
-        if memory is None:
-            cls_dct["_memory"] = dict()
+        cls_dct["_memory"] = dict()
         return super(MetaBase, mcls).__new__(mcls, cls_name, cls_bases, cls_dct)
 
-    def __call__(cls, name="", *args, **kw_args):
+    def __call__(cls, unique_id="", *args, **kw_args):
         """
-        Returns an existing instance identified by `name` or calls for a new
+        Returns an existing instance identified by `unique_id` or calls for a new
         one.
         """
-        memory = cls._memory.get(name)
+        memory = cls._memory.get(unique_id)
         if memory is None:
             cls._counter += 1
-            return super(type(cls), cls).__call__(name, *args, **kw_args)
+            return super(type(cls), cls).__call__(unique_id, *args, **kw_args)
         else:
             return memory
 
 
 class UniqueBase(object):
     """
-    Base class for all objects that should be unique based on a name.
+    Base class for all objects that should be unique based on an identifier.
 
     Notes
     -----
     Each instance of this class or its subclasses is uniquely identified and
-    stored by its name.  Instantiating the same class with the same name will
-    simply yield the original instance.
+    stored by its identifier.  Instantiating the same class with the same
+    identifier will simply yield the original instance.
 
     Since mutable class attributes are shared among the class and its subclasses
     there are two things to keep in mind when subclassing:
@@ -83,8 +81,8 @@ class UniqueBase(object):
         the provided metaclass or by giving each subclass its own attribute of
         `_memory = dict()`.
         2. The metaclass approach is more elegant since overriding the class'
-        `__call__` method avoids re-initialising and existing instance with
-        different arguments. It avoids having to put `if name in _memory:
+        `__call__` method avoids re-initialising any existing instance with
+        different arguments. It avoids having to put `if unique_id in _memory:
         return` into each subclasses' `__init__` method.
 
     The class attribute `_counter` is immutable and thus the state is not shared
@@ -105,28 +103,28 @@ class UniqueBase(object):
     # immutable class attribute is subclass-specific automatically
     _counter = 0
 
-    def __init__(self, name="", *args, **kw_args):
+    def __init__(self, unique_id="", **kw_args):
         """
         Parameters
         ----------
-        name: str (optional)
+        unique_id: str (optional)
             A string uniquely identifying one component among its class.
         """
-        super(UniqueBase, self).__init__()
+        super(UniqueBase, self).__init__(**kw_args)
         # reading class attribute _counter
         self._index = self._counter
-        if name:
-            self.name = name
+        if unique_id:
+            self.unique_id = unique_id
         else:
-            self.name = u"{0}_{1:d}".format(self.__class__.__name__, self._index)
+            self.unique_id = u"{0}_{1:d}".format(self.__class__.__name__, self._index)
         # assigning to class attribute _memory
-        self.__class__._memory[self.name] = self
+        self.__class__._memory[self.unique_id] = self
 
     def __str__(self):
-        return str(self.name)
+        return str(self.unique_id)
 
     def __unicode__(self):
-        return unicode(self.name)
+        return unicode(self.unique_id)
 
     def __repr__(self):
         return u"<{0}.{1} {2:d}>".format(self.__module__, self.__class__.__name__, id(self))

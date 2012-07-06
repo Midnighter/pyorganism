@@ -28,7 +28,6 @@ import itertools
 import networkx as nx
 
 from . import elements as pymet
-from ..errors import PyOrganismError
 from .. import miscellaneous as misc
 
 
@@ -45,7 +44,7 @@ class MetabolicNetwork(nx.DiGraph):
     def __init__(self, data=None, name="", **kw_args):
         """
         """
-        super(MetabolicNetwork, self).__init__(data, name, **kw_args)
+        super(MetabolicNetwork, self).__init__(data=data, name=name, **kw_args)
         self.reactions = set()
         self.compounds = set()
 
@@ -69,19 +68,22 @@ class MetabolicNetwork(nx.DiGraph):
     def remove_edge(self, u, v):
         """
         """
-        if isinstance(u, pymet.BasicReaction):
-            self.reactions.remove(u)
-        elif isinstance(u, pymet.BasicCompound):
-            self.compounds.remove(u)
-        else:
-            raise TypeError("unidentified metabolic type '{0}'".format(type(u)))
-        if isinstance(v, pymet.BasicReaction):
-            self.reactions.remove(v)
-        elif isinstance(v, pymet.BasicCompound):
-            self.compounds.remove(v)
-        else:
-            raise TypeError("unidentified metabolic type '{0}'".format(type(v)))
         super(MetabolicNetwork, self).remove_edge(u, v)
+        # removing a link does not necessitate removing the involved nodes
+#        if u not in self:
+#            if isinstance(u, pymet.BasicReaction):
+#                self.reactions.remove(u)
+#            elif isinstance(u, pymet.BasicCompound):
+#                self.compounds.remove(u)
+#            else:
+#                raise TypeError("unidentified metabolic type '{0}'".format(type(u)))
+#        if v not in self:
+#            if isinstance(v, pymet.BasicReaction):
+#                self.reactions.remove(v)
+#            elif isinstance(v, pymet.BasicCompound):
+#                self.compounds.remove(v)
+#            else:
+#                raise TypeError("unidentified metabolic type '{0}'".format(type(v)))
 
     def add_node(self, n, **kw_args):
         """
@@ -130,102 +132,6 @@ class MetabolicNetwork(nx.DiGraph):
             for cmpd in self.successors_iter(rxn):
                 new_edge(rxn, cmpd)
         return template
-
-    def read_edgelist(self, path, delimiter=None, comments="#"):
-        """
-        """
-
-        def build_node(name):
-            if name.startswith(OPTIONS.compound_prefix):
-                compound = pymet.BasicCompound(name[len(OPTIONS.compound_prefix):])
-                return compound
-            elif name.startswith(OPTIONS.reaction_prefix):
-                if name.endswith(OPTIONS.reversible_suffix):
-                    reaction = pymet.BasicReaction(name[len(OPTIONS.reaction_prefix):
-                            -len(OPTIONS.reversible_suffix)], reversible=True)
-                    reaction.reversible = True
-                else:
-                    reaction = pymet.BasicReaction(name[len(OPTIONS.reaction_prefix):])
-                return reaction
-            else:
-                raise PyOrganismError("unidentified metabolic object '{0}'".format(name))
-
-        OPTIONS = misc.OptionsManager.get_instance()
-        with open(path, "r") as file_handle:
-            lines = [line.strip() for line in file_handle]
-        for line in lines:
-            if line.startswith(comments) or line == "":
-                continue
-            tmp = line.split(delimiter)
-            u = build_node(tmp[0])
-            if isinstance(u, pymet.BasicReaction) and\
-                    tmp[0].endswith(OPTIONS.reversible_suffix):
-                continue
-            v = build_node(tmp[1])
-            if isinstance(v, pymet.BasicReaction) and\
-                    tmp[1].endswith(OPTIONS.reversible_suffix):
-                continue
-            self.add_edge(u, v)
-
-    def write_edgelist(self, path, distinct=True, delimiter="\t", comments="#"):
-        """
-        """
-        OPTIONS = misc.OptionsManager.get_instance()
-        lines = list()
-        for rxn in self.reactions:
-            rxn_name = OPTIONS.reaction_prefix + rxn.name
-            if rxn.reversible:
-                if distinct:
-                    rev_name = "%s%s%s" % (OPTIONS.reaction_prefix, rxn.name,
-                            OPTIONS.reversible_suffix)
-                else:
-                    rev_name = rxn_name
-                for cmpd in self.successors_iter(rxn):
-                    lines.append("%s%s%s\n" % (rxn_name, delimiter, OPTIONS.compound_prefix
-                            + cmpd.name))
-                    lines.append("%s%s%s\n" % (OPTIONS.compound_prefix + cmpd.name,
-                            delimiter, rev_name))
-                for cmpd in self.predecessors_iter(rxn):
-                    lines.append("%s%s%s\n" % (OPTIONS.compound_prefix + cmpd.name,
-                            delimiter, rxn_name))
-                    lines.append("%s%s%s\n" % (rev_name, delimiter, OPTIONS.compound_prefix
-                            + cmpd.name))
-            else:
-                for cmpd in self.successors_iter(rxn):
-                    lines.append("%s%s%s\n" % (rxn_name, delimiter, OPTIONS.compound_prefix
-                            + cmpd.name))
-                for cmpd in self.predecessors_iter(rxn):
-                    lines.append("%s%s%s\n" % (OPTIONS.compound_prefix + cmpd.name,
-                            delimiter, rxn_name))
-        with open(path, "w") as file_handle:
-            file_handle.writelines(lines)
-
-    def read_kegg_reactions(self, descriptions):
-        pattern = re.compile(r"\S")
-        for info in descriptions:
-            info = info.split("\n")
-            name = info[0].split()[1]
-            begin = -1
-            stop = 0
-            for (i, line) in enumerate(info):
-                if line.startswith("RPAIR"):
-                    begin = i
-                    continue
-                if begin > -1 and pattern.match(line):
-                    stop = i
-                    break
-            if begin < 0:
-                LOGGER.warn("No reaction pair information for '%s'.", name)
-                continue
-            pairs = [info[begin].split()[1:]]
-            for i in range(begin + 1, stop):
-                pairs.append(info[i].split())
-            LOGGER.debug(str(pairs))
-            reac = pymet.BasicReaction(name, reversible=True)
-            for line in pairs:
-                (u, v) = line[1].split("_")
-                self.add_edge(pymet.BasicCompound(u), reac, rpair=line[2])
-                self.add_edge(reac, pymet.BasicCompound(v), rpair=line[2])
 
     def to_compound_centric(self):
         """
@@ -350,7 +256,7 @@ class CompoundCentricNetwork(nx.DiGraph):
     def __init__(self, data=None, name="", **kw_args):
         """
         """
-        super(CompoundCentricNetwork, self).__init__(data, name, **kw_args)
+        super(CompoundCentricNetwork, self).__init__(data=data, name=name, **kw_args)
 
     def draw(self, filename, output_format="pdf", layout_program="fdp", layout_args=""):
         import pygraphviz as pgv
@@ -376,7 +282,7 @@ class CompoundCentricMultiNetwork(nx.MultiDiGraph):
     def __init__(self, data=None, name="", **kw_args):
         """
         """
-        super(CompoundCentricMultiNetwork, self).__init__(data, name, **kw_args)
+        super(CompoundCentricMultiNetwork, self).__init__(data=data, name=name, **kw_args)
 
     def to_directed(self):
         """
@@ -411,7 +317,7 @@ class ReactionCentricNetwork(nx.DiGraph):
     def __init__(self, data=None, name="", **kw_args):
         """
         """
-        super(ReactionCentricNetwork, self).__init__(data, name, **kw_args)
+        super(ReactionCentricNetwork, self).__init__(data=data, name=name, **kw_args)
 
     def draw(self, filename, output_format="pdf", layout_program="fdp", layout_args=""):
         """
@@ -439,7 +345,7 @@ class ReactionCentricMultiNetwork(nx.MultiDiGraph):
     def __init__(self, data=None, name="", **kw_args):
         """
         """
-        super(ReactionCentricMultiNetwork, self).__init__(data, name, **kw_args)
+        super(ReactionCentricMultiNetwork, self).__init__(data=data, name=name, **kw_args)
 
     def to_directed(self):
         """

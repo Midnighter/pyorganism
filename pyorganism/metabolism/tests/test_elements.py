@@ -46,16 +46,13 @@ def test_elements():
 
 def check_class(cls):
     names = ["foo", "bar", None]
-    args = tuple([None] * 20)
-    kw_args = {"a": 1, "b": 2, "c": 3}
-    instances = [cls(name, *args) for name in names]
+    kw_args = {}
+    instances = [cls(name) for name in names]
     for obj in instances:
         name = str(obj)
         cls(name)
-        cls(name, *args)
-        cls(name, *args, **kw_args)
-    for name in ["snafu", "real"]:
-        cls(name, *args, **kw_args)
+        kw_args["name"] = name
+        cls(**kw_args)
     return instances
 
 #def check__str__(instances, names):

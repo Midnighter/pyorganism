@@ -61,6 +61,9 @@ class TRN(nx.MultiDiGraph):
     >>> trn.add_edge("Ada", "ada", effect=0)
     """
 
+    def __init__(self, data=None, name="", **kw_args):
+        super(TRN, self).__init__(data=data, name=name, **kw_args)
+
     def read_regulondb(self, tf2gene, name2gene=None, sep="\t",
             wsdl="http://regulondb.ccg.unam.mx/webservices/NetWork.jws?wsdl"):
         """
@@ -211,7 +214,7 @@ class CouplonGenerator(nx.DiGraph):
         -----
         `generate_couplon`
         """
-        nx.DiGraph.__init__(self, data=trn, name=name, **kw_args)
+        super(CouplonGenerator, self).__init__(data=trn, name=name, **kw_args)
 
     def generate_couplon(self, nap, sigma_factor):
         """
@@ -357,7 +360,7 @@ class GPNGenerator(object):
     --------
     """
 
-    def __init__(self):
+    def __init__(self, **kw_args):
         """
         Creates a GPNGenerator object.
 
@@ -369,7 +372,7 @@ class GPNGenerator(object):
         -----
         `generate_gpn`
         """
-        object.__init__(self)
+        super(GPNGenerator, self).__init__(**kw_args)
         self.i2name = None
         self.distances = None
 
