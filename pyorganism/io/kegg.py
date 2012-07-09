@@ -25,6 +25,7 @@ import logging
 import re
 
 from .. import miscellaneous as misc
+from collections import defaultdict
 
 SOAPpy = misc.load_module("SOAPpy", url="http://pywebsvcs.sourceforge.net/")
 
@@ -181,7 +182,7 @@ def read_compound_information(compounds, wsdl="http://soap.genome.jp/KEGG.wsdl",
 
 def parse_reaction_descriptions(descriptions):
     attr = re.compile(r"[A-Z]", re.UNICODE)
-    contd = re.compile(r"\S", re.UNICODE)
+    contd = re.compile(r"\s", re.UNICODE)
     reactions = dict()
     for info in descriptions:
         rxn = dict()
@@ -201,6 +202,8 @@ def parse_reaction_descriptions(descriptions):
                 line = line.strip()
                 strn.append(line)
             elif line.startswith("///"):
+                if prop:
+                    rxn[prop] = "\n".join(strn)
                 break
             else:
                 LOGGER.warn("malformed KEGG reaction description:\n{0}",
@@ -208,13 +211,13 @@ def parse_reaction_descriptions(descriptions):
         rpairs = rxn.get("rpair")
         if not rpairs is None:
             try:
-                rpair = dict()
+                rpair = defaultdict(list)
                 for line in rpairs.split("\n"):
                     line = line.split()
-                    rpair[line[2]] = line[1].split("_")
+                    rpair[line[2]].extend(line[1].split("_"))
             except IndexError:
                 print rpairs
-            rxn["rpair"] = rpair
+            rxn["rpair"] = dict(rpair)
         reactions[name] = rxn
     return reactions
 

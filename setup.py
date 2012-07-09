@@ -23,15 +23,16 @@ from distutils.core import setup
 
 setup(
     name = "pyorganism",
-    version = "0.0",
+    version = "0.1",
     description = "analyse organisational principles in living organisms",
     author = "Moritz Emanuel Beber",
     author_email = "moritz (dot) beber (at) googlemail (dot) com",
     url = "http://github.com/Midnighter/pyorganism",
     packages = ["pyorganism",
+            "pyorganism.io",
             "pyorganism.metabolism",
             "pyorganism.regulation",
             "pyorganism.tests"],
-    package_data = {"pyorganism": ["data/*.xml", "data/*.txt", "data/*.tsv"]},
+#    package_data = {"pyorganism": ["data/*.xml", "data/*.txt", "data/*.tsv"]},
     )
 
