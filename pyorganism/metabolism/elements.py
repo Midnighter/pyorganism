@@ -146,7 +146,10 @@ class BasicCompartmentCompound(BasicCompound):
             self.compartment.register(self.compound)
 
     def __getattr__(self, attr):
-        return self.compound.__getattribute__(attr)
+        if "compound" in self.__dict__:
+            return self.compound.__getattribute__(attr)
+        raise AttributeError("'{0}' object has no attribute '{1}'".format(
+            type(self).__name__, attr))
 
 
 class SBMLCompartment(BasicCompartment):
