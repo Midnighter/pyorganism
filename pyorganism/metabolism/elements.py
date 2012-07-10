@@ -146,10 +146,18 @@ class BasicCompartmentCompound(BasicCompound):
             self.compartment.register(self.compound)
 
     def __getattr__(self, attr):
+        """
+        Defer unsuccessful attribute access to the compound instance.
+
+        Note
+        ----
+        The if-clause and raised AttributeError are a safeguard for, e.g.,
+        unpickling this object and infinite recursion.
+        """
         if "compound" in self.__dict__:
             return self.compound.__getattribute__(attr)
         raise AttributeError("'{0}' object has no attribute '{1}'".format(
-            type(self).__name__, attr))
+            self.__class__.__name__, attr))
 
 
 class SBMLCompartment(BasicCompartment):
