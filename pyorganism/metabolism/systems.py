@@ -27,7 +27,7 @@ import numpy
 
 from .. import miscellaneous as misc
 from ..errors import PyOrganismError
-from .elements import BasicCompartment, BasicCompound, BasicReaction
+from . import elements as pymet
 
 
 LOGGER = logging.getLogger(__name__)
@@ -82,11 +82,11 @@ class MetabolicSystem(object):
         raise NotImplementedError
 
     def __contains__(self, element):
-        if isinstance(element, BasicReaction):
+        if isinstance(element, pymet.BasicReaction):
             return element in self.reactions
-        elif isinstance(element, BasicCompound):
+        elif isinstance(element, pymet.BasicCompound):
             return element in self.reactions
-        elif isinstance(element, BasicCompartment):
+        elif isinstance(element, pymet.BasicCompartment):
             return element in self.compartments
         else:
             raise PyOrganismError("unrecognised metabolic component '{0}'", element)
@@ -112,14 +112,14 @@ class MetabolicSystem(object):
         element:
             A child instance of BasicMetabolicComponent.
         """
-        if isinstance(element, BasicReaction):
+        if isinstance(element, pymet.BasicReaction):
             self.reactions.add(element)
             self._update_compounds_compartments(element)
             self._modified = True
-        elif isinstance(element, BasicCompound):
+        elif isinstance(element, pymet.BasicCompound):
             self.compounds.add(element)
             self._modified = True
-        elif isinstance(element, BasicCompartment):
+        elif isinstance(element, pymet.BasicCompartment):
             self.compartments.add(element)
         else:
             raise PyOrganismError("unrecognised metabolic component type '{0}'",
@@ -144,19 +144,56 @@ class MetabolicSystem(object):
         each component. This is a convenience function only.
         """
         elements = set(elements)
-        if issubclass(typeof, BasicReaction):
+        if issubclass(typeof, pymet.BasicReaction):
             self.reactions.update(elements)
             for rxn in elements:
                 self._update_compounds_compartments(rxn)
             self._modified = True
-        elif issubclass(typeof, BasicCompound):
+        elif issubclass(typeof, pymet.BasicCompound):
             self.compounds.update(elements)
             self._modified = True
-        elif issubclass(typeof, BasicCompartment):
+        elif issubclass(typeof, pymet.BasicCompartment):
             self.compartments.update(elements)
         else:
             raise PyOrganismError("unrecognised metabolic component type '{0}'",
                     typeof)
+
+    def remove_compartment(self, compartment):
+        rm = set()
+        if hasattr(compartment, "__iter__"):
+            for rxn in self.reactions:
+                if any(cmpd in cmprtmnt for cmpd in rxn.compounds_iter() for
+                        cmprtmnt in compartment):
+                    rm.add(rxn)
+            self.reactions.difference_update(rm)
+            rm = set([cmpd for cmprtmnt in compartment for cmpd in cmprtmnt])
+            self.compounds.difference_update(rm)
+            self.compartments.difference_update(set(compartment))
+        else:
+            for rxn in self.reactions:
+                if any(cmpd in compartment for cmpd in rxn.compounds_iter()):
+                    rm.add(rxn)
+            self.reactions.difference_update(rm)
+            rm = set([cmpd for cmpd in compartment])
+            self.compounds.difference_update(rm)
+            self.compartments.remove(compartment)
+
+    def decompartmentalize(self):
+        for rxn in self.reactions:
+            members = dict()
+            for (cmpd, factor) in rxn.substrates.iteritems():
+                if isinstance(cmpd, pymet.BasicCompartmentCompound):
+                    members[cmpd.compound] = factor
+                else:
+                    members[cmpd] = factor
+            rxn.substrates = members
+            members = dict()
+            for (cmpd, factor) in rxn.products.iteritems():
+                if isinstance(cmpd, pymet.BasicCompartmentCompound):
+                    members[cmpd.compound] = factor
+                else:
+                    members[cmpd] = factor
+        self.compartments = set()
 
     def _setup_transpose(self):
         """
@@ -293,7 +330,7 @@ class MetabolicSystem(object):
         Generate a network from the metabolic system.
         """
         from .networks import MetabolicNetwork
-        net = MetabolicNetwork(name=self.name)
+        net = MetabolicNetwork(name=self.name, compartments=self.compartments)
         for cmpd in self.compounds:
             net.add_node(cmpd)
         for rxn in self.reactions:
@@ -313,18 +350,18 @@ class MetabolicSystem(object):
 #            if disjoint_reversible and rxn.reversible:
 #                for cmpd in rxn.substrates:
 #                    if stoichiometric_coefficients:
-#                        net.add_edge(BasicReaction(
+#                        net.add_edge(pymet.BasicReaction(
 #                                rxn.name + OPTIONS.reversible_suffix,
 #                                rxn.reversible), cmpd,
 #                                stoichiometry=abs(rxn.stoichiometric_coefficient(cmpd)))
 #                    else:
-#                        net.add_edge(BasicReaction(
+#                        net.add_edge(pymet.BasicReaction(
 #                                rxn.name + OPTIONS.reversible_suffix,
 #                                rxn.reversible), cmpd)
 #                for cmpd in rxn.products:
 #                    if stoichiometric_coefficients:
 #                        net.add_edge(cmpd,
-#                                BasicReaction(
+#                                pymet.BasicReaction(
 #                                        rxn.name + OPTIONS.reversible_suffix,
 #                                        rxn.reversible),
 #                                        stoichiometry=abs(rxn.stoichiometric_coefficient(cmpd)))

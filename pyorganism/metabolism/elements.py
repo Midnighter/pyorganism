@@ -25,6 +25,7 @@ __all__ = ["BasicCompound", "BasicReaction", "BasicCompartment", "SBMLCompound",
 
 import logging
 import itertools
+import re
 
 from .. import miscellaneous as misc
 from ..errors import PyOrganismError
@@ -54,7 +55,7 @@ class BasicCompound(UniqueBase):
 class BasicReaction(UniqueBase):
     """
     The simplest form of representing a biochemical reaction - just its class
-    and name.
+    and name with substrates and products.
 
     Notes
     -----
@@ -64,7 +65,8 @@ class BasicReaction(UniqueBase):
     its reversibility.
     """
 
-    def __init__(self, unique_id="", reversible=False, **kw_args):
+    def __init__(self, unique_id="", reversible=False, substrates=None,
+            products=None, **kw_args):
         """
         Parameters
         ----------
@@ -72,9 +74,108 @@ class BasicReaction(UniqueBase):
             A string uniquely identifying the reaction among its class.
         reversible: bool (optional)
             Reversibility information of the reaction.
+        substrates: dict (optional)
+            A map from the reaction educts to the absolute value of their
+            stoichiometric factors in the reaction.
+        products: dict (optional)
+            A map from the reaction products to the absolute value of their
+            stoichiometric factors in the reaction.
         """
         super(BasicReaction, self).__init__(unique_id=unique_id, **kw_args)
-        self.reversible = reversible
+        self.reversible = bool(reversible)
+        self.substrates = misc.convert(substrates, dict, dict())
+        self.products = misc.convert(products, dict, dict())
+
+    def __contains__(self, compound):
+        """
+        Parameters
+        ----------
+        compound: SBMLCompound
+            A compound instance whose participation in the reaction is tested.
+        """
+        return (compound in self.substrates or compound in self.products)
+
+    def __len__(self):
+        return len(self.substrates) + len(self.products)
+
+    def is_substrate(self, compound):
+        """
+        Parameters
+        ----------
+        compound: SBMLCompound
+            A compound instance whose status as educt or product is queried.
+        """
+        return compound in self.substrates
+
+    def compounds_iter(self, coefficients=False):
+        """
+        Returns
+        -------
+        iterator:
+            An iterator over all compounds partaking in the reaction.
+        coefficients: bool (optional)
+            Specifies whether the returned iterator should contain pairs of
+            compounds with stoichiometric coefficients.
+        """
+        if coefficients:
+            educts_iter = ((cmpd, -factor) for (cmpd, factor) in
+                    self.substrates.iteritems())
+            products_iter = ((cmpd, factor) for (cmpd, factor) in
+                    self.products.iteritems())
+            return itertools.chain(educts_iter, products_iter)
+        else:
+            return itertools.chain(self.substrates.iterkeys(),
+                    self.products.iterkeys())
+
+    def stoichiometric_coefficient(self, compound):
+        """
+        Parameters
+        ----------
+        compound: SBMLCompound
+            A compound instance whose stoichiometric coefficient is sought for.
+
+        Returns
+        -------
+        float:
+            The stoichiometric coefficient of a compound in the reaction.
+            Coefficients of substrates are negative.
+
+        Exceptions
+        ----------
+        KeyError:
+            In case compound is not part of the reaction.
+        """
+        if compound in self.substrates:
+            return -self.substrates[compound]
+        elif compound in self.products:
+            return self.products[compound]
+        else:
+            raise KeyError("'{0}' is not participating in reaction"\
+                    " '{1}'".format(str(compound), str(self)))
+
+    def full_form(self):
+        """
+        Returns
+        -------
+        str:
+            A string representation of the reaction, e.g., '2 A + 4 B -> 1 C'
+            or '2 A + 4 B <=> 1 C' for a reversible reaction.
+        """
+
+        def util(compounds):
+            for cmpd in compounds:
+                yield str(abs(self.stoichiometric_coefficient(cmpd)))
+                yield str(cmpd)
+                if not (cmpd == compounds[-1]):
+                    yield "+"
+        rxn = ["%s:" % str(self.unique_id)]
+        rxn.extend([e for e in util(self.substrates.keys())])
+        if self.reversible:
+            rxn.append("<=>")
+        else:
+            rxn.append("->")
+        rxn.extend([e for e in util(self.products.keys())])
+        return " ".join(rxn)
 
 
 class BasicCompartment(UniqueBase):
@@ -97,10 +198,12 @@ class BasicCompartment(UniqueBase):
         """
         Tests for the existance of `element` in this compartment.
         """
-        if isinstance(element, BasicCompound):
-            return element in self._contained
         if isinstance(element, BasicCompartmentCompound):
             return element.compartment == self
+        elif isinstance(element, BasicCompound):
+            return element in self._contained
+        elif isinstance(element, BasicReaction):
+            return all(cmpd in self for cmpd in element.compounds_iter())
         else:
             raise PyOrganismError(u"unrecognised metabolic component '{0}'",
                     element)
@@ -203,17 +306,13 @@ class SBMLCompartment(BasicCompartment):
         self.size = size
         self.units = units
 
-    def __contains__(self, element):
-        if isinstance(element, SBMLReaction):
-            return all(cmpd in self for cmpd in element.compounds())
-        else:
-            super(SBMLCompartment, self).__contains__(element)
-
 
 class SBMLCompound(BasicCompound):
     """
     A molecular compound as defined per SBML standard.
     """
+
+    atomic_pattern = re.compile(r"([A-Z])(\d+)", re.UNICODE)
 
     def __init__(self, unique_id="", name="", formula=None, kegg_id=None,
             cas_id=None, in_chl=None, in_chl_key=None, smiles=None, charge=None,
@@ -244,7 +343,7 @@ class SBMLCompound(BasicCompound):
         """
         super(SBMLCompound, self).__init__(unique_id=unique_id, **kw_args)
         self.name = name
-        self.formula = formula
+        self._parse_formula(formula)
         self.kegg_id = kegg_id
         self.cas_id = cas_id
         self.in_chl = in_chl
@@ -257,7 +356,16 @@ class SBMLCompound(BasicCompound):
         """
         Checks for the existance of an atomic element in the compound.
         """
-        raise NotImplementedError
+        if len(self.formula) == 0:
+            LOGGER.warn("testing element against empty formula")
+        return element in self.formula
+
+    def _parse_formula(self, formula):
+        self.formula = dict()
+        if not formula:
+            return
+        for mobj in self.atomic_pattern.finditer(formula):
+            self.formula[mobj.group(1)] = int(mobj.group(2))
 
 
 class SBMLCompartmentCompound(BasicCompartmentCompound):
@@ -298,15 +406,15 @@ class SBMLReaction(BasicReaction):
         ----------
         unique_id: str (optional)
             A string uniquely identifying the reaction among its class.
-        substrates: dict (optional)
-            A map from the reaction educts to the aboslute value of their
-            stoichiometric factors in the reaction.
-        products: dict (optional)
-            A map from the reaction products to the aboslute value of their
-            stoichiometric factors in the reaction.
         reversible: bool (optional)
             Whether this reaction is known to occur in both directions in an
             organism.
+        substrates: dict (optional)
+            A map from the reaction educts to the absolute value of their
+            stoichiometric factors in the reaction.
+        products: dict (optional)
+            A map from the reaction products to the absolute value of their
+            stoichiometric factors in the reaction.
         name: str (optional)
             A string uniquely identifying the reaction.
         synonyms: str (optional)
@@ -317,11 +425,8 @@ class SBMLReaction(BasicReaction):
             Additional notes, for example, from parsing an SBML model.
         """
         super(SBMLReaction, self).__init__(unique_id=unique_id, reversible=reversible,
-                **kw_args)
+                substrates=substrates, products=products, **kw_args)
         self.name = name
-        self.substrates = misc.convert(substrates, dict, dict())
-        self.products = misc.convert(products, dict, dict())
-        self.reversible = bool(reversible)
         self.synonyms = misc.convert(synonyms, list, list())
         self.rate_constant = misc.convert(rate_constant, float)
         self.lower_bound = misc.convert(lower_bound, float)
@@ -330,88 +435,6 @@ class SBMLReaction(BasicReaction):
         self.flux_value = misc.convert(flux_value, float)
         self.notes = misc.convert(notes, dict, dict())
 #        self._consistency_check()
-
-    def __contains__(self, compound):
-        """
-        Parameters
-        ----------
-        compound: SBMLCompound
-            A compound instance whose participation in the reaction is tested.
-        """
-        return (compound in self.substrates or compound in self.products)
-
-    def __len__(self):
-        return len(self.substrates) + len(self.products)
-
-    def full_form(self):
-        """
-        Returns
-        -------
-        str:
-            A string representation of the reaction, e.g., '2 A + 4 B -> 1 C'
-            or '2 A + 4 B <=> 1 C' for a reversible reaction.
-        """
-
-        def util(compounds):
-            for cmpd in compounds:
-                yield str(abs(self.stoichiometric_coefficient(cmpd)))
-                yield str(cmpd)
-                if not (cmpd == compounds[-1]):
-                    yield "+"
-        rxn = ["%s:" % str(self.unique_id)]
-        rxn.extend([e for e in util(self.substrates.keys())])
-        if self.reversible:
-            rxn.append("<=>")
-        else:
-            rxn.append("->")
-        rxn.extend([e for e in util(self.products.keys())])
-        return " ".join(rxn)
-
-    def compounds(self, coefficients=False):
-        """
-        Returns
-        -------
-        iterator:
-            An iterator over all compounds partaking in the reaction.
-        coefficients: bool (optional)
-            Specifies whether the returned iterator should contain pairs of
-            compounds with stoichiometric coefficients.
-        """
-        if coefficients:
-            educts_iter = ((cmpd, -factor) for (cmpd, factor) in
-                    self.substrates.iteritems())
-            products_iter = ((cmpd, factor) for (cmpd, factor) in
-                    self.products.iteritems())
-            return itertools.chain(educts_iter, products_iter)
-        else:
-            return itertools.chain(self.substrates.iterkeys(),
-                    self.products.iterkeys())
-
-    def stoichiometric_coefficient(self, compound):
-        """
-        Parameters
-        ----------
-        compound: SBMLCompound
-            A compound instance whose stoichiometric coefficient is sought for.
-
-        Returns
-        -------
-        float:
-            The stoichiometric coefficient of a compound in the reaction.
-            Coefficients of substrates are negative.
-
-        Exceptions
-        ----------
-        KeyError:
-            In case compound is not part of the reaction.
-        """
-        if compound in self.substrates:
-            return -self.substrates[compound]
-        elif compound in self.products:
-            return self.products[compound]
-        else:
-            raise KeyError("'{0}' is not participating in reaction"\
-                    " '{1}'".format(str(compound), str(self)))
 
     def _consistency_check(self):
         """
@@ -444,13 +467,4 @@ class SBMLReaction(BasicReaction):
                     for (cmpd, coeff) in self.products.iteritems()),\
                     "There is a charge imbalance in reaction '{0}'".format(\
                     self.unique_id)
-
-    def is_substrate(self, compound):
-        """
-        Parameters
-        ----------
-        compound: SBMLCompound
-            A compound instance whose status as educt or product is queried.
-        """
-        return compound in self.substrates
 

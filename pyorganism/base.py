@@ -24,6 +24,7 @@ __all__ = ["UniqueBase"]
 import logging
 
 from . import miscellaneous as misc
+from .errors import PyOrganismError
 
 
 LOGGER = logging.getLogger(__name__)
@@ -52,7 +53,7 @@ class MetaBase(type):
         cls_dct["_memory"] = dict()
         return super(MetaBase, mcls).__new__(mcls, cls_name, cls_bases, cls_dct)
 
-    def __call__(cls, unique_id="", *args, **kw_args):
+    def __call__(cls, unique_id="", **kw_args):
         """
         Returns an existing instance identified by `unique_id` or calls for a new
         one.
@@ -60,7 +61,7 @@ class MetaBase(type):
         memory = cls._memory.get(unique_id)
         if memory is None:
             cls._counter += 1
-            return super(type(cls), cls).__call__(unique_id, *args, **kw_args)
+            return super(type(cls), cls).__call__(unique_id=unique_id, **kw_args)
         else:
             return memory
 
@@ -103,6 +104,10 @@ class UniqueBase(object):
     # immutable class attribute is subclass-specific automatically
     _counter = 0
 
+    @classmethod
+    def get(cls, unique_id):
+        return cls._memory[unique_id]
+
     def __init__(self, unique_id="", **kw_args):
         """
         Parameters
@@ -112,13 +117,28 @@ class UniqueBase(object):
         """
         super(UniqueBase, self).__init__(**kw_args)
         # reading class attribute _counter
-        self._index = self._counter
+        self._index = self.__class__._counter
         if unique_id:
             self.unique_id = unique_id
         else:
-            self.unique_id = u"{0}_{1:d}".format(self.__class__.__name__, self._index)
+            self.unique_id = u"{0}_{1:d}".format(self.__class__.__name__,
+                    self._index)
         # assigning to class attribute _memory
         self.__class__._memory[self.unique_id] = self
+
+    def __setstate__(self, state):
+        """
+        Take control of how to unpickle an instance of this class.
+        """
+        # this is what pickle usually would do
+        self.__dict__ = state
+        # we also want to set the class variables appropriately
+        if self.unique_id in self.__class__._memory:
+            raise PyOrganismError("an instance of class '{0}' with identifier"\
+                    " '{1}' already exists", self.__class__.__name__,
+                    self.unique_id)
+        self.__class__._memory[self.unique_id] = self
+        self.__class__._counter = len(self.__class__._memory)
 
     def __str__(self):
         return str(self.unique_id)

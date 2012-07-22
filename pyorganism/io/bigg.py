@@ -4,7 +4,7 @@
 
 """
 ===============================
-BiGG Database Metabolite Parser
+BiGG Database Compound Parser
 ===============================
 
 :Authors:
@@ -18,7 +18,7 @@ BiGG Database Metabolite Parser
 """
 
 
-__all__ = ["BiGGMetaboliteParser"]
+__all__ = ["BiGGCompoundParser"]
 
 
 import logging
@@ -36,17 +36,27 @@ LOGGER.addHandler(misc.NullHandler())
 OPTIONS = misc.OptionsManager.get_instance()
 
 
-class BiGGMetaboliteParser(Singleton):
+class BiGGCompoundParser(Singleton):
+    """
+    Parsing of compound information lists retrieved from the BiGG[1]_ database.
+
+    Compounds parsed from a file are stored in the `compounds` attribute. This
+    can be used to parse multiple files and retrieve all compounds at once.
+
+    References
+    ----------
+    1.. Schellenberger, J., Park, J., Conrad, T., Palsson, B., 2010.
+        BiGG: a Biochemical Genetic and Genomic knowledgebase of large scale
+        metabolic reconstructions. BMC Bioinformatics 11, 213.
+    """
 
     def __init__(self, **kw_args):
-        super(BiGGMetaboliteParser, self).__init__(**kw_args)
+        super(BiGGCompoundParser, self).__init__(**kw_args)
         self.compounds = set()
-        self.mapping = dict()
 
-    def __call__(self, filename, sep="\t", comment="#", mode="rb",
-            encoding="utf-8", **kw_args):
+    def __call__(self, filename, sep="\t", mode="rb", encoding="utf-8",
+            **kw_args):
         compounds = set()
-        mapping = dict()
         kw_args["mode"] = mode
         kw_args["encoding"] = encoding
         with  open_file(filename, **kw_args) as (file_h, ext):
@@ -63,9 +73,6 @@ class BiGGMetaboliteParser(Singleton):
                         kegg_id=row["kegg_id"], cas_id=row["cas_id"],
                         charge=charge)
                 compounds.add(cmpd)
-                if not cmpd.kegg_id is None:
-                    mapping[cmpd.kegg_id] = cmpd.unique_id
         self.compounds.update(compounds)
-        self.mapping.update(mapping)
-        return (compounds, mapping)
+        return compounds
 

@@ -27,7 +27,8 @@ from .networks import MetabolicNetwork
 from ..io.generic import open_file
 from ..io.sbml import SBMLParser
 from .elements import *
-from ..io.bigg import BiGGMetaboliteParser
+from ..io.bigg import BiGGCompoundParser
+from ..io.metrxn import *
 
 
 LOGGER = logging.getLogger(__name__)
@@ -52,21 +53,21 @@ def read_metabolic_model(filename, frmt=None, mode="rb", encoding="utf-8", **kw_
         system = parser.from_string(str(file_h.read(-1)))
     return system
 
-def read_edgelist(self, filename, delimiter=None, comments="#", mode="rb",
+def read_edgelist(filename, delimiter=None, comments="#", mode="rb",
         encoding="utf-8", **kw_args):
     """
     """
     def build_node(name):
         if name.startswith(OPTIONS.compound_prefix):
-            compound = pymet.BasicCompound(name[len(OPTIONS.compound_prefix):])
+            compound = BasicCompound(name[len(OPTIONS.compound_prefix):])
             return compound
         elif name.startswith(OPTIONS.reaction_prefix):
             if name.endswith(OPTIONS.reversible_suffix):
-                reaction = pymet.BasicReaction(name[len(OPTIONS.reaction_prefix):
-                        -len(OPTIONS.reversible_suffix)], reversible=True)
+                reaction = BasicReaction(name[len(OPTIONS.reaction_prefix):
+                        -len(OPTIONS.reversible_suffix)])
                 reaction.reversible = True
             else:
-                reaction = pymet.BasicReaction(name[len(OPTIONS.reaction_prefix):])
+                reaction = BasicReaction(name[len(OPTIONS.reaction_prefix):])
             return reaction
         else:
             raise PyOrganismError("unidentified metabolic object '{0}'".format(name))
@@ -75,7 +76,7 @@ def read_edgelist(self, filename, delimiter=None, comments="#", mode="rb",
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
     with  open_file(filename, **kw_args) as (file_h, ext):
-        lines = [line.strip() for line in file_handle]
+        lines = [line.strip() for line in file_h]
     # parse the edgelist into a simple metabolic network
     net = MetabolicNetwork(name=filename)
     for line in lines:
@@ -94,7 +95,7 @@ def read_edgelist(self, filename, delimiter=None, comments="#", mode="rb",
         net.add_edge(u, v)
     return net
 
-def write_edgelist(self, network, filename, distinct=True, delimiter="\t",
+def write_edgelist(network, filename, distinct=True, delimiter="\t",
         comments="#", mode="wb", encoding="utf-8", **kw_args):
     """
     """
@@ -130,7 +131,7 @@ def write_edgelist(self, network, filename, distinct=True, delimiter="\t",
     with  open_file(filename, **kw_args) as (file_h, ext):
         file_handle.writelines(lines)
 
-    def read_kegg_reactions(self, descriptions):
+    def read_kegg_reactions(descriptions):
         pattern = re.compile(r"\S")
         for info in descriptions:
             info = info.split("\n")
@@ -151,9 +152,9 @@ def write_edgelist(self, network, filename, distinct=True, delimiter="\t",
             for i in range(begin + 1, stop):
                 pairs.append(info[i].split())
             LOGGER.debug(str(pairs))
-            reac = pymet.BasicReaction(name, reversible=True)
+            reac = BasicReaction(name, reversible=True)
             for line in pairs:
                 (u, v) = line[1].split("_")
-                self.add_edge(pymet.BasicCompound(u), reac, rpair=line[2])
-                self.add_edge(reac, pymet.BasicCompound(v), rpair=line[2])
+                self.add_edge(BasicCompound(u), reac, rpair=line[2])
+                self.add_edge(reac, BasicCompound(v), rpair=line[2])
 

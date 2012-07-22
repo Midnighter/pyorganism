@@ -23,7 +23,6 @@ __all__ = ["CompoundCentricNetwork", "CompoundCentricMultiNetwork",
         "MetabolicNetwork"]
 
 import logging
-import re
 import itertools
 import networkx as nx
 
@@ -41,12 +40,13 @@ class MetabolicNetwork(nx.DiGraph):
     """
     """
 
-    def __init__(self, data=None, name="", **kw_args):
+    def __init__(self, data=None, name="", compartments=None, **kw_args):
         """
         """
         super(MetabolicNetwork, self).__init__(data=data, name=name, **kw_args)
-        self.reactions = set()
+        self.compartments = misc.convert(compartments, set)
         self.compounds = set()
+        self.reactions = set()
 
     def add_edge(self, u, v, **kw_args):
         """
@@ -107,6 +107,64 @@ class MetabolicNetwork(nx.DiGraph):
             raise TypeError("unidentified metabolic type '{0}'".format(type(n)))
         super(MetabolicNetwork, self).remove_node(n)
 
+    def remove_compartment(self, compartment):
+        rm = set()
+        if hasattr(compartment, "__iter__"):
+            for rxn in self.reactions:
+                if any(cmpd in cmprtmnt for cmpd in rxn.compounds_iter() for
+                        cmprtmnt in compartment):
+                    rm.add(rxn)
+            for rxn in rm:
+                self.remove_node(rxn)
+            for cmprtmnt in compartment:
+                for cmpd in cmprtmnt:
+                    self.remove_node(cmpd)
+            self.compartments.difference_update(set(compartment))
+        else:
+            for rxn in self.reactions:
+                if any(cmpd in compartment for cmpd in rxn.compounds_iter()):
+                    rm.add(rxn)
+            for rxn in rm:
+                self.remove_node(rxn)
+            for cmpd in compartment:
+                    self.remove_node(cmpd)
+            self.compartments.remove(compartment)
+
+    def to_decompartmentalized(self):
+        net = MetabolicNetwork(name="decompartmentalized " + self.name,
+                **self.graph)
+        for rxn in self.reactions:
+            # substrates as reaction attribute
+            members = dict()
+            for (cmpd, factor) in rxn.substrates.iteritems():
+                if isinstance(cmpd, pymet.BasicCompartmentCompound):
+                    members[cmpd.compound] = factor
+                else:
+                    members[cmpd] = factor
+            rxn.substrates = members
+            # substrates in topological sense
+            for cmpd in self.predecessors_iter():
+                if isinstance(cmpd, pymet.BasicCompartmentCompound):
+                    net.add_edge(cmpd.compound, rxn, **self.edge[cmpd][rxn].copy())
+                else:
+                    net.add_edge(cmpd, rxn, **self.edge[cmpd][rxn].copy())
+            # products as reaction attribute
+            members = dict()
+            for (cmpd, factor) in rxn.products.iteritems():
+                if isinstance(cmpd, pymet.BasicCompartmentCompound):
+                    members[cmpd.compound] = factor
+                else:
+                    members[cmpd] = factor
+            rxn.products = members
+            # products in topological sense
+            for cmpd in self.successors_iter():
+                if isinstance(cmpd, pymet.BasicCompartmentCompound):
+                    net.add_edge(rxn, cmpd.compound, **self.edge[cmpd][rxn].copy())
+                else:
+                    net.add_edge(rxn, cmpd, **self.edge[cmpd][rxn].copy())
+        self.compartments = set()
+        return net
+
     def introduce_bidirectional(self):
 
         def add_rev(u, v):
@@ -141,7 +199,7 @@ class MetabolicNetwork(nx.DiGraph):
             network.add_edge(u, v, **attr)
             network.add_edge(v, u, **attr)
 
-        network = CompoundCentricMultiNetwork("compound_centric_" + self.name)
+        network = CompoundCentricMultiNetwork(name="compound_centric_" + self.name)
         # project to unipartite network with only compound nodes
         for cmpd in self.compounds:
             network.add_node(cmpd)
@@ -154,14 +212,14 @@ class MetabolicNetwork(nx.DiGraph):
                 add_link = network.add_edge
             for pred in self.predecessors_iter(rxn):
                 for succ in self.successors_iter(rxn):
-                    add_link(pred, succ, self[pred][succ].copy())
+                    add_link(pred, succ, reaction=rxn)
         network.remove_edges_from(network.selfloop_edges())
         return network
 
     def to_reaction_centric(self):
         """
         """
-        network = ReactionCentricMultiNetwork("reaction_centric_" + self.name)
+        network = ReactionCentricMultiNetwork(name="reaction_centric_" + self.name)
         # project to unipartite network with only reaction nodes
         for rxn in self.reactions:
             network.add_node(rxn)
@@ -172,15 +230,15 @@ class MetabolicNetwork(nx.DiGraph):
             rev_succ = [rxn for rxn in successors if rxn.reversible]
             for pred in predecessors:
                 for succ in successors:
-                    network.add_edge(pred, succ, self[pred][succ].copy())
+                    network.add_edge(pred, succ, compound=cmpd)
             # add links due to reversibility
                 for rxn in rev_pred:
-                    network.add_edge(pred, rxn, self[pred][rxn].copy())
+                    network.add_edge(pred, rxn, compound=cmpd)
             for rxn in rev_succ:
                 for succ in successors:
-                    network.add_edge(rxn, succ, self[rxn][succ].copy())
+                    network.add_edge(rxn, succ, compound=cmpd)
                 for pred in rev_pred:
-                    network.add_edge(rxn, pred, self[rxn][pred].copy())
+                    network.add_edge(rxn, pred, compound=cmpd)
         # we added a lot of self-links in the process, I felt removing them
         # later was more efficient than working with set differences all the
         # time
