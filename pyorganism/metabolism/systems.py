@@ -97,7 +97,7 @@ class MetabolicSystem(object):
         instance container.
         """
         # assumes SBMLReaction
-        for cmpd in reaction.compounds():
+        for cmpd in reaction.compounds_iter():
             self.compounds.add(cmpd)
             if hasattr(cmpd, "compartment"):
                 self.compartments.add(cmpd.compartment)

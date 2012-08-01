@@ -21,18 +21,15 @@ PyOrganism Statistics
 __all__ = ["compute_zscore"]
 
 
-import logging
+#import logging
 import numpy
 
-from . import miscellaneous as misc
-from .errors import PyOrganismError
-from meb.utils.statistics import compute_zscore
+#from . import miscellaneous as misc
+#from .errors import PyOrganismError
 
 
-LOGGER = logging.getLogger(__name__)
-LOGGER.addHandler(misc.NullHandler())
-
-OPTIONS = misc.OptionsManager.get_instance()
+#LOGGER = logging.getLogger(__name__)
+#LOGGER.addHandler(misc.NullHandler())
 
 
 def compute_zscore(obs, random_stats):

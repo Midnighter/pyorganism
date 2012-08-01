@@ -17,3 +17,7 @@ PyOrganism Regulation
     __init__.py
 """
 
+
+from .elements import *
+from .networks import *
+

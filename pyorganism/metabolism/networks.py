@@ -26,6 +26,7 @@ import logging
 import itertools
 import networkx as nx
 
+from collections import defaultdict
 from . import elements as pymet
 from .. import miscellaneous as misc
 
@@ -44,9 +45,10 @@ class MetabolicNetwork(nx.DiGraph):
         """
         """
         super(MetabolicNetwork, self).__init__(data=data, name=name, **kw_args)
-        self.compartments = misc.convert(compartments, set)
+        self.compartments = misc.convert(compartments, set, set())
         self.compounds = set()
         self.reactions = set()
+        self.rpairs = None
 
     def add_edge(self, u, v, **kw_args):
         """
@@ -130,6 +132,152 @@ class MetabolicNetwork(nx.DiGraph):
                     self.remove_node(cmpd)
             self.compartments.remove(compartment)
 
+    def to_pruned_currency(self, kegg_information, rpair_categories=["main"],
+            scl_threshold=0.4):
+        """
+        A method to remove undesirable links in metabolic networks based on the
+        combination of two different approaches.
+
+        This method applies the "strength of chemical linkage" (SCL) concept [1]_
+        to a network seeded with reaction partner information [2]_. Since the
+        goal is not to search the shortest biochemically sensible path between
+        two compounds but rather the pruning of undesired links involving
+        currency metabolites, we use the KEGG RPAIR information, where
+        available, to identify relevant interactions between partners in
+        reactions. Unavailable KEGG information is supplemented with the SCL
+        concept to identify candidates for interactions.
+
+        References
+        ----------
+        .. [1] Zhou, W., Nakhleh, L., 2011.
+           "The strength of chemical linkage as a criterion for pruning
+           metabolic graphs".
+           Bioinformatics 27, 1957 –1963.
+
+        .. [2] Faust, K., Croes, D., van Helden, J., 2009.
+           "Metabolic Pathfinding Using RPAIR Annotation".
+           Journal of Molecular Biology 388, 390–414.
+
+        """
+
+        def scl(cmpd_a, cmpd_d):
+            scl = 0
+            a_total = 0
+            d_total = 0
+            keys = set(cmpd_a.formula).union(set(cmpd_d.formula))
+            if "H" in keys:
+                keys.remove("H")
+            for atom in keys:
+                a_freq = cmpd_a.formula.get(atom, 0)
+                d_freq = cmpd_d.formula.get(atom, 0)
+                a_total += a_freq
+                d_total += d_freq
+                scl += min(a_freq, d_freq)
+            return float(scl) / float(max(a_total, d_total))
+
+        no_info = set()
+        connections = dict()
+        # first part, seed the network with kegg rpair information
+        for rxn in self.reactions:
+            ec_number = rxn.notes.get("ec_number", False)
+            if not ec_number:
+                no_info.add(rxn)
+                continue
+            rpairs = False
+            for kegg_rxn in kegg_information:
+                if kegg_rxn.enzyme == ec_number:
+                    rpairs = kegg_rxn.rpair
+                    break
+            if not rpairs:
+                no_info.add(rxn)
+                continue
+            connections[rxn] = list()
+            for cat in rpair_categories:
+                pairs = rpairs.get(cat, [])
+                for (u, v) in pairs:
+                    for cmpd in self.compounds:
+                        if cmpd.kegg_id == u and self.has_edge(cmpd, rxn):
+                            u = cmpd
+                            break
+                    for cmpd in self.compounds:
+                        if cmpd.kegg_id == v and self.has_edge(rxn, cmpd):
+                            v = cmpd
+                            break
+                    if isinstance(u, pymet.BasicCompound) and isinstance(v,
+                            pymet.BasicCompound):
+                        connections[rxn].append((u, v))
+            if len(connections[rxn]) == 0:
+                connections.pop(rxn)
+                no_info.add(rxn)
+        length = len(no_info)
+        last = length + 1
+        # find reactions with info just one hop from those without
+        while (length - last) < 0 and length > 0:
+            for rxn in no_info:
+                connections[rxn] = list()
+                sources = defaultdict(set)
+                for cmpd in self.predecessors_iter(rxn):
+                    for src_rxn in self.predecessors_iter(cmpd):
+                        if src_rxn in connections:
+                            if cmpd in [pair[1] for pair in connections[src_rxn]]:
+                                sources[cmpd].add(src_rxn)
+                                continue
+                            if src_rxn.reversible and cmpd in\
+                                    [pair[0] for pair in connections[src_rxn]]:
+                                sources[cmpd].add(src_rxn)
+                                continue
+                for cmpd in sources:
+                    for prod in self.successors_iter(rxn):
+                        connection = connections.get(rxn, list())
+                        if (cmpd, prod) in connection:
+                            continue
+                        val = scl(cmpd, prod)
+                        if val >= scl_threshold:
+                            connection.append((cmpd, prod))
+                            connections[rxn] = connection
+                targets = defaultdict(set)
+                for cmpd in self.successors_iter(rxn):
+                    for tar_rxn in self.successors_iter(cmpd):
+                        if tar_rxn in connections:
+                            if cmpd in [pair[0] for pair in connections[tar_rxn]]:
+                                targets[cmpd].add(tar_rxn)
+                                continue
+                            if tar_rxn.reversible and cmpd in\
+                                    [pair[1] for pair in connections[tar_rxn]]:
+                                targets[cmpd].add(tar_rxn)
+                                continue
+                for cmpd in targets:
+                    for subs in self.predecessors_iter(rxn):
+                        connection = connections.get(rxn, list())
+                        if (subs, cmpd) in connection:
+                            continue
+                        val = scl(subs, cmpd)
+                        if val >= scl_threshold:
+                            connection.append((subs, cmpd))
+                            connections[rxn] = connection
+                if not connections[rxn]:
+                    connections.pop(rxn)
+            no_info.difference_update(set(connections))
+            last = length
+            length = len(no_info)
+        if len(connections) != len(self.reactions):
+            LOGGER.warn("insufficient reactant pair information, difference of %d",
+                    abs(len(connections) - len(self.reactions)))
+        pruned = MetabolicNetwork()
+        pruned.graph = self.graph.copy()
+        pruned.name = "pruned_currency_" + self.name
+        pruned.compartments = self.compartments.copy()
+        for cmpd in self.compounds:
+            pruned.add_node(cmpd)
+        for rxn in self.reactions:
+            pruned.add_node(rxn)
+        for (rxn, rpairs) in connections.iteritems():
+            for (u, v) in rpairs:
+                pruned.add_edge(u, rxn, **self.edge[u][rxn].copy())
+                pruned.add_edge(rxn, v, **self.edge[rxn][v].copy())
+        pruned.rpairs = connections
+        return pruned
+
     def to_decompartmentalized(self):
         net = MetabolicNetwork(name="decompartmentalized " + self.name,
                 **self.graph)
@@ -191,7 +339,7 @@ class MetabolicNetwork(nx.DiGraph):
                 new_edge(rxn, cmpd)
         return template
 
-    def to_compound_centric(self):
+    def to_compound_centric(self, bidirectional=True):
         """
         """
 
@@ -199,46 +347,109 @@ class MetabolicNetwork(nx.DiGraph):
             network.add_edge(u, v, **attr)
             network.add_edge(v, u, **attr)
 
-        network = CompoundCentricMultiNetwork(name="compound_centric_" + self.name)
+        network = CompoundCentricMultiNetwork()
+        network.graph = self.graph.copy()
+        network.name="compound_centric_" + self.name
+        network.compartments = self.compartments.copy()
         # project to unipartite network with only compound nodes
         for cmpd in self.compounds:
             network.add_node(cmpd)
-        for rxn in self.reactions:
-            if rxn.reversible:
-                # add a bidirectional link
-                add_link = add_bi
-            else:
-                # add a unidirectional link
-                add_link = network.add_edge
-            for pred in self.predecessors_iter(rxn):
-                for succ in self.successors_iter(rxn):
-                    add_link(pred, succ, reaction=rxn)
+        # if available, we only add reactant pairs to the network
+        if self.rpairs:
+            for (rxn, rpairs) in self.rpairs.iteritems():
+                if bidirectional and rxn.reversible:
+                    # add a bidirectional link
+                    add_link = add_bi
+                else:
+                    # add a unidirectional link
+                    add_link = network.add_edge
+                for (u, v) in rpairs:
+                    add_link(u, v, key=rxn)
+        else:
+            for rxn in self.reactions:
+                if bidirectional and rxn.reversible:
+                    # add a bidirectional link
+                    add_link = add_bi
+                else:
+                    # add a unidirectional link
+                    add_link = network.add_edge
+                for pred in self.predecessors_iter(rxn):
+                    for succ in self.successors_iter(rxn):
+                        add_link(pred, succ, key=rxn)
         network.remove_edges_from(network.selfloop_edges())
         return network
 
-    def to_reaction_centric(self):
+    def to_reaction_centric(self, bidirectional=True):
         """
         """
-        network = ReactionCentricMultiNetwork(name="reaction_centric_" + self.name)
+        network = ReactionCentricMultiNetwork()
+        network.graph = self.graph.copy()
+        network.name="reaction_centric_" + self.name
+        network.compartments = self.compartments.copy()
         # project to unipartite network with only reaction nodes
         for rxn in self.reactions:
             network.add_node(rxn)
-        for cmpd in self.compounds:
-            predecessors = self.predecessors(cmpd)
-            rev_pred = [rxn for rxn in predecessors if rxn.reversible]
-            successors = self.successors(cmpd)
-            rev_succ = [rxn for rxn in successors if rxn.reversible]
-            for pred in predecessors:
-                for succ in successors:
-                    network.add_edge(pred, succ, compound=cmpd)
-            # add links due to reversibility
-                for rxn in rev_pred:
-                    network.add_edge(pred, rxn, compound=cmpd)
-            for rxn in rev_succ:
-                for succ in successors:
-                    network.add_edge(rxn, succ, compound=cmpd)
-                for pred in rev_pred:
-                    network.add_edge(rxn, pred, compound=cmpd)
+        if self.rpairs:
+            for (rxn, rpairs) in self.rpairs.iteritems():
+                for (u, v) in rpairs:
+        # check whether u is in a reactant pair of a preceeding reaction
+                    for src_rxn in self.predecessors_iter(u):
+                        if u in [pair[1] for pair in self.rpairs[src_rxn]]:
+                            network.add_edge(src_rxn, rxn, key=u)
+                        if src_rxn.reversible and u in\
+                                [pair[0] for pair in self.rpairs[src_rxn]]:
+                            network.add_edge(src_rxn, rxn, key=u)
+                        if rxn.reversible and src_rxn.reversible and\
+                                network.has_edge(src_rxn, rxn, key=u):
+                            network.add_edge(rxn, src_rxn, key=u)
+        # check whether u is in a reactant pair of a following reversible reaction
+                    for src_rxn in self.successors_iter(u):
+                        if src_rxn == rxn:
+                            continue
+                        if src_rxn.reversible and u in\
+                                [pair[0] for pair in self.rpairs[src_rxn]]:
+                            network.add_edge(src_rxn, rxn, key=u)
+                        if rxn.reversible and src_rxn.reversible and\
+                                network.has_edge(src_rxn, rxn, key=u):
+                            network.add_edge(rxn, src_rxn, key=u)
+        # check whether v is in a reactant pair of a following reaction
+                    for tar_rxn in self.successors_iter(v):
+                        if v in [pair[0] for pair in self.rpairs[tar_rxn]]:
+                            network.add_edge(rxn, tar_rxn, key=v)
+                        if tar_rxn.reversible and v in\
+                                [pair[1] for pair in self.rpairs[tar_rxn]]:
+                            network.add_edge(rxn, tar_rxn, key=v)
+                        if rxn.reversible and tar_rxn.reversible and\
+                                network.has_edge(rxn, tar_rxn, key=v):
+                            network.add_edge(tar_rxn, rxn, key=v)
+        # check whether v is in a reactant pair of a preceeding reversible reaction
+                    for tar_rxn in self.predecessors_iter(v):
+                        if tar_rxn == rxn:
+                            continue
+                        if tar_rxn.reversible and v in\
+                                [pair[1] for pair in self.rpairs[tar_rxn]]:
+                            network.add_edge(rxn, tar_rxn, key=v)
+                        if rxn.reversible and tar_rxn.reversible and\
+                                network.has_edge(rxn, tar_rxn, key=v):
+                            network.add_edge(tar_rxn, rxn, key=v)
+        else:
+            for cmpd in self.compounds:
+                predecessors = self.predecessors(cmpd)
+                successors = self.successors(cmpd)
+                if bidirectional:
+                    rev_pred = [rxn for rxn in predecessors if rxn.reversible]
+                    rev_succ = [rxn for rxn in successors if rxn.reversible]
+                for pred in predecessors:
+                    for succ in successors:
+                        network.add_edge(pred, succ, key=cmpd)
+                # add links due to reversibility
+                    for rxn in rev_pred:
+                        network.add_edge(pred, rxn, key=cmpd)
+                for rxn in rev_succ:
+                    for succ in successors:
+                        network.add_edge(rxn, succ, key=cmpd)
+                    for pred in rev_pred:
+                        network.add_edge(rxn, pred, key=cmpd)
         # we added a lot of self-links in the process, I felt removing them
         # later was more efficient than working with set differences all the
         # time
@@ -311,10 +522,11 @@ class CompoundCentricNetwork(nx.DiGraph):
     """
     """
 
-    def __init__(self, data=None, name="", **kw_args):
+    def __init__(self, data=None, name="", compartments=None, **kw_args):
         """
         """
         super(CompoundCentricNetwork, self).__init__(data=data, name=name, **kw_args)
+        self.compartments = misc.convert(compartments, set, set())
 
     def draw(self, filename, output_format="pdf", layout_program="fdp", layout_args=""):
         import pygraphviz as pgv
@@ -337,19 +549,23 @@ class CompoundCentricMultiNetwork(nx.MultiDiGraph):
     """
     """
 
-    def __init__(self, data=None, name="", **kw_args):
+    def __init__(self, data=None, name="", compartments=None, **kw_args):
         """
         """
         super(CompoundCentricMultiNetwork, self).__init__(data=data, name=name, **kw_args)
+        self.compartments = misc.convert(compartments, set, set())
 
     def to_directed(self):
         """
         Return a copy with no multiple edges and no attributes.
         """
-        copy = CompoundCentricNetwork(name="directed " + self.name)
-        copy.add_nodes_from(self.nodes_iter())
-        copy.add_edges_from(self.edges_iter())
-        return copy
+        network = CompoundCentricNetwork()
+        network.graph = self.graph.copy()
+        network.name="directed_" + self.name
+        network.compartments = self.compartments.copy()
+        network.add_nodes_from(self.nodes_iter())
+        network.add_edges_from(self.edges_iter())
+        return network
 
     def draw(self, filename, output_format="pdf", layout_program="fdp", layout_args=""):
         import pygraphviz as pgv
@@ -372,10 +588,11 @@ class ReactionCentricNetwork(nx.DiGraph):
     """
     """
 
-    def __init__(self, data=None, name="", **kw_args):
+    def __init__(self, data=None, name="", compartments=None, **kw_args):
         """
         """
         super(ReactionCentricNetwork, self).__init__(data=data, name=name, **kw_args)
+        self.compartments = misc.convert(compartments, set, set())
 
     def draw(self, filename, output_format="pdf", layout_program="fdp", layout_args=""):
         """
@@ -400,19 +617,23 @@ class ReactionCentricMultiNetwork(nx.MultiDiGraph):
     """
     """
 
-    def __init__(self, data=None, name="", **kw_args):
+    def __init__(self, data=None, name="", compartments=None, **kw_args):
         """
         """
         super(ReactionCentricMultiNetwork, self).__init__(data=data, name=name, **kw_args)
+        self.compartments = misc.convert(compartments, set, set())
 
     def to_directed(self):
         """
         Return a copy with no multiple edges and no attributes.
         """
-        copy = CompoundCentricNetwork(name="directed_" + self.name)
-        copy.add_nodes_from(self.nodes_iter())
-        copy.add_edges_from(self.edges_iter())
-        return copy
+        network = ReactionCentricNetwork()
+        network.graph = self.graph.copy()
+        network.name="directed_" + self.name
+        network.compartments = self.compartments.copy()
+        network.add_nodes_from(self.nodes_iter())
+        network.add_edges_from(self.edges_iter())
+        return network
 
     def draw(self, filename, output_format="pdf", layout_program="fdp", layout_args=""):
         import pygraphviz as pgv

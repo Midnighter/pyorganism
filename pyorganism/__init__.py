@@ -21,5 +21,5 @@ Organisational Principles in Living Organisms
 from .miscellaneous import *
 from .errors import *
 from .organism import *
-from .regulation.networks import *
+from .io.generic import *
 

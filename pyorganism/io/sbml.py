@@ -23,11 +23,14 @@ __all__ = ["SBMLParser"]
 
 
 import logging
+import re
 
 from ..singletonmixin import Singleton
 from .. import miscellaneous as misc
 from ..metabolism import elements as pymet
 from ..metabolism.systems import MetabolicSystem
+
+libsbml = misc.load_module("libsbml", "SBML", "http://sbml.org/Software/libSBML")
 
 
 LOGGER = logging.getLogger(__name__)
@@ -41,19 +44,15 @@ class SBMLParser(Singleton):
     A class implementing methods for parsing a SBML model
     """
 
-    _sbml = False
-
     def __init__(self, **kw_args):
-        if not self.__class__._sbml:
-            self.__class__._sbml = misc.load_module("libsbml", "SBML",
-                    "http://sbml.org/Software/libSBML")
         super(SBMLParser, self).__init__(**kw_args)
+        self.reaction_property = re.compile("([a-z]+[a-z_0-9]*)$", re.UNICODE)
 
     def from_string(self, xml):
         """
         Parse a document in SBML format.
         """
-        document = self._sbml.readSBMLFromString(xml)
+        document = libsbml.readSBMLFromString(xml)
         if document.getNumErrors() > 0:
             LOGGER.warn("reading the SBML document produced some errors")
         model = document.getModel()
@@ -85,7 +84,7 @@ class SBMLParser(Singleton):
                 suffix=suffix)
 
     def _strip_species_id(self, name):
-        identifier = name
+        identifier = name.replace("_DASH_", "-")
         if identifier.startswith(OPTIONS.compound_prefix):
             identifier = identifier[len(OPTIONS.compound_prefix):]
         compartment = None
@@ -152,6 +151,10 @@ class SBMLParser(Singleton):
                     key = item[0].strip().lower().replace(" ", "_")
                     value = item[1].strip()
                     info[key] = value
+        mobj = self.reaction_property.search(identifier)
+        if mobj:
+            info["properties"] = mobj.group(1)
+            identifier = identifier[:mobj.start(1)]
         return pymet.SBMLReaction(unique_id=identifier, substrates=substrates,
                 products=products, reversible=reaction.getReversible(),
                 name=name, notes=info, **params)

@@ -36,8 +36,8 @@ LOGGER.addHandler(misc.NullHandler())
 
 OPTIONS = misc.OptionsManager.get_instance()
 
-PARSERS = {"xml": SBMLParser,
-        "sbml": SBMLParser}
+PARSERS = {".xml": SBMLParser,
+        ".sbml": SBMLParser}
 
 
 def read_metabolic_model(filename, frmt=None, mode="rb", encoding="utf-8", **kw_args):

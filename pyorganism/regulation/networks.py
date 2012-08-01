@@ -18,7 +18,7 @@ PyOrganism Regulatory Networks
 """
 
 
-__all__ = ["TRN", "CouplonGenerator", "GPNGenerator"]
+__all__ = ["GRN", "TRN", "CouplonGenerator", "GPNGenerator"]
 
 
 import logging
@@ -27,10 +27,11 @@ import numpy
 import networkx as nx
 
 from datetime import date
-from operator import itemgetter
+from operator import itemgetter, attrgetter
 from .. import miscellaneous as misc
 from ..io.generic import open_file, parser_warning
 from ..errors import PyOrganismError
+from . import elements as elem
 
 
 LOGGER = logging.getLogger(__name__)
@@ -39,13 +40,15 @@ LOGGER.addHandler(misc.NullHandler())
 OPTIONS = misc.OptionsManager.get_instance()
 
 
-class TRN(nx.MultiDiGraph):
+class GRN(nx.MultiDiGraph):
     """
-    TRN - Transriptional Regulatory Network
+    GRN - Gene Regulatory Network
 
-    A directed network containing genes and their products (mostly transcription
-    factors - TFs). The interactions (lines) must have an attribute denoting the
-    regulatory effect:
+    A directed network containing genes and connections between them if there
+    exists a regulatory interaction. Strictly speaking, the interaction is
+    between the product of a gene and a target gene but this network holds only
+    genes as nodes. Every link must have an attribute denoting the regulatory
+    interaction:
         * inhibitory: -1
         * activating: 1
         * unknown: 0
@@ -53,157 +56,213 @@ class TRN(nx.MultiDiGraph):
 
     Notes
     -----
-    Please also read the documentation for networkx.Graph.
+    Please also read the documentation for networkx.MultiDiGraph.
+
+    Examples
+    --------
+    >>> trn = GRN(name="simple")
+    >>> trn.add_edge("lacZ", "ada", interaction=0)
+    """
+
+    def __init__(self, data=None, name="", **kw_args):
+        super(GRN, self).__init__(data=data, name=name, **kw_args)
+
+    def from_link_list(self, links):
+        for (u, v, inter) in links:
+            self.add_edge(elem.Gene.get(u), elem.Gene.get(v), interaction=inter)
+
+    def to_trn(self):
+        trn = TRN(name="Transcriptinal Regulatory Network")
+        for (gene_u, gene_v, data) in self.edges_iter(data=True):
+            if type(gene_u.regulatory_product) == elem.TranscriptionFactor:
+                u = gene_u.regulatory_product
+            else:
+                u = gene_u
+            trn.add_node(u)
+            if type(gene_v.regulatory_product) == elem.TranscriptionFactor:
+                v = gene_v.regulatory_product
+            else:
+                v = gene_v
+            trn.add_node(v)
+            inter = data["interaction"]
+            # do not add multi-links with existing interaction
+            if trn.has_edge(u, v):
+                if any(attr["interaction"] == inter for attr in trn[u][v].itervalues()):
+                    continue
+            trn.add_edge(u, v, interaction=inter)
+        return trn
+
+
+class TRN(nx.MultiDiGraph):
+    """
+    TRN - Transriptional Regulatory Network
+
+    A directed network containing containing transcription factors (TFs) and
+    their regulatory targets, i.e., genes. Every link must have an attribute
+    denoting the regulatory interaction:
+        * inhibitory: -1
+        * activating: 1
+        * unknown: 0
+        * dual: 2
+
+    Notes
+    -----
+    Please also read the documentation for networkx.MultiDiGraph.
 
     Examples
     --------
     >>> trn = TRN(name="simple")
-    >>> trn.add_edge("Ada", "ada", effect=0)
+    >>> trn.add_edge("Ada", "ada", interaction=0)
     """
 
     def __init__(self, data=None, name="", **kw_args):
         super(TRN, self).__init__(data=data, name=name, **kw_args)
 
-    def read_regulondb(self, tf2gene, name2gene=None, sep="\t",
-            wsdl="http://regulondb.ccg.unam.mx/webservices/NetWork.jws?wsdl"):
-        """
-        Retrieve the current version of the TRN from RegulonDB.
+    def to_couplons(self, sf_links):
+        couplon_gen = CouplonGenerator(self)
+        couplon_gen.add_edges_from(sf_links)
+        return couplon_gen
 
-        Transcription factors in these interactions are replaced by the genes
-        that produce them.
-
-        Parameters
-        ----------
-        tf2gene: dict
-            An association between transcription factors and their genes. The
-            values in the dict can be lists in case of dimeric transcriptional
-            regulators.
-        name2gene: dict (optional)
-            The genes in the interactions between transcription factors and genes parsed
-            from RegulonDB are given by their name. If instead the desired
-            identifier is their Blattner number or RegulonDB identifier, a
-            mapping is required.
-        sep: str (optional)
-            The column separator; not likely to change.
-        wsdl: str (optional)
-            The url of the WSDL definition for the DBGET server.
-
-        Notes
-        -----
-        Requires a SOAPpy installation and an active internet connection.
-        """
-        def use_mapping(rgltr, gene, effct, evdnc):
-            self.add_edge(name2gene[rgltr], name2gene[gene], effect=effct,
-                    evidence=evdnc)
-
-        def no_mapping(rgltr, gene, effct, evdnc):
-            self.add_edge(rgltr, gene, effect=effct, evidence=evdnc)
-
-        # load the required SOAPpy module
-        SOAPpy = misc.load_module("SOAPpy", url="http://pywebsvcs.sourceforge.net/")
-        # establish connection to DBGET server
-        server = SOAPpy.WSDL.Proxy(wsdl)
-        interactions = server.getTFGene()
-        interactions = interactions.split("\n")
-        if not self.name:
-            self.name = "TF Gene Network"
-        self.graph["date"] = "{:%Y-%m-%d}".format(date.today())
-        if name2gene:
-            add_link = use_mapping
-        else:
-            add_link = no_mapping
-        warnings = parser_warning
-        # the last line is an empty one
-        for line in interactions[:-1]:
-            line = line.strip()
-            partners = line.split(sep)
-            regulators = tf2gene[partners[0]]
-            if not isinstance(regulators, list):
-                regulators = list(regulators)
-            for regulator in regulators:
-                if partners[2] == "repressor":
-                    add_link(regulator, partners[1], -1, partners[3])
-                elif partners[2] == "activator":
-                    add_link(regulator, partners[1], 1, partners[3])
-                elif partners[2] == "unknown":
-                    add_link(regulator, partners[1], 0, partners[3])
-                elif partners[2] == "dual":
-                    add_link(regulator, partners[1], 2, partners[3])
-                else:
-                    warnings(line)
-                    warnings = LOGGER.warn
-
-    def read_regulondb_file(self, filename, tf2gene, name2gene=None, sep="\t",
-            encoding="utf-8", mode="rb", **kw_args):
-        """
-        Retrieve the TRN from a RegulonDB flat file.
-
-        Transcription factors in these interactions are replaced by the genes
-        that produce them.
-
-        Parameters
-        ----------
-        filename: str
-            The path to the file containing the interaction information.
-        tf2gene: dict
-            An association between transcription factors and their genes. Parsed
-            from a gene product file.
-        name2gene: dict (optional)
-            The genes in the interactions between transcription factors and genes parsed
-            from RegulonDB are given by their name. If instead the desired
-            identifier is their Blattner number or RegulonDB identifier, a
-            mapping is required.
-        sep: str (optional)
-            The column separator; not likely to change.
-        encoding: str (optional)
-            The file encoding.
-        mode: str (optional)
-            The mode used to open a file, should always be read binary.
-        """
-        def use_mapping(rgltr, gene, effct, evdnc):
-            self.add_edge(name2gene[rgltr], name2gene[gene], effect=effct,
-                    evidence=evdnc)
-
-        def no_mapping(rgltr, gene, effct, evdnc):
-            self.add_edge(rgltr, gene, effect=effct, evidence=evdnc)
-
-        if not self.name:
-            self.name = filename
-        kw_args["encoding"] = encoding
-        kw_args["mode"] = mode
-        with open_file(filename, **kw_args) as (file_h, ext):
-            interactions = file_h.readlines()
-        if name2gene:
-            add_link = use_mapping
-        else:
-            add_link = no_mapping
-        warnings = parser_warning
-        for line in interactions:
-            line = line.strip()
-            if line == "" or line.startswith("#"):
-                continue
-            partners = line.split(sep)
-            regulators = tf2gene[partners[0]]
-            if not isinstance(regulators, list):
-                regulators = list(regulators)
-            for regulator in regulators:
-                if partners[2] == "-":
-                    add_link(regulator, partners[1], -1, partners[3])
-                elif partners[2] == "+":
-                    add_link(regulator, partners[1], 1, partners[3])
-                elif partners[2] == "?":
-                    add_link(regulator, partners[1], 0, partners[3])
-                elif partners[2] == "+-":
-                    add_link(regulator, partners[1], 2, partners[3])
-                else:
-                    warnings(line)
-                    warnings = LOGGER.warn
+#    def read_regulondb(self, tf2gene, name2gene=None, sep="\t",
+#            wsdl="http://regulondb.ccg.unam.mx/webservices/NetWork.jws?wsdl"):
+#        """
+#        Retrieve the current version of the TRN from RegulonDB.
+#
+#        Transcription factors in these interactions are replaced by the genes
+#        that produce them.
+#
+#        Parameters
+#        ----------
+#        tf2gene: dict
+#            An association between transcription factors and their genes. The
+#            values in the dict can be lists in case of dimeric transcriptional
+#            regulators.
+#        name2gene: dict (optional)
+#            The genes in the interactions between transcription factors and genes parsed
+#            from RegulonDB are given by their name. If instead the desired
+#            identifier is their Blattner number or RegulonDB identifier, a
+#            mapping is required.
+#        sep: str (optional)
+#            The column separator; not likely to change.
+#        wsdl: str (optional)
+#            The url of the WSDL definition for the DBGET server.
+#
+#        Notes
+#        -----
+#        Requires a SOAPpy installation and an active internet connection.
+#        """
+#        def use_mapping(rgltr, gene, effct, evdnc):
+#            self.add_edge(name2gene[rgltr], name2gene[gene], interaction=effct,
+#                    evidence=evdnc)
+#
+#        def no_mapping(rgltr, gene, effct, evdnc):
+#            self.add_edge(rgltr, gene, interaction=effct, evidence=evdnc)
+#
+#        # load the required SOAPpy module
+#        SOAPpy = misc.load_module("SOAPpy", url="http://pywebsvcs.sourceforge.net/")
+#        # establish connection to DBGET server
+#        server = SOAPpy.WSDL.Proxy(wsdl)
+#        interactions = server.getTFGene()
+#        interactions = interactions.split("\n")
+#        if not self.name:
+#            self.name = "TF Gene Network"
+#        self.graph["date"] = "{:%Y-%m-%d}".format(date.today())
+#        if name2gene:
+#            add_link = use_mapping
+#        else:
+#            add_link = no_mapping
+#        warnings = parser_warning
+#        # the last line is an empty one
+#        for line in interactions[:-1]:
+#            line = line.strip()
+#            partners = line.split(sep)
+#            regulators = tf2gene[partners[0]]
+#            if not isinstance(regulators, list):
+#                regulators = list(regulators)
+#            for regulator in regulators:
+#                if partners[2] == "repressor":
+#                    add_link(regulator, partners[1], -1, partners[3])
+#                elif partners[2] == "activator":
+#                    add_link(regulator, partners[1], 1, partners[3])
+#                elif partners[2] == "unknown":
+#                    add_link(regulator, partners[1], 0, partners[3])
+#                elif partners[2] == "dual":
+#                    add_link(regulator, partners[1], 2, partners[3])
+#                else:
+#                    warnings(line)
+#                    warnings = LOGGER.warn
+#
+#    def read_regulondb_file(self, filename, tf2gene, name2gene=None, sep="\t",
+#            encoding="utf-8", mode="rb", **kw_args):
+#        """
+#        Retrieve the TRN from a RegulonDB flat file.
+#
+#        Transcription factors in these interactions are replaced by the genes
+#        that produce them.
+#
+#        Parameters
+#        ----------
+#        filename: str
+#            The path to the file containing the interaction information.
+#        tf2gene: dict
+#            An association between transcription factors and their genes. Parsed
+#            from a gene product file.
+#        name2gene: dict (optional)
+#            The genes in the interactions between transcription factors and genes parsed
+#            from RegulonDB are given by their name. If instead the desired
+#            identifier is their Blattner number or RegulonDB identifier, a
+#            mapping is required.
+#        sep: str (optional)
+#            The column separator; not likely to change.
+#        encoding: str (optional)
+#            The file encoding.
+#        mode: str (optional)
+#            The mode used to open a file, should always be read binary.
+#        """
+#        def use_mapping(rgltr, gene, effct, evdnc):
+#            self.add_edge(name2gene[rgltr], name2gene[gene], interaction=effct,
+#                    evidence=evdnc)
+#
+#        def no_mapping(rgltr, gene, effct, evdnc):
+#            self.add_edge(rgltr, gene, interaction=effct, evidence=evdnc)
+#
+#        if not self.name:
+#            self.name = filename
+#        kw_args["encoding"] = encoding
+#        kw_args["mode"] = mode
+#        with open_file(filename, **kw_args) as (file_h, ext):
+#            interactions = file_h.readlines()
+#        if name2gene:
+#            add_link = use_mapping
+#        else:
+#            add_link = no_mapping
+#        warnings = parser_warning
+#        for line in interactions:
+#            line = line.strip()
+#            if line == "" or line.startswith("#"):
+#                continue
+#            partners = line.split(sep)
+#            regulators = tf2gene[partners[0]]
+#            if not isinstance(regulators, list):
+#                regulators = list(regulators)
+#            for regulator in regulators:
+#                if partners[2] == "-":
+#                    add_link(regulator, partners[1], -1, partners[3])
+#                elif partners[2] == "+":
+#                    add_link(regulator, partners[1], 1, partners[3])
+#                elif partners[2] == "?":
+#                    add_link(regulator, partners[1], 0, partners[3])
+#                elif partners[2] == "+-":
+#                    add_link(regulator, partners[1], 2, partners[3])
+#                else:
+#                    warnings(line)
+#                    warnings = LOGGER.warn
 
 
 class CouplonGenerator(nx.DiGraph):
     """
     """
-    def __init__(self, trn=None, name="", **kw_args):
+    def __init__(self, trn, name="", **kw_args):
         """
         Creates a CouplonGenerator instance.
 
@@ -267,10 +326,10 @@ class CouplonGenerator(nx.DiGraph):
         Requires a SOAPpy installation and an active internet connection.
         """
         def use_mapping(tf, gene, effct, evdnc):
-            self.add_edge(tf, name2gene[gene], effect=effct, evidence=evdnc)
+            self.add_edge(tf, name2gene[gene], interaction=effct, evidence=evdnc)
 
         def no_mapping(tf, gene, effct, evdnc):
-            self.add_edge(tf, gene, effect=effct, evidence=evdnc)
+            self.add_edge(tf, gene, interaction=effct, evidence=evdnc)
 
         # load the required SOAPpy module
         SOAPpy = misc.load_module("SOAPpy", url="http://pywebsvcs.sourceforge.net/")
@@ -319,10 +378,10 @@ class CouplonGenerator(nx.DiGraph):
             The mode used to open a file, should always be read binary.
         """
         def use_mapping(tf, gene, effct, evdnc):
-            self.add_edge(tf, name2gene[gene], effect=effct, evidence=evdnc)
+            self.add_edge(tf, name2gene[gene], interaction=effct, evidence=evdnc)
 
         def no_mapping(tf, gene, effct, evdnc):
-            self.add_edge(tf, gene, effect=effct, evidence=evdnc)
+            self.add_edge(tf, gene, interaction=effct, evidence=evdnc)
 
         if not self.name:
             self.name = filename
@@ -401,6 +460,40 @@ class GPNGenerator(object):
                 if self.distances[i, j] <= proximity_threshold:
                     gpn.add_edge(self.i2name[i], self.i2name[j])
         return gpn
+
+    def parse_genes(self, genes):
+        start = attrgetter("position_start")
+        end = attrgetter("position_end")
+        # assume the maximal end position of the genes is the total length
+        genome_length = end(max(genes, key=end))
+        length = len(genes)
+        self.i2name = dict(itertools.izip(xrange(length), genes))
+        self.distances = numpy.zeros((length, length), dtype=int)
+        for i in xrange(length - 1):
+            gene_u = genes[i]
+            start_u = start(gene_u)
+            end_u = end(gene_u)
+            if start_u is None or end_u is None:
+                continue
+            for j in xrange(i + 1, length):
+                gene_v = genes[j]
+                start_v = start(gene_v)
+                end_v = end(gene_v)
+                if start_v is None or end_v is None:
+                    continue
+                # assuming a circular genome here,
+                # since RegulonDB is only for E. coli
+                # compute difference between start and end points (overlap)
+                diff_1 = abs(start_u - end_v)
+                diff_1 = min(diff_1, genome_length - diff_1)
+                diff_2 = abs(start_v - end_u)
+                diff_2 = min(diff_2, genome_length - diff_2)
+                diff_3 = abs(start_u - start_v)
+                diff_3 = min(diff_3, genome_length - diff_3)
+                diff_4 = abs(end_v - end_u)
+                diff_4 = min(diff_4, genome_length - diff_4)
+                # we only use the UR triangle of the distances matrix
+                self.distances[i, j] = min(diff_1, diff_2, diff_3, diff_4)
 
     def read_regulondb_file(self, filename, gene_identifier="name", sep="\t",
             comment="#", encoding="utf-8", mode="rb", **kw_args):

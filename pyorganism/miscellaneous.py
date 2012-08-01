@@ -18,7 +18,7 @@ Library Miscellanea
 """
 
 
-__all__ = ["OptionsManager", "convert"]
+__all__ = ["OptionsManager"]
 
 
 import sys
@@ -37,14 +37,41 @@ class NullHandler(logging.Handler):
         pass
 
 
+class ProgressPrinter(object):
+    """
+    Write a recurring message to a stream on the same line.
+
+    Warning
+    -------
+    Only works properly if the message fits on a single line for the given
+    stream.
+    """
+
+    def __init__(self, stream=sys.stdout, sep=" ", **kw_args):
+        super(ProgressPrinter, self).__init__(**kw_args)
+        self.stream = stream
+        self.sep = sep
+
+    def __call__(self, msg, *args):
+        self.stream.write("\r\x1b[K")
+        self.stream.write(msg)
+        if args:
+            self.stream.write(self.sep)
+            self.stream.write(self.sep.join(args))
+        self.stream.flush()
+
+    def close(self):
+        self.stream.write("\n")
+
+
 class OptionsManager(Singleton):
     """
     A centralised instance to handle some common options throughout this
     library.
     """
 
-    def __init__(self, *args, **kw_args):
-        super(OptionsManager, self).__init__(*args, **kw_args)
+    def __init__(self, **kw_args):
+        super(OptionsManager, self).__init__(**kw_args)
         self.compound_prefix = "M_"
         self.reaction_prefix = "R_"
         self.reversible_suffix = "_Rev"

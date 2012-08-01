@@ -24,12 +24,13 @@ __all__ = ["Organism"]
 import logging
 import numpy
 import random
-import multiprocessing
+import warnings
+#import multiprocessing
 
-from operator import itemgetter
+from .regulation import elements as elem
 from . import miscellaneous as misc
-from .io.generic import open_file, parser_warning
-from .errors import PyOrganismError
+from .io.generic import open_file, read_tabular
+#from .errors import PyOrganismError
 from .statistics import compute_zscore
 
 
@@ -53,7 +54,7 @@ class Organism(object):
 
     """
 
-    def __init__(self, name, *args, **kw_args):
+    def __init__(self, name, **kw_args):
         """
         Parameters
         ----------
@@ -61,8 +62,9 @@ class Organism(object):
             The name of the organism. Should be unique but that's not a
             requirement.
         """
-        super(Organism, self).__init__(*args, **kw_args)
+        super(Organism, self).__init__(**kw_args)
         self.name = name
+        self.genes = None
         self.trn = None
         self.gpn = None
         self.go = None
@@ -71,13 +73,13 @@ class Organism(object):
         self.metabolism = None
 
     def __str__(self):
-        return str(self)
+        return str(self.name)
 
     def __unicode__(self):
-        return unicode(self)
+        return unicode(self.name)
 
     def read_activity(self, filename, description, sep="\t",
-            gene_identifier="name", skip_header=1, comment="#",
+            skip_header=1, comment="#",
             encoding="utf-8", mode="rb", **kw_args):
         """
         Retrieve gene activity from prepared micro array data.
@@ -106,30 +108,17 @@ class Organism(object):
         """
         kw_args["encoding"] = encoding
         kw_args["mode"] = mode
-        # choose the column for the gene identifier
-        gene_identifier = gene_identifier.lower()
-        if gene_identifier == "name":
-            idn = itemgetter(0)
-        elif gene_identifier == "blattner":
-            idn = itemgetter(1)
-        else:
-            raise PyOrganismError("unrecognised gene identifier '%s'",
-                    gene_identifier)
-        with open_file(filename, **kw_args) as (file_h, ext):
-            interactions = file_h.readlines()
         genes = list()
-        warnings = parser_warning
-        for line in interactions[skip_header:]:
-            line = line.strip()
-            if line == "" or line.startswith(comment):
-                continue
-            partners = line.split(sep)
-            # functional description is not important here
-            if len(partners) > 3 and idn(partners) and partners[2]:
-                genes.append((idn(partners), float(partners[2])))
-            else:
-                warnings(line)
-                warnings = LOGGER.warn
+        with open_file(filename, **kw_args) as (file_h, ext):
+            lines = file_h.readlines()
+            for row in read_tabular(lines[skip_header:], sep=sep, comment=comment):
+                if len(row) > 3 and row[2]:
+                    if row[0]:
+                        genes.append((row[0], float(row[2])))
+                    elif row[1]:
+                        genes.append((row[1], float(row[2])))
+                    else:
+                        LOGGER.warn(row)
         self.activity[description] = genes
         return genes
 
@@ -153,9 +142,15 @@ class Organism(object):
             Dissecting the logical types of network control in gene expression profiles.
             BMC Systems Biology 2, 18.
         """
+        if self.trn.size() == 0:
+            LOGGER.warn("empty transcriptional regulatory network")
+        active = set([gene.regulatory_product if type(gene.regulatory_product) ==\
+                elem.TranscriptionFactor else gene for gene in active])
         subnet = self.trn.subgraph(active)
-        if subnet.order() == 0:
-            LOGGER.warn("set of active genes unknown")
+        diff = len(active) - len(subnet)
+        if diff > 0:
+            warnings.warn("{0:d} ignored genes".format(diff))
+        if len(subnet) == 0:
             return numpy.nan
         controlled = sum(1 for (node, deg) in subnet.degree_iter() if deg > 0)
 #        return controlled / float(subnet.order())
@@ -187,12 +182,11 @@ class Organism(object):
             BMC Systems Biology 2, 18.
         """
         original = self.digital_control(active)
-        genes = self.trn.nodes()
         length = len(active)
 #        if parallel:
 #            pool = multiprocessing.Pool()
 #            map = pool.map
-        sample = map(self.digital_control, [random.sample(genes, length)\
+        sample = map(self.digital_control, [random.sample(self.genes, length)\
                 for i in range(random_num)])
         z_score = compute_zscore(original, sample)
         if return_sample:
@@ -220,9 +214,13 @@ class Organism(object):
             Dissecting the logical types of network control in gene expression profiles.
             BMC Systems Biology 2, 18.
         """
+        if self.gpn.size() == 0:
+            LOGGER.warn("empty gene proximity network")
         subnet = self.gpn.subgraph(active)
-        if subnet.order() == 0:
-            LOGGER.warn("set of active genes unknown")
+        diff = len(active) - len(subnet)
+        if diff > 0:
+            warnings.warn("{0:d} ignored genes".format(diff))
+        if len(subnet) == 0:
             return numpy.nan
         controlled = sum(1 for (node, deg) in subnet.degree_iter() if deg > 0)
 #        return controlled / float(subnet.order())
@@ -254,12 +252,11 @@ class Organism(object):
             BMC Systems Biology 2, 18.
         """
         original = self.analog_control(active)
-        genes = self.gpn.nodes()
         length = len(active)
 #        if parallel:
 #            pool = multiprocessing.Pool()
 #            map = pool.map
-        sample = map(self.analog_control, [random.sample(genes, length)\
+        sample = map(self.analog_control, [random.sample(self.genes, length)\
                 for i in range(random_num)])
         z_score = compute_zscore(original, sample)
         if return_sample:

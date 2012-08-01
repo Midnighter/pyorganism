@@ -19,8 +19,9 @@ Metabolic Components
 """
 
 
-__all__ = ["BasicCompound", "BasicReaction", "BasicCompartment", "SBMLCompound",
-        "SBMLCompartment", "SBMLCompartmentCompound", "SBMLReaction"]
+__all__ = ["BasicCompound", "BasicReaction", "BasicCompartment",
+        "BasicCompartmentCompound", "SBMLCompound", "SBMLCompartment",
+        "SBMLCompartmentCompound", "SBMLReaction", "KEGGReaction"]
 
 
 import logging
@@ -312,7 +313,7 @@ class SBMLCompound(BasicCompound):
     A molecular compound as defined per SBML standard.
     """
 
-    atomic_pattern = re.compile(r"([A-Z])(\d+)", re.UNICODE)
+    atomic_pattern = re.compile(r"([A-Z][a-z]?)(\d*)", re.UNICODE)
 
     def __init__(self, unique_id="", name="", formula=None, kegg_id=None,
             cas_id=None, in_chl=None, in_chl_key=None, smiles=None, charge=None,
@@ -365,7 +366,10 @@ class SBMLCompound(BasicCompound):
         if not formula:
             return
         for mobj in self.atomic_pattern.finditer(formula):
-            self.formula[mobj.group(1)] = int(mobj.group(2))
+            if mobj.group(2):
+                self.formula[mobj.group(1)] = int(mobj.group(2))
+            else:
+                self.formula[mobj.group(1)] = 1
 
 
 class SBMLCompartmentCompound(BasicCompartmentCompound):
@@ -467,4 +471,39 @@ class SBMLReaction(BasicReaction):
                     for (cmpd, coeff) in self.products.iteritems()),\
                     "There is a charge imbalance in reaction '{0}'".format(\
                     self.unique_id)
+
+
+class KEGGReaction(BasicReaction):
+    """
+    A biochemical reaction as defined per SBML standard.
+    """
+
+    def __init__(self, unique_id="", name="", definition=None, equation=None,
+            rpair=None, enzyme=None, pathway=None, orthology=None, comment=None,
+            remark=None, reference=None, **kw_args):
+        """
+        Parameters
+        ----------
+        unique_id: str (optional)
+            A string, preferably the KEGG ID, uniquely identifying the reaction
+            among its class.
+        name: str (optional)
+            A string identifying the reaction.
+        rpair: dict (optional)
+            A dictionary whose keys are KEGG RPAIR classifiers and whose values
+            are lists of pairs of compounds.
+        """
+        if kw_args:
+            LOGGER.debug(kw_args)
+        super(KEGGReaction, self).__init__(unique_id=unique_id, **kw_args)
+        self.name = name
+        self.definition = definition
+        self.equation = equation
+        self.rpair = rpair
+        self.enzyme = enzyme
+        self.pathway = pathway
+        self.orthology = orthology
+        self.comment = comment
+        self.remark = remark
+        self.reference = reference
 
