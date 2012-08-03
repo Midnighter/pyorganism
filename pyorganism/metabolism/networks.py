@@ -18,17 +18,20 @@ Metabolic Network Representations
 """
 
 
-__all__ = ["CompoundCentricNetwork", "CompoundCentricMultiNetwork",
+__all__ = ["MetabolicNetwork",
+        "CompoundCentricNetwork", "CompoundCentricMultiNetwork",
         "ReactionCentricNetwork", "ReactionCentricMultiNetwork",
-        "MetabolicNetwork"]
+        "read_edgelist", "write_edgelist"]
 
 import logging
 import itertools
 import networkx as nx
 
 from collections import defaultdict
-from . import elements as pymet
+from ..errors import PyOrganismError
 from .. import miscellaneous as misc
+from ..io.generic import open_file, read_tabular
+from . import elements as pymet
 
 
 LOGGER = logging.getLogger(__name__)
@@ -650,4 +653,79 @@ class ReactionCentricMultiNetwork(nx.MultiDiGraph):
             net.add_edge(indeces[u], indeces[v], **link_attr)
         filename = "%s.%s" % (filename, output_format)
         net.draw(filename, prog=layout_program, args=layout_args)
+
+
+def read_edgelist(filename, sep=None, comment="#", mode="rb",
+        encoding="utf-8", **kw_args):
+    """
+    """
+    def build_node(name):
+        if name.startswith(OPTIONS.compound_prefix):
+            compound = pymet.BasicCompound(name[len(OPTIONS.compound_prefix):])
+            return compound
+        elif name.startswith(OPTIONS.reaction_prefix):
+            if name.endswith(OPTIONS.reversible_suffix):
+                reaction = pymet.BasicReaction(name[len(OPTIONS.reaction_prefix):
+                        -len(OPTIONS.reversible_suffix)])
+                reaction.reversible = True
+            else:
+                reaction = pymet.BasicReaction(name[len(OPTIONS.reaction_prefix):])
+            return reaction
+        else:
+            raise PyOrganismError("unidentified metabolic object '{0}'".format(name))
+
+    net = MetabolicNetwork(name=filename)
+    # read the file contents
+    kw_args["mode"] = mode
+    kw_args["encoding"] = encoding
+    with  open_file(filename, **kw_args) as (file_h, ext):
+        # parse the edgelist into a simple metabolic network
+        for row in read_tabular(file_h, sep=sep, comment=comment):
+            u = build_node(row[0])
+            if isinstance(u, pymet.BasicReaction) and\
+                    row[0].endswith(OPTIONS.reversible_suffix):
+                continue
+            v = build_node(row[1])
+            if isinstance(v, pymet.BasicReaction) and\
+                    row[1].endswith(OPTIONS.reversible_suffix):
+                continue
+            net.add_edge(u, v)
+    return net
+
+def write_edgelist(network, filename, distinct=True, delimiter="\t",
+        comment="#", mode="wb", encoding="utf-8", **kw_args):
+    """
+    """
+    lines = list()
+    # assemble lines
+    for rxn in network.reactions:
+        rxn_name = OPTIONS.reaction_prefix + rxn.name
+        if rxn.reversible:
+            if distinct:
+                rev_name = "{0}{1}{2}".format(OPTIONS.reaction_prefix, rxn.name,
+                        OPTIONS.reversible_suffix)
+            else:
+                rev_name = rxn_name
+            for cmpd in network.successors_iter(rxn):
+                lines.append("{0}{1}{2}\n".format(rxn_name, delimiter,
+                        OPTIONS.compound_prefix + cmpd.name))
+                lines.append("{0}{1}{2}\n".format(OPTIONS.compound_prefix + cmpd.name,
+                        delimiter, rev_name))
+            for cmpd in network.predecessors_iter(rxn):
+                lines.append("{0}{1}{2}\n".format(OPTIONS.compound_prefix + cmpd.name,
+                        delimiter, rxn_name))
+                lines.append("{0}{1}{2}\n".format(rev_name, delimiter,
+                        OPTIONS.compound_prefix + cmpd.name))
+        else:
+            for cmpd in network.successors_iter(rxn):
+                lines.append("{0}{1}{2}\n".format(rxn_name, delimiter,
+                        OPTIONS.compound_prefix + cmpd.name))
+            for cmpd in network.predecessors_iter(rxn):
+                lines.append("{0}{1}{2}\n".format(OPTIONS.compound_prefix + cmpd.name,
+                        delimiter, rxn_name))
+    # write to file
+    kw_args["mode"] = mode
+    kw_args["encoding"] = encoding
+    with  open_file(filename, **kw_args) as (file_h, ext):
+        file_h.writelines(lines)
 

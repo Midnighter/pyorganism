@@ -22,12 +22,11 @@ __all__ = ["MetRxnCompoundIDParser"]
 
 
 import logging
-import csv
 import re
 
 from ..singletonmixin import Singleton
 from .. import miscellaneous as misc
-from .generic import open_file
+from .generic import open_file, read_tabular
 
 
 LOGGER = logging.getLogger(__name__)
@@ -40,26 +39,24 @@ class MetRxnCompoundIDParser(Singleton):
     References
     ----------
     1.. Kumar, A., Suthers, P., Maranas, C., 2012.
-        MetRxn: a knowledgebase of metabolites and reactions spanning metabolic
-        models and databases. BMC Bioinformatics 13, 6.
+        "MetRxn: a knowledgebase of metabolites and reactions spanning metabolic
+        models and databases". BMC Bioinformatics 13, 6.
     """
 
     def __init__(self, **kw_args):
         super(MetRxnCompoundIDParser, self).__init__(**kw_args)
         self.kegg_pattern = re.compile(r"C\d+")
 
-    def __call__(self, filename, sep="\t", mode="rb", encoding="utf-8",
-            **kw_args):
+    def __call__(self, filename, sep="\t", comment="#", mode="rb",
+            encoding="utf-8", **kw_args):
+        raise NotImplementedError
         mappings = dict()
-        kw_args["mode"] = mode
-        kw_args["encoding"] = encoding
         databases = None
         reverse = None
+        kw_args["mode"] = mode
+        kw_args["encoding"] = encoding
         with  open_file(filename, **kw_args) as (file_h, ext):
-            dialect = csv.Sniffer().sniff(file_h.read(2048), delimiters=sep)
-            file_h.seek(0)
-            reader = csv.DictReader(file_h, dialect=dialect)
-            for row in reader:
+            for row in read_tabular(file_h, sep=sep, comment=comment):
                 if not databases:
                     databases = tuple(db.strip() for db in\
                             row["Source names"].split(","))
@@ -67,8 +64,6 @@ class MetRxnCompoundIDParser(Singleton):
             reverse = (databases[1], databases[0])
             mappings[databases] = dict()
             mappings[reverse] = dict()
-            file_h.seek(0)
-            reader = csv.DictReader(file_h, dialect=dialect)
             for row in reader:
                 ids = list()
                 kegg_ids = list()

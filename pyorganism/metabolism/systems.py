@@ -19,7 +19,7 @@ Metabolic Systems
 """
 
 
-__all__ = ["MetabolicSystem"]
+__all__ = ["MetabolicSystem", "read_metabolic_model"]
 
 
 import logging
@@ -27,6 +27,8 @@ import numpy
 
 from .. import miscellaneous as misc
 from ..errors import PyOrganismError
+from ..io.generic import open_file
+from ..io.sbml import SBMLParser
 from . import elements as pymet
 
 
@@ -34,6 +36,9 @@ LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(misc.NullHandler())
 
 OPTIONS = misc.OptionsManager.get_instance()
+
+PARSERS = {".xml": SBMLParser,
+        ".sbml": SBMLParser}
 
 
 class MetabolicSystem(object):
@@ -279,7 +284,7 @@ class MetabolicSystem(object):
         """
         self._setup_transpose()
         # objective is to maximize all compound masses while they're binary
-        self._transpose._make_binary(self.compounds)
+        self._transpose.make_binary(self.compounds)
         self._transpose.optimize(maximize=True)
         # sort compounds by positive or zero mass
         consistent = list()
@@ -369,4 +374,17 @@ class MetabolicSystem(object):
 #                        net.add_edge(cmpd, rxn)
         return net
 
+
+def read_metabolic_model(filename, frmt=None, mode="rb", encoding="utf-8", **kw_args):
+    kw_args["mode"] = mode
+    kw_args["encoding"] = encoding
+    with  open_file(filename, **kw_args) as (file_h, ext):
+        if not frmt is None:
+            ext = frmt.lower()
+        if ext in PARSERS:
+            parser = PARSERS[ext].get_instance()
+        else:
+            raise PyOrganismError("unknown metabolic system format '{0}'", ext)
+        system = parser.from_string(str(file_h.read(-1)))
+    return system
 

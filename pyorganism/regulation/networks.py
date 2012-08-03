@@ -118,6 +118,10 @@ class TRN(nx.MultiDiGraph):
     def __init__(self, data=None, name="", **kw_args):
         super(TRN, self).__init__(data=data, name=name, **kw_args)
 
+    def from_link_list(self, links):
+        for (u, v, inter) in links:
+            self.add_edge(elem.TranscriptionFactor.get(u), elem.Gene.get(v), interaction=inter)
+
     def to_couplons(self, sf_links):
         couplon_gen = CouplonGenerator(self)
         couplon_gen.add_edges_from(sf_links)
@@ -462,38 +466,35 @@ class GPNGenerator(object):
         return gpn
 
     def parse_genes(self, genes):
-        start = attrgetter("position_start")
         end = attrgetter("position_end")
         # assume the maximal end position of the genes is the total length
         genome_length = end(max(genes, key=end))
         length = len(genes)
         self.i2name = dict(itertools.izip(xrange(length), genes))
         self.distances = numpy.zeros((length, length), dtype=int)
+        diffs = numpy.zeros(4, dtype=int)
         for i in xrange(length - 1):
             gene_u = genes[i]
-            start_u = start(gene_u)
-            end_u = end(gene_u)
-            if start_u is None or end_u is None:
+            if None in gene_u.position:
+                LOGGER.warn("no position information for gene '{0}'".format(
+                    gene_u))
                 continue
             for j in xrange(i + 1, length):
                 gene_v = genes[j]
-                start_v = start(gene_v)
-                end_v = end(gene_v)
-                if start_v is None or end_v is None:
+                if None in gene_u.position:
+                    LOGGER.warn("no position information for gene '{0}'".format(
+                        gene_u))
                     continue
+                diffs.fill(0)
                 # assuming a circular genome here,
                 # since RegulonDB is only for E. coli
                 # compute difference between start and end points (overlap)
-                diff_1 = abs(start_u - end_v)
-                diff_1 = min(diff_1, genome_length - diff_1)
-                diff_2 = abs(start_v - end_u)
-                diff_2 = min(diff_2, genome_length - diff_2)
-                diff_3 = abs(start_u - start_v)
-                diff_3 = min(diff_3, genome_length - diff_3)
-                diff_4 = abs(end_v - end_u)
-                diff_4 = min(diff_4, genome_length - diff_4)
+                for (i, pair) in itertools.product(gene_u.position,
+                        gene_v.position):
+                    diff = abs(pair[0] - pair[1])
+                    diffs[i] = min(diff, genome_length - diff)
                 # we only use the UR triangle of the distances matrix
-                self.distances[i, j] = min(diff_1, diff_2, diff_3, diff_4)
+                self.distances[i, j] = diffs.min()
 
     def read_regulondb_file(self, filename, gene_identifier="name", sep="\t",
             comment="#", encoding="utf-8", mode="rb", **kw_args):

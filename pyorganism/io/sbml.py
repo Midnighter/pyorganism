@@ -28,7 +28,6 @@ import re
 from ..singletonmixin import Singleton
 from .. import miscellaneous as misc
 from ..metabolism import elements as pymet
-from ..metabolism.systems import MetabolicSystem
 
 libsbml = misc.load_module("libsbml", "SBML", "http://sbml.org/Software/libSBML")
 
@@ -52,6 +51,7 @@ class SBMLParser(Singleton):
         """
         Parse a document in SBML format.
         """
+        from ..metabolism.systems import MetabolicSystem
         document = libsbml.readSBMLFromString(xml)
         if document.getNumErrors() > 0:
             LOGGER.warn("reading the SBML document produced some errors")

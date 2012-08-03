@@ -18,7 +18,8 @@ Reading and Writing KEGG Data
 """
 
 
-__all__ = ["find_organism"]
+__all__ = ["find_organism", "read_reaction_information",
+        "read_compound_information", "parse_reaction_descriptions"]
 
 
 import logging

@@ -20,10 +20,7 @@ RegulonDB Parsing and Web Services
 
 import logging
 import re
-#import xml.etree.ElementTree as etree
 
-#from StringIO import StringIO
-#from xml.etree.ElementTree import ElementTree
 from bs4 import BeautifulSoup
 from .. import miscellaneous as misc
 from .generic import open_file, read_tabular
@@ -37,32 +34,6 @@ LOGGER.addHandler(misc.NullHandler())
 NAPs = ["ECK120011186", "ECK120011224", "ECK120011229", "ECK120011235",
         "ECK120011294", "ECK120011345", "ECK120011383"]
 
-
-################################################################################
-# RegulonDB dumps in XML format are not actually XML conform. There are problems
-# with case-sensitivity of tags, for example, <i>...</I>, non-XML conform
-# breaks, i.e., <br> instead of <br />, and HTML entities, like &sigma;. In
-# conclusion: Abandon XML parsers and use BeautifulSoup to parse them as XHTML.
-# BeautifulSoup is unfortunately much slower but using a stricter XML parser is
-# insane.
-################################################################################
-
-
-#def sanitize_xml(xml_string):
-#    """
-#    Cleans an XML string and returns a file-like object.
-#    """
-#    # clean <BR> tags
-#    break_tag = re.compile(r"<[bB]{1}[rR]{1}>")
-#    (xml_string, nsubs) = break_tag.subn("<BR />", xml_string)
-#    italic_start_tag = re.compile(r"<[iI]{1}>")
-#    (xml_string, nsubs) = italic_start_tag.subn("<I>", xml_string)
-#    italic_end_tag = re.compile(r"</[iI]{1}>")
-#    (xml_string, nsubs) = italic_end_tag.subn("</I>", xml_string)
-##    notes = re.compile(r"<(PRODUCT|GENE)_NOTE>(.*?)</\1_NOTE>")
-##    (xml_string, nsubs) = notes.subn("<\g<1>_NOTE></\g<1>_NOTE>", xml_string)
-##    xml_string = xml_string.replace("&", "&amp;")
-#    return StringIO(xml_string)
 
 def read_genes(filename, sep="\t", comment="#", encoding=None, mode="rb",
         **kw_args):
@@ -101,28 +72,6 @@ def read_genes(filename, sep="\t", comment="#", encoding=None, mode="rb",
             else:
                 genes.append(gene)
 
-    def parse_xml_file(file_handle):
-        tree = etree.parse(file_handle)
-#        tree = ElementTree()
-#        tree.parse(file_handle)
-        for row in tree.iter("ROW"):
-            start = row.findtext("GENE_POSLEFT")
-            if not start:
-                start = None
-            end = row.findtext("GENE_POSRIGHT")
-            if not end:
-                end = None
-            gc = row.findtext("GC_CONTENT")
-            if not gc:
-                gc = None
-            gene = elem.Gene(unique_id=row.findtext("GENE_ID"),
-                name=row.findtext("GENE_NAME"),
-                position_start=start,
-                position_end=end,
-                strand=row.findtext("GENE_STRAND"),
-                gc_content=gc)
-            genes.append(gene)
-
     def parse_xhtml(file_handle):
         soup = BeautifulSoup(file_handle, "lxml")
         for row in soup.rowset.find_all(name="row", recursive=False):
@@ -150,8 +99,6 @@ def read_genes(filename, sep="\t", comment="#", encoding=None, mode="rb",
     with open_file(filename, **kw_args) as (file_h, ext):
         if ext == ".xml":
             parse_xhtml(file_h)
-#            clean = sanitize_xml(file_h.read())
-#            parse_xml_file(clean)
         else:
             parse_flat_file(file_h)
     return genes
@@ -161,20 +108,6 @@ def update_gene_synonyms(filename, sep="\t", comment="#", encoding=None,
 
     def parse_flat_file(file_handle):
         raise NotImplementedError
-
-    def parse_xml_file(file_handle):
-        tree = ElementTree()
-        tree.parse(file_handle)
-        for row in tree.iter("ROW"):
-            try:
-                gene = elem.Gene.get(row.findtext("OBJECT_ID"))
-            except KeyError:
-                continue
-            synonym = row.findtext("OBJECT_SYNONYM_NAME")
-            if bpattern.match(synonym):
-                gene.bnumber = synonym
-            else:
-                gene.synonyms.add(synonym)
 
     def parse_xhtml(file_handle):
         soup = BeautifulSoup(file_handle, "lxml")
@@ -199,8 +132,6 @@ def update_gene_synonyms(filename, sep="\t", comment="#", encoding=None,
     with open_file(filename, **kw_args) as (file_h, ext):
         if ext == ".xml":
             parse_xhtml(file_h)
-#            clean = sanitize_xml(file_h.read())
-#            parse_xml_file(clean)
         else:
             parse_flat_file(file_h)
 
@@ -208,9 +139,6 @@ def update_gene_external(filename, sep="\t", comment="#", encoding=None,
         mode="rb", **kw_args):
 
     def parse_flat_file(file_handle):
-        raise NotImplementedError
-
-    def parse_xml_file(file_handle):
         raise NotImplementedError
 
     def parse_xhtml(file_handle):
@@ -236,8 +164,6 @@ def update_gene_external(filename, sep="\t", comment="#", encoding=None,
     with open_file(filename, **kw_args) as (file_h, ext):
         if ext == ".xml":
             parse_xhtml(file_h)
-#            clean = sanitize_xml(file_h.read())
-#            parse_xml_file(clean)
         else:
             parse_flat_file(file_h)
 
@@ -246,23 +172,6 @@ def read_products(filename, sep="\t", comment="#", encoding=None,
 
     def parse_flat_file(file_handle):
         raise NotImplementedError
-
-    def parse_xml_file(file_handle):
-        tree = ElementTree()
-        tree.parse(file_handle)
-        for row in tree.iter("ROW"):
-            # typo in RegulonDB files for molecular weight
-            mw = row.findtext("MOLECULAR_WEIGTH")
-            if not mw:
-                mw = None
-            ip = row.findtext("ISOELECTRIC_POINT")
-            if not ip:
-                ip = None
-            product = elem.Product(unique_id=row.findtext("PRODUCT_ID"),
-                name=row.findtext("PRODUCT_NAME"),
-                molecular_weight=mw,
-                isoelectric_point=ip)
-            products.append(product)
 
     def parse_xhtml(file_handle):
         soup = BeautifulSoup(file_handle, "lxml")
@@ -287,8 +196,6 @@ def read_products(filename, sep="\t", comment="#", encoding=None,
     with open_file(filename, **kw_args) as (file_h, ext):
         if ext == ".xml":
             parse_xhtml(file_h)
-#            clean = sanitize_xml(file_h.read())
-#            parse_xml_file(clean)
         else:
             parse_flat_file(file_h)
     return products
@@ -298,16 +205,6 @@ def update_product_synonyms(filename, sep="\t", comment="#", encoding=None,
 
     def parse_flat_file(file_handle):
         raise NotImplementedError
-
-    def parse_xml_file(file_handle):
-        tree = ElementTree()
-        tree.parse(file_handle)
-        for row in tree.iter("ROW"):
-            try:
-                product = elem.Product.get(row.findtext("OBJECT_ID"))
-            except KeyError:
-                continue
-            product.synonyms.add(row.findtext("OBJECT_SYNONYM_NAME"))
 
     def parse_xhtml(file_handle):
         soup = BeautifulSoup(file_handle, "lxml")
@@ -324,8 +221,6 @@ def update_product_synonyms(filename, sep="\t", comment="#", encoding=None,
     with open_file(filename, **kw_args) as (file_h, ext):
         if ext == ".xml":
             parse_xhtml(file_h)
-#            clean = sanitize_xml(file_h.read())
-#            parse_xml_file(clean)
         else:
             parse_flat_file(file_h)
 
@@ -333,9 +228,6 @@ def update_product_external(filename, sep="\t", comment="#", encoding=None,
         mode="rb", **kw_args):
 
     def parse_flat_file(file_handle):
-        raise NotImplementedError
-
-    def parse_xml_file(file_handle):
         raise NotImplementedError
 
     def parse_xhtml(file_handle):
@@ -357,8 +249,6 @@ def update_product_external(filename, sep="\t", comment="#", encoding=None,
     with open_file(filename, **kw_args) as (file_h, ext):
         if ext == ".xml":
             parse_xhtml(file_h)
-#            clean = sanitize_xml(file_h.read())
-#            parse_xml_file(clean)
         else:
             parse_flat_file(file_h)
 
@@ -367,28 +257,6 @@ def link_gene_product(filename, sep="\t", comment="#", encoding=None,
 
     def parse_flat_file(file_handle):
         raise NotImplementedError
-
-    def parse_xml_file(file_handle):
-        tree = ElementTree()
-        tree.parse(file_handle)
-        for row in tree.iter("ROW"):
-            try:
-                eck12 = row.findtext("GENE_ID")
-                gene = elem.Gene.get(eck12)
-            except KeyError:
-                LOGGER.warn("unknown gene: {0}".format(eck12))
-                continue
-            try:
-                eck12 = row.findtext("PRODUCT_ID")
-                gene.product = elem.Product.get(eck12)
-            except KeyError:
-                LOGGER.warn("unknown product: {0}".format(eck12))
-                continue
-            if gene.product.coded_from:
-                LOGGER.warn("product '{0}' already has coding gene '{1}'".format(
-                        gene.product.unique_id,
-                        gene.product.coded_from.unique_id))
-            gene.product.coded_from = gene
 
     def parse_xhtml(file_handle):
         soup = BeautifulSoup(file_handle, "lxml")
@@ -417,8 +285,6 @@ def link_gene_product(filename, sep="\t", comment="#", encoding=None,
     with open_file(filename, **kw_args) as (file_h, ext):
         if ext == ".xml":
             parse_xhtml(file_h)
-#            clean = sanitize_xml(file_h.read())
-#            parse_xml_file(clean)
         else:
             parse_flat_file(file_h)
 
@@ -427,34 +293,6 @@ def read_gene_regulation(filename, sep="\t", comment="#", encoding=None,
 
     def parse_flat_file(file_handle):
         raise NotImplementedError
-
-    def parse_xml_file(file_handle):
-        tree = ElementTree()
-        tree.parse(file_handle)
-        for row in tree.iter("ROW"):
-            try:
-                eck12 = row.findtext("GENE_ID_REGULATOR")
-                gene_u = elem.Gene.get(eck12)
-            except KeyError:
-                LOGGER.warn("unknown gene: {0}".format(eck12))
-                continue
-            try:
-                eck12 = row.findtext("GENE_ID_REGULATED")
-                gene_v = elem.Gene.get(eck12)
-            except KeyError:
-                LOGGER.warn("unknown gene: {0}".format(eck12))
-                continue
-            interaction = row.findtext("GENEREGULATION_FUNCTION")
-            if interaction == "repressor":
-                trn.add_edge(gene_u, gene_v, interaction=-1)
-            elif interaction == "activator":
-                trn.add_edge(gene_u, gene_v, interaction=1)
-            elif interaction == "unknown":
-                trn.add_edge(gene_u, gene_v, interaction=0)
-            elif interaction == "dual":
-                trn.add_edge(gene_u, gene_v, interaction=2)
-            else:
-                LOGGER.warn("unknown regulatory interaction: {0}".format(interaction))
 
     def parse_xhtml(file_handle):
         soup = BeautifulSoup(file_handle, "lxml")
@@ -483,15 +321,13 @@ def read_gene_regulation(filename, sep="\t", comment="#", encoding=None,
             else:
                 LOGGER.warn("unknown regulatory interaction: {0}".format(interaction))
 
-    trn = GRN(name="E. coli Gene Regulatory Network")
+    trn = GRN(name="Gene Regulatory Network")
     # read information from the file
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
     with open_file(filename, **kw_args) as (file_h, ext):
         if ext == ".xml":
             parse_xhtml(file_h)
-#            clean = sanitize_xml(file_h.read())
-#            parse_xml_file(clean)
         else:
             parse_flat_file(file_h)
     return trn
@@ -501,24 +337,6 @@ def read_sigma_factors(filename, sep="\t", comment="#", encoding=None,
 
     def parse_flat_file(file_handle):
         raise NotImplementedError
-
-    def parse_xml_file(file_handle):
-        tree = ElementTree()
-        tree.parse(file_handle)
-        for row in tree.iter("ROW"):
-            sigma_factor = elem.SigmaFactor(unique_id=row.findtext("SIGMA_ID"),
-                    name=row.findtext("SIGMA_NAME"))
-            sigma_factor.synonyms.add(row.findtext("SIGMA_SYNONYMS"))
-            try:
-                eck12 = row.findtext("SIGMA_GENE_ID")
-                gene = elem.Gene.get(eck12)
-            except KeyError:
-                LOGGER.warn("unknown gene: {0}".format(eck12))
-                continue
-            sigma_factor.made_from.add(gene.product)
-            gene.regulatory_product = sigma_factor
-            sigma_factor.coded_from.add(gene)
-            s_factors.append(sigma_factor)
 
     def parse_xhtml(file_handle):
         soup = BeautifulSoup(file_handle, "lxml")
@@ -544,8 +362,6 @@ def read_sigma_factors(filename, sep="\t", comment="#", encoding=None,
     with open_file(filename, **kw_args) as (file_h, ext):
         if ext == ".xml":
             parse_xhtml(file_h)
-#            clean = sanitize_xml(file_h.read())
-#            parse_xml_file(clean)
         else:
             parse_flat_file(file_h)
     return s_factors
@@ -555,15 +371,6 @@ def read_transcription_factors(filename, sep="\t", comment="#", encoding=None,
 
     def parse_flat_file(file_handle):
         raise NotImplementedError
-
-    def parse_xml_file(file_handle):
-        tree = ElementTree()
-        tree.parse(file_handle)
-        for row in tree.iter("ROW"):
-            transcription_factor = elem.TranscriptionFactor(
-                    unique_id=row.findtext("TRANSCRIPTION_FACTOR_ID"),
-                    name=row.findtext("TRANSCRIPTION_FACTOR_NAME"))
-            t_factors.append(transcription_factor)
 
     def parse_xhtml(file_handle):
         soup = BeautifulSoup(file_handle, "lxml")
@@ -580,8 +387,6 @@ def read_transcription_factors(filename, sep="\t", comment="#", encoding=None,
     with open_file(filename, **kw_args) as (file_h, ext):
         if ext == ".xml":
             parse_xhtml(file_h)
-#            clean = sanitize_xml(file_h.read())
-#            parse_xml_file(clean)
         else:
             parse_flat_file(file_h)
     return t_factors
@@ -591,16 +396,6 @@ def update_transcription_factor_synonyms(filename, sep="\t", comment="#", encodi
 
     def parse_flat_file(file_handle):
         raise NotImplementedError
-
-    def parse_xml_file(file_handle):
-        tree = ElementTree()
-        tree.parse(file_handle)
-        for row in tree.iter("ROW"):
-            try:
-                t_factor = elem.TranscriptionFactor.get(row.findtext("OBJECT_ID"))
-            except KeyError:
-                continue
-            t_factor.synonyms.add(row.findtext("OBJECT_SYNONYM_NAME"))
 
     def parse_xhtml(file_handle):
         soup = BeautifulSoup(file_handle, "lxml")
@@ -617,8 +412,6 @@ def update_transcription_factor_synonyms(filename, sep="\t", comment="#", encodi
     with open_file(filename, **kw_args) as (file_h, ext):
         if ext == ".xml":
             parse_xhtml(file_h)
-#            clean = sanitize_xml(file_h.read())
-#            parse_xml_file(clean)
         else:
             parse_flat_file(file_h)
 
@@ -626,9 +419,6 @@ def update_transcription_factor_external(filename, sep="\t", comment="#", encodi
         mode="rb", **kw_args):
 
     def parse_flat_file(file_handle):
-        raise NotImplementedError
-
-    def parse_xml_file(file_handle):
         raise NotImplementedError
 
     def parse_xhtml(file_handle):
@@ -646,8 +436,6 @@ def update_transcription_factor_external(filename, sep="\t", comment="#", encodi
     with open_file(filename, **kw_args) as (file_h, ext):
         if ext == ".xml":
             parse_xhtml(file_h)
-#            clean = sanitize_xml(file_h.read())
-#            parse_xml_file(clean)
         else:
             parse_flat_file(file_h)
 
@@ -656,26 +444,6 @@ def link_gene_product_transcription_factor(filename, sep="\t", comment="#",
 
     def parse_flat_file(file_handle):
         raise NotImplementedError
-
-    def parse_xml_file(file_handle):
-        tree = ElementTree()
-        tree.parse(file_handle)
-        for row in tree.iter("ROW"):
-            try:
-                eck12 = row.findtext("TRANSCRIPTION_FACTOR_ID")
-                t_factor = elem.TranscriptionFactor.get(eck12)
-            except KeyError:
-                LOGGER.warn("unknown transcription factor: {0}".format(eck12))
-                continue
-            try:
-                eck12 = row.findtext("PRODUCT_ID")
-                product = elem.Product.get(eck12)
-            except KeyError:
-                LOGGER.warn("unknown product: {0}".format(eck12))
-                continue
-            t_factor.made_from.add(product)
-            t_factor.coded_from.add(product.coded_from)
-            product.coded_from.regulatory_product = t_factor
 
     def parse_xhtml(file_handle):
         soup = BeautifulSoup(file_handle, "lxml")
@@ -702,8 +470,6 @@ def link_gene_product_transcription_factor(filename, sep="\t", comment="#",
     with open_file(filename, **kw_args) as (file_h, ext):
         if ext == ".xml":
             parse_xhtml(file_h)
-#            clean = sanitize_xml(file_h.read())
-#            parse_xml_file(clean)
         else:
             parse_flat_file(file_h)
 
