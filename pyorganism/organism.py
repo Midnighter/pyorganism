@@ -24,9 +24,9 @@ __all__ = ["Organism"]
 import logging
 import numpy
 import random
-import warnings
-#import multiprocessing
+import multiprocessing
 
+from copy import copy
 from .regulation import elements as elem
 from . import miscellaneous as misc
 from .io.generic import open_file, read_tabular
@@ -36,6 +36,8 @@ from .statistics import compute_zscore
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(misc.NullHandler())
+
+OPTIONS = misc.OptionsManager.get_instance()
 
 
 class Organism(object):
@@ -71,6 +73,7 @@ class Organism(object):
         self.couplons = None
         self.activity = dict()
         self.metabolism = None
+        self._pool = multiprocessing.Pool(OPTIONS.num_cpu)
 
     def __str__(self):
         return str(self.name)
@@ -142,25 +145,15 @@ class Organism(object):
             Dissecting the logical types of network control in gene expression profiles.
             BMC Systems Biology 2, 18.
         """
-        if self.trn.size() == 0:
+        if self.trn is None or self.trn.size() == 0:
             LOGGER.warn("empty transcriptional regulatory network")
+            return numpy.nan
         active = set([gene.regulatory_product if type(gene.regulatory_product) ==\
                 elem.TranscriptionFactor else gene for gene in active])
-        subnet = self.trn.subgraph(active)
-        diff = len(active) - len(subnet)
-        if diff > 0:
-            warnings.warn("{0:d} ignored genes".format(diff))
-        if len(subnet) == 0:
-            return numpy.nan
-        controlled = sum(1 for (node, deg) in subnet.degree_iter() if deg > 0)
-#        return controlled / float(subnet.order())
-        size = subnet.order()
-        if controlled == size:
-            return numpy.nan
-        else:
-            return controlled / float(subnet.order() - controlled)
+        subnet = effective_network(self.trn, active)
+        return marr_ratio(subnet)
 
-    def digital_ctc(self, active, random_num=10000, parallel=False,
+    def digital_ctc(self, active, random_num=1E04, parallel=False,
             return_sample=False):
         """
         Compute the digital control type confidence of an effective TRN.
@@ -181,14 +174,18 @@ class Organism(object):
             Dissecting the logical types of network control in gene expression profiles.
             BMC Systems Biology 2, 18.
         """
-        original = self.digital_control(active)
-        length = len(active)
-#        if parallel:
-#            pool = multiprocessing.Pool()
-#            map = pool.map
-        sample = map(self.digital_control, [random.sample(self.genes, length)\
-                for i in range(random_num)])
-        z_score = compute_zscore(original, sample)
+        if self.trn is None or self.trn.size() == 0:
+            LOGGER.warn("empty transcriptional regulatory network")
+            return numpy.nan
+        if parallel:
+            map_func = self._pool.map
+        else:
+            map_func = map
+        active = set([gene.regulatory_product if type(gene.regulatory_product) ==\
+                elem.TranscriptionFactor else gene for gene in active])
+        original = effective_network(self.trn, active)
+        sample = map_func(active_sample, [(self.trn, len(original))] * int(random_num))
+        z_score = compute_zscore(marr_ratio(original), sample)
         if return_sample:
             return (z_score, sample)
         else:
@@ -214,23 +211,13 @@ class Organism(object):
             Dissecting the logical types of network control in gene expression profiles.
             BMC Systems Biology 2, 18.
         """
-        if self.gpn.size() == 0:
+        if self.gpn is None or self.gpn.size() == 0:
             LOGGER.warn("empty gene proximity network")
-        subnet = self.gpn.subgraph(active)
-        diff = len(active) - len(subnet)
-        if diff > 0:
-            warnings.warn("{0:d} ignored genes".format(diff))
-        if len(subnet) == 0:
             return numpy.nan
-        controlled = sum(1 for (node, deg) in subnet.degree_iter() if deg > 0)
-#        return controlled / float(subnet.order())
-        size = subnet.order()
-        if controlled == size:
-            return numpy.nan
-        else:
-            return controlled / float(subnet.order() - controlled)
+        subnet = effective_network(self.gpn, active)
+        return marr_ratio(subnet)
 
-    def analog_ctc(self, active, random_num=10000, parallel=False,
+    def analog_ctc(self, active, random_num=1E04, parallel=False,
             return_sample=False):
         """
         Compute the analog control from an effective GPN.
@@ -251,16 +238,76 @@ class Organism(object):
             Dissecting the logical types of network control in gene expression profiles.
             BMC Systems Biology 2, 18.
         """
-        original = self.analog_control(active)
-        length = len(active)
-#        if parallel:
-#            pool = multiprocessing.Pool()
-#            map = pool.map
-        sample = map(self.analog_control, [random.sample(self.genes, length)\
-                for i in range(random_num)])
-        z_score = compute_zscore(original, sample)
+        if self.gpn is None or self.gpn.size() == 0:
+            LOGGER.warn("empty gene proximity network")
+            return numpy.nan
+        if parallel:
+            map_func = self._pool.map
+        else:
+            map_func = map
+        original = effective_network(self.gpn, active)
+        sample = map_func(active_sample, [(self.gpn, len(original))] * int(random_num))
+        z_score = compute_zscore(marr_ratio(original), sample)
         if return_sample:
             return (z_score, sample)
         else:
             return z_score
+
+    def robustness(self, control_type, active, replacement, fraction=0.1,
+            random_num=1E04, parallel=False):
+        """
+        Replace a fraction of the active genes with other genes.
+        """
+        if parallel:
+            map_func = self._pool.map
+        else:
+            map_func = map
+        kw_args["random_num"] = random_num
+        kw_args["parallel"] = parallel
+        size = len(active)
+        replace_num = int(round(size * fraction))
+        LOGGER.info("replacing {0:d}/{1:d} genes".format(replace_num, size))
+        samples = map_func(jackknife, [(active, replacement, replace_num)] * int(random_num))
+        return distribution
+
+
+def effective_network(network, active):
+    """
+    Return the effective network imposed by a subset of nodes.
+    """
+    subnet = network.subgraph(active)
+    size = len(subnet)
+    diff = len(active) - size
+    LOGGER.info("{0:d} ignored gene(s)".format(diff))
+    if size == 0:
+        LOGGER.warn("empty effective network")
+    return subnet
+
+def marr_ratio(network):
+    control = sum(1 for (node, deg) in network.degree_iter() if deg > 0)
+    if control == len(network):
+        return numpy.nan
+    else:
+        return control / float(len(network) - control)
+
+def total_ratio(network):
+    control = sum(1 for (node, deg) in network.degree_iter() if deg > 0)
+    return control / float(len(network))
+
+def active_sample((network, size)):
+    """
+    Sample from affected genes as null model.
+    """
+    sample = random.sample(network.nodes(), size)
+    subnet = network.subgraph(sample)
+    result = marr_ratio(subnet)
+    return result
+
+def jackknife((control_type, active, replacement, replace_num, random_num)):
+    positions = random.sample(range(len(active)), replace_num)
+    tmp = copy(active)
+    replace = random.sample(replacement, replace_num)
+    for (i, k) in enumerate(positions):
+        tmp[k] = replace[i]
+    return tmp
 

@@ -120,14 +120,29 @@ class TRN(nx.MultiDiGraph):
 
     def from_link_list(self, links):
         for (u, v, inter) in links:
-            self.add_edge(elem.TranscriptionFactor.get(u), elem.Gene.get(v), interaction=inter)
+            if u == v:
+                try:
+                    element = elem.TranscriptionFactor.get(u)
+                except KeyError:
+                    element = elem.Gene.get(u)
+                self.add_edge(element, element, interaction=inter)
+            else:
+                try:
+                    elem_u = elem.TranscriptionFactor.get(u)
+                except KeyError:
+                    elem_u = elem.Gene.get(u)
+                try:
+                    elem_v = elem.TranscriptionFactor.get(v)
+                except KeyError:
+                    elem_v = elem.Gene.get(v)
+                self.add_edge(elem_u, elem_v, interaction=inter)
 
     def to_couplons(self, sf_links):
         couplon_gen = CouplonGenerator(self)
         couplon_gen.add_edges_from(sf_links)
         return couplon_gen
 
-#    def read_regulondb(self, tf2gene, name2gene=None, sep="\t",
+#    def lookup_regulondb(self, tf2gene, name2gene=None, sep="\t",
 #            wsdl="http://regulondb.ccg.unam.mx/webservices/NetWork.jws?wsdl"):
 #        """
 #        Retrieve the current version of the TRN from RegulonDB.
@@ -196,7 +211,7 @@ class TRN(nx.MultiDiGraph):
 #                    warnings(line)
 #                    warnings = LOGGER.warn
 #
-#    def read_regulondb_file(self, filename, tf2gene, name2gene=None, sep="\t",
+#    def read_regulondb(self, filename, tf2gene, name2gene=None, sep="\t",
 #            encoding="utf-8", mode="rb", **kw_args):
 #        """
 #        Retrieve the TRN from a RegulonDB flat file.
@@ -307,7 +322,7 @@ class CouplonGenerator(nx.DiGraph):
         couplon.name = "%s-%s Couplon" % (nap, sigma_factor)
         return couplon
 
-    def read_regulondb(self, name2gene=None, sep="\t",
+    def lookup_regulondb(self, name2gene=None, sep="\t",
             wsdl="http://regulondb.ccg.unam.mx/webservices/NetWork.jws?wsdl"):
         """
         Retrieve the current version of the sigma factor and gene interactions
@@ -360,7 +375,7 @@ class CouplonGenerator(nx.DiGraph):
                 warnings(line)
                 warnings = LOGGER.warn
 
-    def read_regulondb_file(self, filename, name2gene=None, sep="\t",
+    def read_regulondb(self, filename, name2gene=None, sep="\t",
             encoding="utf-8", mode="rb", **kw_args):
         """
         Retrieve sigma factor and gene interactions from a RegulonDB flat file.
@@ -459,9 +474,10 @@ class GPNGenerator(object):
         proximity_threshold = int(proximity_threshold)
         length = self.distances.shape[0]
         gpn = nx.Graph(name=name, window=proximity_threshold, **kw_args)
+        valid = self.distances > -1
         for i in xrange(length - 1):
             for j in xrange(i + 1, length):
-                if self.distances[i, j] <= proximity_threshold:
+                if valid[i, j] and self.distances[i, j] <= proximity_threshold:
                     gpn.add_edge(self.i2name[i], self.i2name[j])
         return gpn
 
@@ -472,31 +488,32 @@ class GPNGenerator(object):
         length = len(genes)
         self.i2name = dict(itertools.izip(xrange(length), genes))
         self.distances = numpy.zeros((length, length), dtype=int)
+        self.distances.fill(-1)
         diffs = numpy.zeros(4, dtype=int)
+        no_position = set()
         for i in xrange(length - 1):
             gene_u = genes[i]
-            if None in gene_u.position:
-                LOGGER.warn("no position information for gene '{0}'".format(
-                    gene_u))
+            if gene_u.position is None or None in gene_u.position:
+                no_position.add(gene_u)
                 continue
             for j in xrange(i + 1, length):
                 gene_v = genes[j]
-                if None in gene_u.position:
-                    LOGGER.warn("no position information for gene '{0}'".format(
-                        gene_u))
+                if gene_v.position is None or None in gene_v.position:
+                    no_position.add(gene_v)
                     continue
-                diffs.fill(0)
                 # assuming a circular genome here,
                 # since RegulonDB is only for E. coli
-                # compute difference between start and end points (overlap)
-                for (i, pair) in itertools.product(gene_u.position,
-                        gene_v.position):
+                # compute difference between start and end points (with overlap)
+                for (k, pair) in enumerate(itertools.product(gene_u.position,
+                        gene_v.position)):
                     diff = abs(pair[0] - pair[1])
-                    diffs[i] = min(diff, genome_length - diff)
+                    diffs[k] = min(diff, genome_length - diff)
                 # we only use the UR triangle of the distances matrix
                 self.distances[i, j] = diffs.min()
+        for gene in no_position:
+            LOGGER.info("no position information for gene '{0}'".format(gene))
 
-    def read_regulondb_file(self, filename, gene_identifier="name", sep="\t",
+    def read_regulondb(self, filename, gene_identifier="name", sep="\t",
             comment="#", encoding="utf-8", mode="rb", **kw_args):
         """
         Retrieve the gene locations from a RegulonDB flat file and construct the

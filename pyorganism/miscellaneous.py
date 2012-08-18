@@ -81,7 +81,7 @@ class OptionsManager(Singleton):
         self.lower_bound = 0.0
         self.upper_bound = 1000.0
         self.numeric_threshold = 1E-09
-        self.num_proc = 1
+        self.num_cpu = 1
 
 def load_module(module, name=False, url=False):
     try:
