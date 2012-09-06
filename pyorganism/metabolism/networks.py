@@ -655,7 +655,7 @@ class ReactionCentricMultiNetwork(nx.MultiDiGraph):
         net.draw(filename, prog=layout_program, args=layout_args)
 
 
-def read_edgelist(filename, sep=None, comment="#", mode="rb",
+def read_edgelist(filename, sep="\t", comment="#", mode="rb",
         encoding="utf-8", **kw_args):
     """
     """

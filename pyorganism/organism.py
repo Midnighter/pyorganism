@@ -24,8 +24,9 @@ __all__ = ["Organism"]
 import logging
 import numpy
 import random
-import multiprocessing
+import re
 
+from operator import attrgetter
 from copy import copy
 from .regulation import elements as elem
 from . import miscellaneous as misc
@@ -73,7 +74,7 @@ class Organism(object):
         self.couplons = None
         self.activity = dict()
         self.metabolism = None
-        self._pool = multiprocessing.Pool(OPTIONS.num_cpu)
+        self.metabolic_network = None
 
     def __str__(self):
         return str(self.name)
@@ -125,7 +126,7 @@ class Organism(object):
         self.activity[description] = genes
         return genes
 
-    def digital_control(self, active):
+    def digital_control(self, active, **kw_args):
         """
         Compute the digital control from an effective TRN.
 
@@ -153,8 +154,7 @@ class Organism(object):
         subnet = effective_network(self.trn, active)
         return marr_ratio(subnet)
 
-    def digital_ctc(self, active, random_num=1E04, parallel=False,
-            return_sample=False):
+    def digital_ctc(self, active, random_num=1E04, return_sample=False, **kw_args):
         """
         Compute the digital control type confidence of an effective TRN.
 
@@ -177,21 +177,18 @@ class Organism(object):
         if self.trn is None or self.trn.size() == 0:
             LOGGER.warn("empty transcriptional regulatory network")
             return numpy.nan
-        if parallel:
-            map_func = self._pool.map
-        else:
-            map_func = map
         active = set([gene.regulatory_product if type(gene.regulatory_product) ==\
                 elem.TranscriptionFactor else gene for gene in active])
         original = effective_network(self.trn, active)
-        sample = map_func(active_sample, [(self.trn, len(original))] * int(random_num))
+        size = len(original)
+        sample = [active_sample(self.trn, size) for i in range(int(random_num))]
         z_score = compute_zscore(marr_ratio(original), sample)
         if return_sample:
             return (z_score, sample)
         else:
             return z_score
 
-    def analog_control(self, active):
+    def analog_control(self, active, **kw_args):
         """
         Compute the analog control from an effective GPN.
 
@@ -217,8 +214,7 @@ class Organism(object):
         subnet = effective_network(self.gpn, active)
         return marr_ratio(subnet)
 
-    def analog_ctc(self, active, random_num=1E04, parallel=False,
-            return_sample=False):
+    def analog_ctc(self, active, random_num=1E04, return_sample=False, **kw_args):
         """
         Compute the analog control from an effective GPN.
 
@@ -241,12 +237,100 @@ class Organism(object):
         if self.gpn is None or self.gpn.size() == 0:
             LOGGER.warn("empty gene proximity network")
             return numpy.nan
-        if parallel:
-            map_func = self._pool.map
-        else:
-            map_func = map
         original = effective_network(self.gpn, active)
-        sample = map_func(active_sample, [(self.gpn, len(original))] * int(random_num))
+        size = len(original)
+        sample = [active_sample(self.gpn, size) for i in range(int(random_num))]
+        z_score = compute_zscore(marr_ratio(original), sample)
+        if return_sample:
+            return (z_score, sample)
+        else:
+            return z_score
+
+    def metabolic_coherence_ratio(self, active, bnumber2gene, **kw_args):
+        """
+        Compute the metabolic coherence ratio (MCR) from an effective metabolic
+        network.
+
+        Parameters
+        ----------
+        active: iterable
+            An iterable with actively expressed genes.
+
+        Warning
+        -------
+        Unknown gene names are silently ignored.
+
+        References
+        ----------
+        [1] Sonnenschein, N., Geertz, M., Muskhelishvili, G., Hütt, M.-T., 2011.
+            Analog regulation of metabolic demand.
+            BMC Syst Biol 5, 40.
+
+        """
+        if self.metabolic_network is None or self.metabolic_network.size() == 0:
+            LOGGER.warn("empty metabolic network")
+            return numpy.nan
+        rxn_centric = self.metabolic_network.to_reaction_centric()
+        bpattern = re.compile(r"b\d{4}")
+        active_reactions = list()
+        # evaluate whether a reaction can be active due to gene expression
+        for rxn in rxn_centric:
+            info = rxn.notes["gene_association"]
+            if info:
+                matches = bpattern.findall(info)
+                if not matches:
+                    continue
+                for mobj in matches:
+                    info = info.replace(mobj, str(bnumber2gene[mobj] in active))
+                activity = eval(info)
+                if activity:
+                    active_reactions.append(rxn)
+        subnet = effective_network(rxn_centric, active_reactions)
+        return total_ratio(subnet)
+
+    def metabolic_coherence(self, active, bnumber2gene, random_num=1E04,
+            return_sample=False, **kw_args):
+        """
+        Compute the metabolic coherence (MC) from an effective metabolic
+        network.
+
+        Parameters
+        ----------
+        active: iterable
+            An iterable with actively expressed genes.
+
+        Warning
+        -------
+        Unknown gene names are silently ignored.
+
+        References
+        ----------
+        [1] Sonnenschein, N., Geertz, M., Muskhelishvili, G., Hütt, M.-T., 2011.
+            Analog regulation of metabolic demand.
+            BMC Syst Biol 5, 40.
+
+        """
+        if self.metabolic_network is None or self.metabolic_network.size() == 0:
+            LOGGER.warn("empty metabolic network")
+            return numpy.nan
+        rxn_centric = self.metabolic_network.to_reaction_centric()
+        bpattern = re.compile(r"b\d{4}")
+        active_reactions = list()
+        # evaluate whether a reaction can be active due to gene expression
+        for rxn in rxn_centric:
+            info = rxn.notes["gene_association"]
+            if info:
+                matches = bpattern.findall(info)
+                if not matches:
+                    continue
+                for mobj in matches:
+                    info = info.replace(mobj, str(bnumber2gene[mobj] in active))
+                activity = eval(info)
+                if activity:
+                    active_reactions.append(rxn)
+        original = effective_network(rxn_centric, active_reactions)
+        size = len(original)
+        sample = [active_sample(rxn_centric, size) for i in range(int(random_num))]
         z_score = compute_zscore(marr_ratio(original), sample)
         if return_sample:
             return (z_score, sample)
@@ -254,21 +338,41 @@ class Organism(object):
             return z_score
 
     def robustness(self, control_type, active, replacement, fraction=0.1,
-            random_num=1E04, parallel=False):
+            random_num=1E04, control_num=1E04, **kw_args):
         """
         Replace a fraction of the active genes with other genes.
         """
-        if parallel:
-            map_func = self._pool.map
-        else:
-            map_func = map
-        kw_args["random_num"] = random_num
-        kw_args["parallel"] = parallel
+        kw_args["random_num"] = control_num
         size = len(active)
         replace_num = int(round(size * fraction))
         LOGGER.info("replacing {0:d}/{1:d} genes".format(replace_num, size))
-        samples = map_func(jackknife, [(active, replacement, replace_num)] * int(random_num))
+        samples = [jack_replace(active, replacement, replace_num)\
+                for i in range(int(random_num))]
+        distribution = [control_type(sample, **kw_args) for sample in samples]
         return distribution
+
+    def stat_expression_forks(self, statistic, active, ori=(3923657, 3924034),
+            ter=None):
+        end = attrgetter("position_end")
+        # assume the maximal end position of the genes is the total length
+        genome_length = end(max(self.genes, key=end))
+        if ter is None:
+            LOGGER.debug("genome length = {0:d}".format(genome_length))
+            ter = int(round(genome_length / 2.0 + (ori[1] + ori[0]) / 2.0)) % genome_length
+            LOGGER.debug("terminus location = {0:d}".format(ter))
+            ter = (ter, ter)
+        dist = abs(ori[1] - ter[0])
+        fork = list()
+        counter_fork = list()
+        for gene in active:
+            if gene.position_start > ori[1] and gene.position_start < (ori[1] + dist):
+                fork.append(statistic(gene, True))
+            elif gene.position_start < ter[0] and gene.position_start > (ter[0] - dist):
+                fork.append(statistic(gene, True))
+            else:
+                counter_fork.append(statistic(gene, False))
+        return ([x for x in fork if not x is None],
+                [x for x in counter_fork if not x is None])
 
 
 def effective_network(network, active):
@@ -278,7 +382,7 @@ def effective_network(network, active):
     subnet = network.subgraph(active)
     size = len(subnet)
     diff = len(active) - size
-    LOGGER.info("{0:d} ignored gene(s)".format(diff))
+    LOGGER.info("{0:d} ignored node(s)".format(diff))
     if size == 0:
         LOGGER.warn("empty effective network")
     return subnet
@@ -294,7 +398,7 @@ def total_ratio(network):
     control = sum(1 for (node, deg) in network.degree_iter() if deg > 0)
     return control / float(len(network))
 
-def active_sample((network, size)):
+def active_sample(network, size):
     """
     Sample from affected genes as null model.
     """
@@ -303,11 +407,34 @@ def active_sample((network, size)):
     result = marr_ratio(subnet)
     return result
 
-def jackknife((control_type, active, replacement, replace_num, random_num)):
+def jack_replace(active, replacement, replace_num):
     positions = random.sample(range(len(active)), replace_num)
     tmp = copy(active)
     replace = random.sample(replacement, replace_num)
     for (i, k) in enumerate(positions):
         tmp[k] = replace[i]
     return tmp
+
+def jackknife(active, remove_num):
+    positions = random.sample(range(len(active)), remove_num)
+    tmp = copy(active)
+    for i in positions:
+        del tmp[i]
+    return tmp
+
+def leading_gc(gene, clockwise):
+    if clockwise:
+        if gene.strand == "forward":
+            return gene.gc_content
+    else:
+        if gene.strand == "reverse":
+            return gene.gc_content
+
+def lagging_gc(gene, clockwise):
+    if clockwise:
+        if gene.strand == "reverse":
+            return gene.gc_content
+    else:
+        if gene.strand == "forward":
+            return gene.gc_content
 

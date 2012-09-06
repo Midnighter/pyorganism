@@ -27,6 +27,10 @@ import logging
 from .singletonmixin import Singleton
 
 
+BREWER_SET1 = ["#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00", "#FFFF33",
+        "#A65628", "#F781BF"]
+
+
 class NullHandler(logging.Handler):
     """
     A stub logging handler that ignores all logging messages. This is the

@@ -85,6 +85,8 @@ class SBMLParser(Singleton):
 
     def _strip_species_id(self, name):
         identifier = name.replace("_DASH_", "-")
+        identifier = identifier.replace("_LPAREN_", "(")
+        identifier = identifier.replace("_RPAREN_", ")")
         if identifier.startswith(OPTIONS.compound_prefix):
             identifier = identifier[len(OPTIONS.compound_prefix):]
         compartment = None

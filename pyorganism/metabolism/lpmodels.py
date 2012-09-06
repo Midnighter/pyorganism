@@ -76,7 +76,7 @@ def _grb_populate(attrs):
     grb.setParam("LogFile", tmp_file)
     os.remove("gurobi.log")
     # set the number of processes
-    grb.setParam("Threads", OPTIONS.num_proc)
+    grb.setParam("Threads", OPTIONS.num_cpu)
     # set the feasability tolerance (smaller is more accurate but harder)
     grb.setParam("FeasibilityTol", OPTIONS.numeric_threshold)
 

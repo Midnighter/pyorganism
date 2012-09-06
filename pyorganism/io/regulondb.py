@@ -20,9 +20,12 @@ RegulonDB Parsing and Web Services
 
 import logging
 import re
+import os
+import itertools
 
 from bs4 import BeautifulSoup
 from .. import miscellaneous as misc
+from ..errors import PyOrganismError
 from .generic import open_file, read_tabular
 from ..regulation import elements as elem
 from ..regulation.networks import GRN
@@ -613,4 +616,87 @@ def lookup_gene_information(eck12_nums, num_threads=20,
         tasks.put(("getGene", gene, descriptions))
     tasks.join()
     return descriptions
+
+def draw_relationships(file_contents, emph=list(), ignore=["key_id_org"],
+        title="", font_size=14.0, width=16.54, height=11.69):
+    """
+    Draw a graph with relationships between tags in RegulonDB XML files.
+
+    Parameters
+    ----------
+    file_contents: dict
+        A dictionary where keys are filenames and values are lists of tag names
+        of the corresponding file.
+    emph: list
+        A list of tags that should be emphasized by colour.
+    ignore: list
+        A list of tags to ignore when drawing relationships.
+    title: str
+        A title description for the printed graph.
+
+    Notes
+    -----
+    Requires pygraphviz.
+    """
+    if len(emph) > len(misc.BREWER_SET1):
+        raise PyOrganismError("number of objects to be emphasized ({0:d}) is"\
+                "greater than the number of colours available ({1:d})",
+                len(emph), len(misc.BREWER_SET1))
+    pgv = misc.load_module("pygraphviz")
+    colour_choice = dict(itertools.izip(emph, misc.BREWER_SET1))
+    graph = pgv.AGraph(name="RegulonDB File-Relationships", strict=True,
+            directed=False, rankdir="TB")
+    graph.graph_attr["labelloc"] = "t"
+    graph.graph_attr["label"] = title
+    graph.graph_attr["fontsize"] = font_size * 1.5
+    graph.graph_attr["ranksep"] = "0.1 equally"
+    graph.graph_attr["size"] = (width, height)
+    graph.graph_attr["ratio"] = "compress"
+    graph.node_attr["shape"] = "none"
+    graph.node_attr["fontsize"] = font_size
+    for (name, attrs) in file_contents.iteritems():
+        label = ["<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\""\
+                " CELLPADDING=\"4\">"]
+        label.append("<TR><TD BGCOLOR=\"#A4A4A4\"><B>{0}</B></TD></TR>".format(name))
+        for (i, attr) in enumerate(attrs):
+            if attr in emph:
+                label.append("<TR><TD PORT=\"f{0:d}\" BGCOLOR=\"{1}\">{2}</TD></TR>".format(i,
+                            colour_choice[attr], attr))
+            else:
+                label.append("<TR><TD PORT=\"f{0:d}\">{1}</TD></TR>".format(i,
+                    attr))
+        label.append("</TABLE>>")
+        graph.add_node(name, label="\n".join(label))
+    nodes = file_contents.keys()
+    for i in range(len(nodes) - 1):
+        node_u = nodes[i]
+        attr_u = file_contents[node_u]
+        for j in range(i + 1, len(nodes)):
+            node_v = nodes[j]
+            attr_v = file_contents[node_v]
+            shared = set(attr_u).intersection(set(attr_v))
+            for attr in shared:
+                if attr in ignore:
+                    continue
+                u = attr_u.index(attr)
+                v = attr_v.index(attr)
+                if attr in emph:
+                    graph.add_edge(node_u, node_v,
+                            tailport="f{0:d}".format(u), headport="f{0:d}".format(v),
+                            color=colour_choice[attr])
+                else:
+                    graph.add_edge(node_u, node_v,
+                            tailport="f{0:d}".format(u), headport="f{0:d}".format(v))
+    sub_attr = dict()
+    nodes = graph.nodes()
+    nodes.sort(key=lambda n: graph.degree(n))
+    maxi = nodes[-1: -len(nodes) / 4]
+    nodes = nodes[:-len(nodes) / 4]
+    zeros = [node for (node, deg) in graph.degree_iter() if deg == 0]
+    for n in zeros:
+        nodes.remove(n)
+    graph.add_subgraph(maxi, name="input", rank="source", **sub_attr)
+    graph.add_subgraph(nodes, name="middle", **sub_attr)
+    graph.add_subgraph(zeros, rank="sink", **sub_attr)
+    return graph
 
