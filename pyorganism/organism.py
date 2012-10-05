@@ -82,6 +82,48 @@ class Organism(object):
     def __unicode__(self):
         return unicode(self.name)
 
+    def read_expression_ration(self, filename, description, sep="\t",
+            skip_header=0, comment="#",
+            encoding="utf-8", mode="rb", **kw_args):
+        """
+        Retrieve gene activity from prepared micro array data.
+
+        Parameters
+        ----------
+        filename: str
+            The path to the file containing the interaction information.
+        description: str
+            A unique identifier for the conditions of the gene activity pattern
+            to parse.
+        sep: str (optional)
+            The separator distinguishing columns in the file.
+        gene_identifier: str (optional)
+            Identifiers for the genes used in the network. Can be any of:
+                * 'name' for the gene name in that organism
+                * 'blattner' for the Blattner number
+        skip_header: int (optional)
+            The number of header lines to skip.
+        comment: str (optional)
+            The sign denoting a comment line.
+        encoding: str (optional)
+            The file encoding.
+        mode: str (optional)
+            The mode used to open a file, should always be read binary.
+        """
+        kw_args["encoding"] = encoding
+        kw_args["mode"] = mode
+        genes = list()
+        with open_file(filename, **kw_args) as (file_h, ext):
+            lines = file_h.readlines()
+            for row in read_tabular(lines[skip_header:], sep=sep, comment=comment):
+                if len(row) > 1 and row[1]:
+                    if row[0]:
+                        genes.append((row[0], float(row[1])))
+                    else:
+                        LOGGER.warn(row)
+        self.activity[description] = genes
+        return genes
+
     def read_activity(self, filename, description, sep="\t",
             skip_header=1, comment="#",
             encoding="utf-8", mode="rb", **kw_args):
@@ -362,17 +404,23 @@ class Organism(object):
             LOGGER.debug("terminus location = {0:d}".format(ter))
             ter = (ter, ter)
         dist = abs(ori[1] - ter[0])
+        full = genome_length - ori[1]
         fork = list()
         counter_fork = list()
         for gene in active:
+            if None in gene.position:
+                continue
             if gene.position_start > ori[1] and gene.position_start < (ori[1] + dist):
-                fork.append(statistic(gene, True))
+                location = gene.position_start - ori[1]
+                fork.append((location, statistic(gene, True)))
             elif gene.position_start < ter[0] and gene.position_start > (ter[0] - dist):
-                fork.append(statistic(gene, True))
+                location = full + gene.position_start
+                fork.append((location, statistic(gene, True)))
             else:
-                counter_fork.append(statistic(gene, False))
-        return ([x for x in fork if not x is None],
-                [x for x in counter_fork if not x is None])
+                location = ori[0] - gene.position_end
+                counter_fork.append((location, statistic(gene, False)))
+        return ([x for x in fork if not x[1] is None],
+                [x for x in counter_fork if not x[1] is None])
 
 
 def effective_network(network, active):

@@ -18,7 +18,7 @@ Library Miscellanea
 """
 
 
-__all__ = ["OptionsManager"]
+__all__ = ["OptionsManager", "ProgressHandler"]
 
 
 import sys
@@ -41,9 +41,13 @@ class NullHandler(logging.Handler):
         pass
 
 
-class ProgressPrinter(object):
+class ProgressHandler(logging.Handler):
     """
     Write a recurring message to a stream on the same line.
+
+    Note
+    ----
+    The underlying stream is not closed, as sys.stdout or sys.stderr may be used.
 
     Warning
     -------
@@ -51,21 +55,60 @@ class ProgressPrinter(object):
     stream.
     """
 
-    def __init__(self, stream=sys.stdout, sep=" ", **kw_args):
-        super(ProgressPrinter, self).__init__(**kw_args)
+    def __init__(self, stream=sys.stderr, shell=False, **kw_args):
+        super(ProgressHandler, self).__init__(**kw_args)
         self.stream = stream
-        self.sep = sep
+        if hasattr(self.stream, "flush"):
+            self.flush = self.stream.flush
+        if shell:
+            # return cursor to beginning and delete contents of line in shell
+            self.head = "\r\x1b[K"
+        else:
+            # return cursor to beginning of line only
+            self.head = "\r"
 
-    def __call__(self, msg, *args):
-        self.stream.write("\r\x1b[K")
-        self.stream.write(msg)
-        if args:
-            self.stream.write(self.sep)
-            self.stream.write(self.sep.join(args))
-        self.stream.flush()
+    def emit(self, record):
+        """
+        Emit a record.
 
-    def close(self):
-        self.stream.write("\n")
+        If a formatter is specified, it is used to format the record.
+        The record is then written to the stream with a trailing newline.  If
+        exception information is present, it is formatted using
+        traceback.print_exception and appended to the stream.  If the stream
+        has an 'encoding' attribute, it is used to determine how to do the
+        output to the stream.
+        """
+        try:
+            msg = self.format(record)
+            if not logging._unicode: #if no unicode support...
+                self.stream.write(self.head)
+                self.stream.write(msg)
+            else:
+                try:
+                    if (isinstance(msg, unicode) and
+                        getattr(self.stream, 'encoding', None)):
+                        ufs = msg.decode(self.stream.encoding)
+                        try:
+                            self.stream.write(self.head)
+                            self.stream.write(ufs)
+                        except UnicodeEncodeError:
+                            #Printing to terminals sometimes fails. For example,
+                            #with an encoding of 'cp1251', the above write will
+                            #work if written to a stream opened or wrapped by
+                            #the codecs module, but fail when writing to a
+                            #terminal even when the codepage is set to cp1251.
+                            #An extra encoding step seems to be needed.
+                            self.stream.write(self.head)
+                            self.stream.write((ufs).encode(self.stream.encoding))
+                    else:
+                        self.stream.write(self.head)
+                        self.stream.write(msg)
+                except UnicodeError:
+                    self.stream.write(self.head)
+                    self.stream.write(msg.encode("UTF-8"))
+            self.flush()
+        except StandardError:
+            self.handleError(record)
 
 
 class OptionsManager(Singleton):

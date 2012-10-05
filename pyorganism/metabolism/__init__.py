@@ -24,7 +24,7 @@ from .networks import *
 from .fba import *
 from .nullmodels import *
 from .generators import *
-from ..io.bigg import BiGGCompoundParser
+from ..io.bigg import *
 from ..io.metrxn import *
 from ..io.kegg import *
 

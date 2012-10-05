@@ -91,7 +91,7 @@ class Product(UniqueBase):
             return True
         elif name == self.name:
             return True
-        elif not self.synonyms is None and any(name in syn for syn in self.synonyms):
+        elif self.synonyms and any(name in syn for syn in self.synonyms if syn):
             return True
         elif name == self.go:
             return True
@@ -121,7 +121,8 @@ class Regulator(UniqueBase):
             return True
         elif name == self.name:
             return True
-        elif not self.synonyms is None and any(name in syn for syn in self.synonyms):
+        elif not self.synonyms is None and any(name in syn for syn in\
+                self.synonyms if syn):
             return True
         elif name == self.go:
             return True
