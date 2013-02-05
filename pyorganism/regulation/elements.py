@@ -58,9 +58,9 @@ class Gene(UniqueBase):
         elif name == self.name:
             return True
         # need substring test for bnumber for entries with additional info
-        elif name in self.bnumber:
+        elif name == self.bnumber:
             return True
-        elif self.synonyms and any(name in syn for syn in self.synonyms if syn):
+        elif self.synonyms and any(name == syn for syn in self.synonyms if syn):
             return True
         else:
             return False
@@ -91,7 +91,7 @@ class Product(UniqueBase):
             return True
         elif name == self.name:
             return True
-        elif self.synonyms and any(name in syn for syn in self.synonyms if syn):
+        elif self.synonyms and any(name == syn for syn in self.synonyms if syn):
             return True
         elif name == self.go:
             return True
@@ -121,7 +121,7 @@ class Regulator(UniqueBase):
             return True
         elif name == self.name:
             return True
-        elif not self.synonyms is None and any(name in syn for syn in\
+        elif not self.synonyms is None and any(name == syn for syn in\
                 self.synonyms if syn):
             return True
         elif name == self.go:

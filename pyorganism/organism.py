@@ -115,12 +115,11 @@ class Organism(object):
         genes = list()
         with open_file(filename, **kw_args) as (file_h, ext):
             lines = file_h.readlines()
-            for row in read_tabular(lines[skip_header:], sep=sep, comment=comment):
-                if len(row) > 1 and row[1]:
-                    if row[0]:
-                        genes.append((row[0], float(row[1])))
-                    else:
-                        LOGGER.warn(row)
+        for row in read_tabular(lines[skip_header:], sep=sep, comment=comment):
+            if len(row) > 1 and row[0] and row[1]:
+                genes.append((row[0], float(row[1])))
+            else:
+                LOGGER.warn(row)
         self.activity[description] = genes
         return genes
 
@@ -157,14 +156,14 @@ class Organism(object):
         genes = list()
         with open_file(filename, **kw_args) as (file_h, ext):
             lines = file_h.readlines()
-            for row in read_tabular(lines[skip_header:], sep=sep, comment=comment):
-                if len(row) > 3 and row[2]:
-                    if row[0]:
-                        genes.append((row[0], float(row[2])))
-                    elif row[1]:
-                        genes.append((row[1], float(row[2])))
-                    else:
-                        LOGGER.warn(row)
+        for row in read_tabular(lines[skip_header:], sep=sep, comment=comment):
+            if len(row) > 3 and row[2]:
+                if row[0]:
+                    genes.append((row[0], float(row[2])))
+                elif row[1]:
+                    genes.append((row[1], float(row[2])))
+                else:
+                    LOGGER.warn(row)
         self.activity[description] = genes
         return genes
 
@@ -191,10 +190,14 @@ class Organism(object):
         if self.trn is None or self.trn.size() == 0:
             LOGGER.warn("empty transcriptional regulatory network")
             return numpy.nan
-        active = set([gene.regulatory_product if type(gene.regulatory_product) ==\
-                elem.TranscriptionFactor else gene for gene in active])
+        active = set([gene.regulatory_product if\
+            isinstance(gene.regulatory_product, elem.TranscriptionFactor) else\
+            gene for gene in active])
         subnet = effective_network(self.trn, active)
-        return marr_ratio(subnet)
+        if len(subnet) == 0:
+            LOGGER.warn("empty effective network")
+            return numpy.nan
+        return total_ratio(subnet)
 
     def digital_ctc(self, active, random_num=1E04, return_sample=False, **kw_args):
         """
@@ -219,12 +222,16 @@ class Organism(object):
         if self.trn is None or self.trn.size() == 0:
             LOGGER.warn("empty transcriptional regulatory network")
             return numpy.nan
-        active = set([gene.regulatory_product if type(gene.regulatory_product) ==\
-                elem.TranscriptionFactor else gene for gene in active])
+        active = set([gene.regulatory_product if\
+            isinstance(gene.regulatory_product, elem.TranscriptionFactor) else\
+            gene for gene in active])
         original = effective_network(self.trn, active)
         size = len(original)
+        if size == 0:
+            LOGGER.warn("empty effective network")
+            return numpy.nan
         sample = [active_sample(self.trn, size) for i in range(int(random_num))]
-        z_score = compute_zscore(marr_ratio(original), sample)
+        z_score = compute_zscore(total_ratio(original), sample)
         if return_sample:
             return (z_score, sample)
         else:
@@ -254,7 +261,10 @@ class Organism(object):
             LOGGER.warn("empty gene proximity network")
             return numpy.nan
         subnet = effective_network(self.gpn, active)
-        return marr_ratio(subnet)
+        if len(subnet) == 0:
+            LOGGER.warn("empty effective network")
+            return numpy.nan
+        return total_ratio(subnet)
 
     def analog_ctc(self, active, random_num=1E04, return_sample=False, **kw_args):
         """
@@ -281,14 +291,18 @@ class Organism(object):
             return numpy.nan
         original = effective_network(self.gpn, active)
         size = len(original)
+        if size == 0:
+            LOGGER.warn("empty effective network")
+            return numpy.nan
         sample = [active_sample(self.gpn, size) for i in range(int(random_num))]
-        z_score = compute_zscore(marr_ratio(original), sample)
+        z_score = compute_zscore(total_ratio(original), sample)
         if return_sample:
             return (z_score, sample)
         else:
             return z_score
 
-    def metabolic_coherence_ratio(self, active, bnumber2gene, **kw_args):
+    def metabolic_coherence_ratio(self, active, bnumber2gene, rxn_centric=None,
+            **kw_args):
         """
         Compute the metabolic coherence ratio (MCR) from an effective metabolic
         network.
@@ -309,10 +323,15 @@ class Organism(object):
             BMC Syst Biol 5, 40.
 
         """
-        if self.metabolic_network is None or self.metabolic_network.size() == 0:
+        if rxn_centric is None:
+            if self.metabolic_network is None:
+                LOGGER.warn("no metabolic network")
+                return numpy.nan
+            else:
+                rxn_centric = self.metabolic_network.to_reaction_centric()
+        if rxn_centric.size() == 0:
             LOGGER.warn("empty metabolic network")
             return numpy.nan
-        rxn_centric = self.metabolic_network.to_reaction_centric()
         bpattern = re.compile(r"b\d{4}")
         active_reactions = list()
         # evaluate whether a reaction can be active due to gene expression
@@ -328,10 +347,13 @@ class Organism(object):
                 if activity:
                     active_reactions.append(rxn)
         subnet = effective_network(rxn_centric, active_reactions)
+        if len(subnet) == 0:
+            LOGGER.warn("empty effective network")
+            return numpy.nan
         return total_ratio(subnet)
 
-    def metabolic_coherence(self, active, bnumber2gene, random_num=1E04,
-            return_sample=False, **kw_args):
+    def metabolic_coherence(self, active, bnumber2gene, rxn_centric=None,
+            random_num=1E04, return_sample=False, **kw_args):
         """
         Compute the metabolic coherence (MC) from an effective metabolic
         network.
@@ -352,10 +374,15 @@ class Organism(object):
             BMC Syst Biol 5, 40.
 
         """
-        if self.metabolic_network is None or self.metabolic_network.size() == 0:
+        if rxn_centric is None:
+            if self.metabolic_network is None:
+                LOGGER.warn("no metabolic network")
+                return numpy.nan
+            else:
+                rxn_centric = self.metabolic_network.to_reaction_centric()
+        if rxn_centric.size() == 0:
             LOGGER.warn("empty metabolic network")
             return numpy.nan
-        rxn_centric = self.metabolic_network.to_reaction_centric()
         bpattern = re.compile(r"b\d{4}")
         active_reactions = list()
         # evaluate whether a reaction can be active due to gene expression
@@ -372,14 +399,30 @@ class Organism(object):
                     active_reactions.append(rxn)
         original = effective_network(rxn_centric, active_reactions)
         size = len(original)
-        sample = [active_sample(rxn_centric, size) for i in range(int(random_num))]
-        z_score = compute_zscore(marr_ratio(original), sample)
+        if size == 0:
+            LOGGER.warn("empty effective network")
+            return numpy.nan
+        sample = [active_sample(rxn_centric, size) for i in xrange(int(random_num))]
+        z_score = compute_zscore(total_ratio(original), sample)
         if return_sample:
             return (z_score, sample)
         else:
             return z_score
 
-    def robustness(self, control_type, active, replacement, fraction=0.1,
+    def robustness(self, control_type, active, fraction=0.1,
+            random_num=1E04, control_num=1E04, **kw_args):
+        """
+        Cut a fraction of active genes.
+        """
+        kw_args["random_num"] = control_num
+        size = len(active)
+        cut_num = int(round(size * fraction))
+        LOGGER.info("cutting {0:d}/{1:d} genes".format(cut_num, size))
+        samples = [jackknife(active, cut_num) for i in xrange(int(random_num))]
+        distribution = [control_type(sample, **kw_args) for sample in samples]
+        return distribution
+
+    def robustness_with_replacement(self, control_type, active, replacement, fraction=0.1,
             random_num=1E04, control_num=1E04, **kw_args):
         """
         Replace a fraction of the active genes with other genes.
@@ -429,10 +472,8 @@ def effective_network(network, active):
     """
     subnet = network.subgraph(active)
     size = len(subnet)
-    diff = len(active) - size
-    LOGGER.info("{0:d} ignored node(s)".format(diff))
-    if size == 0:
-        LOGGER.warn("empty effective network")
+    LOGGER.info("{0:d}/{1:d} node(s) effective network - {2:d} entities ignored"\
+            .format(size, len(network), len(active) - size))
     return subnet
 
 def marr_ratio(network):
@@ -452,11 +493,11 @@ def active_sample(network, size):
     """
     sample = random.sample(network.nodes(), size)
     subnet = network.subgraph(sample)
-    result = marr_ratio(subnet)
+    result = total_ratio(subnet)
     return result
 
 def jack_replace(active, replacement, replace_num):
-    positions = random.sample(range(len(active)), replace_num)
+    positions = random.sample(xrange(len(active)), replace_num)
     tmp = copy(active)
     replace = random.sample(replacement, replace_num)
     for (i, k) in enumerate(positions):
@@ -464,7 +505,7 @@ def jack_replace(active, replacement, replace_num):
     return tmp
 
 def jackknife(active, remove_num):
-    positions = random.sample(range(len(active)), remove_num)
+    positions = random.sample(xrange(len(active)), remove_num)
     tmp = copy(active)
     for i in positions:
         del tmp[i]

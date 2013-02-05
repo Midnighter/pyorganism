@@ -26,36 +26,45 @@ the regulation and its regulated functions in (unicellular) organisms.
 Requirements
 ------------
 
-* networkx (http://networkx.lanl.gov/)
-* numpy
+
+* networkx_
+* numpy_
 * FBA requires either:
-    * Gurobi,
-    * GLPK,
-    * MOSEK,
+    * Gurobi_,
+    * GLPK_,
+    * MOSEK_,
     * or any other linear programming solver that you are willing to provide the
-      Python interface for (like gurobipy or cvxopt).
-* pytables for HDF5 storage (can be replaced by pickling of numpy objects)
+      Python interface for (like gurobipy or cvxopt_).
+* (pytables_ for HDF5 storage can be replaced by pickling of numpy objects)
+
+.. _networkx: http://networkx.github.com/
+.. _numpy: http://www.numpy.org/
+.. _Gurobi: http://www.gurobi.com/
+.. _GLPK: http://www.gnu.org/software/glpk/
+.. _MOSEK: http://www.mosek.com/
+.. _cvxopt: http://abel.ee.ucla.edu/cvxopt/
+.. _pytables: http://www.pytables.org/
 
 
 Authors
 -------
 
 
-Former and current members of the systems biology group headed by Marc-Thorsten
-Hütt (http://compsysbio.jacobs-university.de) at Jacobs University Bremen:
+Former and current members of the `systems biology group`__ headed by Prof.
+Marc-Thorsten Hütt at Jacobs University Bremen. In alphabetical order:
 
 * Beber, Moritz Emanuel
 * Grigore, Alexandra Mirela
 * Kölling, Nils
 * Sonnenschein, Nikolaus
 
+.. _sysbio_: http://compsysbio.jacobs-university.de
+__ sysbio_
+
 
 Relevant References
 -------------------
 
 
-[1] Marr, C., Geertz, M., Hütt, M.-T., Muskhelishvili, G., 2008. 'Dissecting
-    the logical types of network control in gene expression profiles'.
-    BMC Systems Biology 2, 18.
-
+.. [1] Marr, C., Geertz, M., Hütt, M.-T., Muskhelishvili, G., 2008. 'Dissecting the logical types of network control in gene expression profiles'.  BMC Systems Biology 2, 18.
 

@@ -206,7 +206,7 @@ class MetabolicSystem(object):
         stoichiometric matrix is right multiplied a vector of compound masses
         and the system is expected to conform with mass conservation laws.
         """
-        from ..fba import FBAModel
+        from .fba import FBAModel
         if self._transpose and not self._modified:
             return
         self._transpose = FBAModel("transpose")
@@ -217,7 +217,7 @@ class MetabolicSystem(object):
         self._transpose.add_reaction(self.compounds, lb=1.0, ub=numpy.inf)
         # constrain mass by stoichiometric coefficients
         for rxn in self.reactions:
-            self._transpose.add_compound(rxn, list(rxn.compounds(True)))
+            self._transpose.add_compound(rxn, list(rxn.compounds_iter(True)))
 #            LOGGER.debug(list(self._transpose.iter_reactions(rxn, True)))
         # objective is over all compound masses
         self._transpose.set_objective_reaction(self.compounds, 1.0)
@@ -318,7 +318,7 @@ class MetabolicSystem(object):
 
         model = FBAModel(name)
 
-        model.add_reaction(self.reactions, [list(rxn.compounds(True))\
+        model.add_reaction(self.reactions, [list(rxn.compounds_iter(True))\
                 for rxn in self.reactions], (rxn.lower_bound\
                 for rxn in self.reactions), (rxn.upper_bound\
                 for rxn in self.reactions))

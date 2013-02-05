@@ -69,27 +69,20 @@ class GRN(nx.MultiDiGraph):
 
     def from_link_list(self, links):
         for (u, v, inter) in links:
-            self.add_edge(elem.Gene.get(u), elem.Gene.get(v), interaction=inter)
+            self.add_edge(elem.Gene.get(u), elem.Gene.get(v), key=inter)
 
     def to_trn(self):
-        trn = TRN(name="Transcriptinal Regulatory Network")
-        for (gene_u, gene_v, data) in self.edges_iter(data=True):
+        trn = TRN(name="Transcriptinal Regulatory Network (TRN)")
+        for (gene_u, gene_v, k) in self.edges_iter(keys=True):
             if type(gene_u.regulatory_product) == elem.TranscriptionFactor:
                 u = gene_u.regulatory_product
             else:
                 u = gene_u
-            trn.add_node(u)
             if type(gene_v.regulatory_product) == elem.TranscriptionFactor:
                 v = gene_v.regulatory_product
             else:
                 v = gene_v
-            trn.add_node(v)
-            inter = data["interaction"]
-            # do not add multi-links with existing interaction
-            if trn.has_edge(u, v):
-                if any(attr["interaction"] == inter for attr in trn[u][v].itervalues()):
-                    continue
-            trn.add_edge(u, v, interaction=inter)
+            trn.add_edge(u, v, key=k)
         return trn
 
 
@@ -125,7 +118,7 @@ class TRN(nx.MultiDiGraph):
                     element = elem.TranscriptionFactor.get(u)
                 except KeyError:
                     element = elem.Gene.get(u)
-                self.add_edge(element, element, interaction=inter)
+                self.add_edge(element, element, key=inter)
             else:
                 try:
                     elem_u = elem.TranscriptionFactor.get(u)
@@ -135,7 +128,7 @@ class TRN(nx.MultiDiGraph):
                     elem_v = elem.TranscriptionFactor.get(v)
                 except KeyError:
                     elem_v = elem.Gene.get(v)
-                self.add_edge(elem_u, elem_v, interaction=inter)
+                self.add_edge(elem_u, elem_v, key=inter)
 
     def to_couplons(self, sf_links):
         couplon_gen = CouplonGenerator(self)

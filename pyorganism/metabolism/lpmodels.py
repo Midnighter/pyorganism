@@ -74,7 +74,8 @@ def _grb_populate(attrs):
     # deal with Gurobi's annoying log file
     tmp_file = tempfile.mkstemp()[1] # absolute path component
     grb.setParam("LogFile", tmp_file)
-    os.remove("gurobi.log")
+    if os.path.exists("gurobi.log"):
+        os.remove("gurobi.log")
     # set the number of processes
     grb.setParam("Threads", OPTIONS.num_cpu)
     # set the feasability tolerance (smaller is more accurate but harder)

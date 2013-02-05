@@ -23,11 +23,12 @@ __all__ = ["SBMLParser"]
 
 
 import logging
-import re
+#import re
 
 from ..singletonmixin import Singleton
 from .. import miscellaneous as misc
 from ..metabolism import elements as pymet
+from ..errors import PyOrganismError
 
 libsbml = misc.load_module("libsbml", "SBML", "http://sbml.org/Software/libSBML")
 
@@ -45,7 +46,7 @@ class SBMLParser(Singleton):
 
     def __init__(self, **kw_args):
         super(SBMLParser, self).__init__(**kw_args)
-        self.reaction_property = re.compile("([a-z]+[a-z_0-9]*)$", re.UNICODE)
+#        self.reaction_property = re.compile("([a-z]+[a-z_0-9]*)$", re.UNICODE)
 
     def from_string(self, xml):
         """
@@ -53,20 +54,28 @@ class SBMLParser(Singleton):
         """
         from ..metabolism.systems import MetabolicSystem
         document = libsbml.readSBMLFromString(xml)
-        if document.getNumErrors() > 0:
-            LOGGER.warn("reading the SBML document produced some errors")
+        num_err = document.getNumErrors()
+        fatal = False
+        if num_err > 0:
+            for i in xrange(num_err):
+                sbml_err = document.getError(i)
+                LOGGER.warn(sbml_err.getShortMessage())
+                if sbml_err.getSeverity() == libsbml.LIBSBML_SEV_FATAL:
+                    fatal = True
+        if fatal:
+            raise PyOrganismError("fatal error in SBML parsing")
         model = document.getModel()
         # parse compartments
         compartments = [self._parse_compartment(comp) for comp in
                 model.getListOfCompartments()]
-        LOGGER.debug("approx. %d compartments", len(compartments))
+        LOGGER.info("approx. %d compartments", len(compartments))
         # parse compounds
         compounds = [self._parse_species(cmpd) for cmpd in
                 model.getListOfSpecies()]
-        LOGGER.debug("%d compounds", len(compounds))
+        LOGGER.info("%d compounds", len(compounds))
         reactions = [self._parse_reaction(rxn, model) for rxn in
                 model.getListOfReactions()]
-        LOGGER.debug("%d reactions", len(reactions))
+        LOGGER.info("%d reactions", len(reactions))
         return MetabolicSystem(compartments=compartments,
                 reactions=reactions, compounds=compounds)
 
@@ -84,9 +93,10 @@ class SBMLParser(Singleton):
                 suffix=suffix)
 
     def _strip_species_id(self, name):
-        identifier = name.replace("_DASH_", "-")
-        identifier = identifier.replace("_LPAREN_", "(")
-        identifier = identifier.replace("_RPAREN_", ")")
+        identifier = name
+#        identifier = name.replace("_DASH_", "-")
+#        identifier = identifier.replace("_LPAREN_", "(")
+#        identifier = identifier.replace("_RPAREN_", ")")
         if identifier.startswith(OPTIONS.compound_prefix):
             identifier = identifier[len(OPTIONS.compound_prefix):]
         compartment = None
@@ -118,6 +128,9 @@ class SBMLParser(Singleton):
 
     def _strip_reaction_id(self, name):
         identifier = name
+#        identifier = name.replace("_DASH_", "-")
+#        identifier = identifier.replace("_LPAREN_", "(")
+#        identifier = identifier.replace("_RPAREN_", ")")
         if identifier.startswith(OPTIONS.reaction_prefix):
             identifier = identifier[len(OPTIONS.reaction_prefix):]
         if identifier.endswith(OPTIONS.reversible_suffix):
@@ -153,10 +166,12 @@ class SBMLParser(Singleton):
                     key = item[0].strip().lower().replace(" ", "_")
                     value = item[1].strip()
                     info[key] = value
-        mobj = self.reaction_property.search(identifier)
-        if mobj:
-            info["properties"] = mobj.group(1)
-            identifier = identifier[:mobj.start(1)]
+        # reaction properties and distinguishing suffixes for various
+        # compartments cannot be separated easily but suffixes are necessary
+#        mobj = self.reaction_property.search(identifier)
+#        if mobj:
+#            info["properties"] = mobj.group(1)
+#            identifier = identifier[:mobj.start(1)]
         return pymet.SBMLReaction(unique_id=identifier, substrates=substrates,
                 products=products, reversible=reaction.getReversible(),
                 name=name, notes=info, **params)

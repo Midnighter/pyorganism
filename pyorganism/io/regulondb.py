@@ -20,9 +20,9 @@ RegulonDB Parsing and Web Services
 
 import logging
 import re
-import os
 import itertools
 
+from collections import defaultdict
 from bs4 import BeautifulSoup
 from .. import miscellaneous as misc
 from ..errors import PyOrganismError
@@ -34,9 +34,17 @@ from ..regulation.networks import GRN
 LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(misc.NullHandler())
 
+FUNCTIONS = {"repressor": -1, "activator": 1, "unknown": 0, "dual": 2,
+        "-": -1, "+": 1, "?": 0, "+-": 2}
+
 NAPs = ["ECK120011186", "ECK120011224", "ECK120011229", "ECK120011235",
         "ECK120011294", "ECK120011345", "ECK120011383"]
 
+
+def find_element(name, group):
+    for element in group:
+        if name in element:
+            return element
 
 def read_genes(filename, sep="\t", comment="#", encoding=None, mode="rb",
         **kw_args):
@@ -313,18 +321,9 @@ def read_gene_regulation(filename, sep="\t", comment="#", encoding=None,
                 LOGGER.warn("unknown gene: {0}".format(eck12))
                 continue
             interaction = misc.convert(row.generegulation_function.string, unicode)
-            if interaction == "repressor":
-                trn.add_edge(gene_u, gene_v, interaction=-1)
-            elif interaction == "activator":
-                trn.add_edge(gene_u, gene_v, interaction=1)
-            elif interaction == "unknown":
-                trn.add_edge(gene_u, gene_v, interaction=0)
-            elif interaction == "dual":
-                trn.add_edge(gene_u, gene_v, interaction=2)
-            else:
-                LOGGER.warn("unknown regulatory interaction: {0}".format(interaction))
+            grn.add_edge(gene_u, gene_v, key=FUNCTIONS[interaction])
 
-    trn = GRN(name="Gene Regulatory Network")
+    grn = GRN(name="Gene Regulatory Network")
     # read information from the file
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
@@ -333,7 +332,7 @@ def read_gene_regulation(filename, sep="\t", comment="#", encoding=None,
             parse_xhtml(file_h)
         else:
             parse_flat_file(file_h)
-    return trn
+    return grn
 
 def read_sigma_factors(filename, sep="\t", comment="#", encoding=None,
         mode="rb", **kw_args):
@@ -475,6 +474,209 @@ def link_gene_product_transcription_factor(filename, sep="\t", comment="#",
             parse_xhtml(file_h)
         else:
             parse_flat_file(file_h)
+
+def product_tf_link_control(t_factors, products):
+    for tf in t_factors:
+        if not (tf.made_from and tf.coded_from):
+            product = find_element(tf.name, products)
+            if product is None:
+                LOGGER.warn("no product found: {0}".format(tf.name))
+                continue
+            tf.made_from.add(product)
+            tf.coded_from.add(product.coded_from)
+            product.coded_from.regulatory_product = tf
+
+
+def read_regulatory_interactions(filename, sep="\t", comment="#",
+        encoding=None, mode="rb", **kw_args):
+    """
+    Extract regulatory interactions from relationships in RegulonDB files. Each
+    interaction is given by a conformation ID and a promoter ID and the type of
+    interaction.
+    """
+
+    def parse_flat_file(file_handle):
+        raise NotImplementedError
+
+    def parse_xhtml(file_handle):
+        soup = BeautifulSoup(file_handle, "lxml")
+        for row in soup.rowset.find_all(name="row", recursive=False):
+            u = misc.convert(row.conformation_id.string, unicode)
+            v = misc.convert(row.promoter_id.string, unicode)
+            d = misc.convert(row.ri_function.string, unicode)
+            interactions.append((u, v, d))
+
+    # read information from the file
+    kw_args["mode"] = mode
+    kw_args["encoding"] = encoding
+    interactions = list()
+    with open_file(filename, **kw_args) as (file_h, ext):
+        if ext == ".xml":
+            parse_xhtml(file_h)
+        else:
+            parse_flat_file(file_h)
+    return interactions
+
+def read_conformations(filename, sep="\t", comment="#", encoding=None,
+        mode="rb", **kw_args):
+    """
+    Extract pairs of conformation and transcription factor IDs.
+    """
+
+    def parse_flat_file(file_handle):
+        raise NotImplementedError
+
+    def parse_xhtml(file_handle):
+        soup = BeautifulSoup(file_handle, "lxml")
+        for row in soup.rowset.find_all(name="row", recursive=False):
+            u = misc.convert(row.conformation_id.string, unicode)
+            v = misc.convert(row.transcription_factor_id.string, unicode)
+            conformations.append((u, v))
+
+    # read information from the file
+    kw_args["mode"] = mode
+    kw_args["encoding"] = encoding
+    conformations = list()
+    with open_file(filename, **kw_args) as (file_h, ext):
+        if ext == ".xml":
+            parse_xhtml(file_h)
+        else:
+            parse_flat_file(file_h)
+    return conformations
+
+def read_transcription_units(filename, sep="\t", comment="#", encoding=None,
+        mode="rb", **kw_args):
+    """
+    Extract pairs of transcription unit and promoter IDs.
+
+    Returns
+    -------
+    A map between promoter IDs and the various transcription units they occur
+    in.
+    """
+
+    def parse_flat_file(file_handle):
+        raise NotImplementedError
+
+    def parse_xhtml(file_handle):
+        soup = BeautifulSoup(file_handle, "lxml")
+        for row in soup.rowset.find_all(name="row", recursive=False):
+            prom = misc.convert(row.promoter_id.string, unicode)
+            tu = misc.convert(row.transcription_unit_id.string, unicode)
+            units[prom].append(tu)
+
+    # read information from the file
+    kw_args["mode"] = mode
+    kw_args["encoding"] = encoding
+    units = defaultdict(list)
+    with open_file(filename, **kw_args) as (file_h, ext):
+        if ext == ".xml":
+            parse_xhtml(file_h)
+        else:
+            parse_flat_file(file_h)
+    return dict(units)
+
+def read_operons(filename, sep="\t", comment="#", encoding=None,
+        mode="rb", **kw_args):
+    """
+    Extract operon information.
+    """
+
+    def parse_flat_file(file_handle):
+        raise NotImplementedError
+
+    def parse_xhtml(file_handle):
+        soup = BeautifulSoup(file_handle, "lxml")
+        for row in soup.rowset.find_all(name="row", recursive=False):
+            a = misc.convert(row.operon_id.string, unicode)
+            b = misc.convert(row.firstgeneposleft.string, unicode)
+            c = misc.convert(row.lastgeneposright.string, unicode)
+            d = misc.convert(row.operon_strand.string, unicode)
+            operons.append((a, b, c, d))
+
+    # read information from the file
+    kw_args["mode"] = mode
+    kw_args["encoding"] = encoding
+    operons = list()
+    with open_file(filename, **kw_args) as (file_h, ext):
+        if ext == ".xml":
+            parse_xhtml(file_h)
+        else:
+            parse_flat_file(file_h)
+    return operons
+
+def read_tu_objects(filename, sep="\t", comment="#", encoding=None,
+        mode="rb", **kw_args):
+    """
+    Extract transcription unit (TU) information.
+
+    Parameters
+    ----------
+    filename: str
+        Relative or absolute path to file that contains the  RegulonDB information.
+
+    Returns
+    -------
+    A dict with keys that are TU IDs and values that are gene IDs contained
+    within that TU.
+    """
+
+    def parse_flat_file(file_handle):
+        raise NotImplementedError
+
+    def parse_xhtml(file_handle):
+        soup = BeautifulSoup(file_handle, "lxml")
+        for row in soup.rowset.find_all(name="row", recursive=False):
+            if misc.convert(row.tu_object_class.string, unicode) == "GN":
+                tu = misc.convert(row.transcription_unit_id.string, unicode)
+                gene = misc.convert(row.tu_object_id.string, unicode)
+                units[tu].append(gene)
+
+    # read information from the file
+    kw_args["mode"] = mode
+    kw_args["encoding"] = encoding
+    units = defaultdict(list)
+    with open_file(filename, **kw_args) as (file_h, ext):
+        if ext == ".xml":
+            parse_xhtml(file_h)
+        else:
+            parse_flat_file(file_h)
+    return dict(units)
+
+def read_tf_gene_network(genes, filename, sep="\t", comment="#",
+        encoding=None, mode="rb", **kw_args):
+
+    links = list()
+    # read information from the file
+    kw_args["mode"] = mode
+    kw_args["encoding"] = encoding
+    with open_file(filename, **kw_args) as (file_h, ext):
+        if ext != ".txt":
+            raise NotImplementedError
+        for row in read_tabular(file_h, sep=sep, comment=comment):
+            links.append((row[0], row[1], FUNCTIONS[row[2]], row[3]))
+    # map transcription factor names to objects
+    t_factors = [gene.regulatory_product for gene in genes\
+            if isinstance(gene.regulatory_product, elem.TranscriptionFactor)]
+    tf_names = set([quad[0] for quad in links])
+    name2tf = dict()
+    for name in tf_names:
+        name2tf[name] = find_element(name, t_factors)
+    for (name, tar) in name2tf.iteritems():
+        if tar is None:
+            LOGGER.warn("transcription factor '{0}' not found".format(name))
+    # map gene names to objects
+    gene_names = set([quad[1] for quad in links])
+    name2gene = dict()
+    for name in gene_names:
+        name2gene[name] = find_element(name, genes)
+    for (name, tar) in name2gene.iteritems():
+        if tar is None:
+            LOGGER.warn("gene '{0}' not found".format(name))
+    # now apply the maps to the interactions
+    interactions = [(name2tf[quad[0]], name2gene[quad[1]], quad[2])\
+            for quad in links]
+    return interactions
 
 def read_sigma_gene_network(genes, filename, sep="\t", comment="#",
         encoding=None, mode="rb", **kw_args):
@@ -640,7 +842,7 @@ def draw_relationships(file_contents, emph=list(), ignore=["key_id_org"],
     """
     if len(emph) > len(misc.BREWER_SET1):
         raise PyOrganismError("number of objects to be emphasized ({0:d}) is"\
-                "greater than the number of colours available ({1:d})",
+                " greater than the number of colours available ({1:d})",
                 len(emph), len(misc.BREWER_SET1))
     pgv = misc.load_module("pygraphviz")
     colour_choice = dict(itertools.izip(emph, misc.BREWER_SET1))
