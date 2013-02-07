@@ -50,16 +50,14 @@ Authors
 -------
 
 
-Former and current members of the `systems biology group`__ headed by Prof.
-Marc-Thorsten Hütt at Jacobs University Bremen. In alphabetical order:
+Former and current members of the `Computational Systems Biology workgroup`__ headed by Prof.  Marc-Thorsten Hütt at Jacobs University Bremen. In alphabetical order:
 
 * Beber, Moritz Emanuel
 * Grigore, Alexandra Mirela
 * Kölling, Nils
 * Sonnenschein, Nikolaus
 
-.. _sysbio_: http://compsysbio.jacobs-university.de
-__ sysbio_
+.. __: http://sysbio.jacobs-university.de/website/
 
 
 Relevant References
