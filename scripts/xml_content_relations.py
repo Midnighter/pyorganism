@@ -20,6 +20,7 @@ Compile XML Tag Relationships
 
 import sys
 import os
+import multiprocessing
 import cPickle as pickle
 
 from glob import glob
@@ -36,18 +37,28 @@ def xml_reader(filename):
 
 def main(db_path):
     versions = glob(os.path.join(db_path, "[0-9].[0-9]"))
-    import multiprocessing
     pool = multiprocessing.Pool()
+    ask = True
     for ver in versions:
-        sys.stdout.write("\r\x1b[K")
-        sys.stdout.write(ver)
-        sys.stdout.flush()
+        print(ver)
+        filename = os.path.join(ver, "xml_contents.pkl")
+        if os.path.exists(filename):
+            if ask:
+                choice = raw_input("Re-parse existing XML tags? [yes|no|all|zero]")
+                choice = choice.lower()
+            if choice.startswith("a"):
+                ask = False
+            elif choice.startswith("z"):
+                ask = False
+                continue
+            elif choice.startswith("y"):
+                pass
+            else:
+                continue
         files = glob(os.path.join(ver, "*.xml"))
         tables = dict(pool.map(xml_reader, files))
-        with open(os.path.join(ver, "xml_contents.pkl"), "wb") as file_h:
+        with open(filename, "wb") as file_h:
             pickle.dump(tables, file_h, pickle.HIGHEST_PROTOCOL)
-    sys.stdout.write("\n")
-    sys.stdout.flush()
 
 
 if __name__ == "__main__":
