@@ -24,7 +24,6 @@ __all__ = ["UniqueBase"]
 import logging
 
 from . import miscellaneous as misc
-from .errors import PyOrganismError
 
 
 LOGGER = logging.getLogger(__name__)
@@ -116,29 +115,58 @@ class UniqueBase(object):
             A string uniquely identifying one component among its class.
         """
         super(UniqueBase, self).__init__(**kw_args)
-        # reading class attribute _counter
         self._index = self.__class__._counter
         if unique_id:
             self.unique_id = unique_id
         else:
             self.unique_id = u"{0}_{1:d}".format(self.__class__.__name__,
                     self._index)
-        # assigning to class attribute _memory
         self.__class__._memory[self.unique_id] = self
+
+    def __reduce__(self):
+        """
+        Take full control of pickling this class.
+
+        The basic dilemma is that __getnewargs__ is called only by pickle
+        protocol version >= 2 but we require it to be called every time so
+        that we can unpickle the correct objects no matter the pickle version
+        used.
+        """
+        return (self.__class__, self.__getnewargs__(), self.__getstate__())
+
+    def __getnewargs__(self):
+        """
+        Returns a tuple that is supplied to a call of self.__class__ when
+        unpickling this object.
+
+        The `unique_id` is all we need for persistent state. It allows us to
+        retrieve an existing object with that ID or generate it accordingly.
+        """
+        return (self.unique_id,)
+
+    def __getstate__(self):
+        """
+        We could take more fine-grained control here.
+        """
+        return self.__dict__
 
     def __setstate__(self, state):
         """
         Take control of how to unpickle an instance of this class.
+
+        Update the instance's __dict__ with the state. We only update attributes
+        that evaluate to false because otherwise we might replace existing
+        attributes with the unpickled ones (kind of a workaround, can't decide
+        when an object was newly created upon unpickling).
         """
-        # this is what pickle usually would do
-        self.__dict__ = state
-        # we also want to set the class variables appropriately
-        if self.unique_id in self.__class__._memory:
-            raise PyOrganismError("an instance of class '{0}' with identifier"\
-                    " '{1}' already exists", self.__class__.__name__,
-                    self.unique_id)
-        self.__class__._memory[self.unique_id] = self
-        self.__class__._counter = len(self.__class__._memory)
+        for (name, value) in state.iteritems():
+            # default return value in order to update old class definitions
+            if not getattr(self, name, False):
+                setattr(self, name, value)
+        if not self.unique_id in self.__class__._memory:
+            # old pickle, we need to update class attributes
+            self.__class__._memory[self.unique_id] = self
+            self.__class__._counter = len(self.__class__._memory)
 
     def __str__(self):
         return str(self.unique_id)

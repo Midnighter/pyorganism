@@ -29,7 +29,6 @@ from IPython.parallel import interactive, LoadBalancedView
 
 from .regulation import elements as elem
 from . import miscellaneous as misc
-#from .errors import PyOrganismError
 from .statistics import compute_zscore
 from .organism import effective_network, total_ratio
 
@@ -78,16 +77,22 @@ def digital_ctc(d_view, organism, active, random_num=1E04, return_sample=False,
         return numpy.nan
     with d_view.sync_imports(quiet=True):
         import random
+        import sys
+    # dirty developer fix
+    d_view.execute("sys.path.append('/home/moritz/CodeBase/Development/pyorganism')",
+            block=True)
     d_view.push(dict(network=organism.trn, total_ratio=total_ratio), block=True)
     sizes = [size for i in xrange(int(random_num))]
     if isinstance(lb_view, LoadBalancedView):
         num_krnl = len(lb_view)
         chunk = random_num // num_krnl // num_krnl
-        samples = lb_view.map(_active_sample, sizes, block=False,
+        results = lb_view.map(_active_sample, sizes, block=False,
                 ordered=False, chunksize=chunk)
     else:
-        samples = d_view.map(_active_sample, sizes, block=False)
-    samples = list(samples)
+        results = d_view.map(_active_sample, sizes, block=False)
+    samples = list(results)
+    LOGGER.info("parallel speed-up was %.3g",
+            results.serial_time / results.wall_time)
     z_score = compute_zscore(total_ratio(original), samples)
     if return_sample:
         return (z_score, samples)
@@ -129,16 +134,22 @@ def analog_ctc(d_view, organism, active, random_num=1E04, return_sample=False,
         return numpy.nan
     with d_view.sync_imports(quiet=True):
         import random
+        import sys
+    # dirty developer fix
+    d_view.execute("sys.path.append('/home/moritz/CodeBase/Development/pyorganism')",
+            block=True)
     d_view.push(dict(network=organism.gpn, total_ratio=total_ratio), block=True)
     sizes = [size for i in xrange(int(random_num))]
     if isinstance(lb_view, LoadBalancedView):
         num_krnl = len(lb_view)
         chunk = random_num // num_krnl // num_krnl
-        samples = lb_view.map(_active_sample, sizes, block=False,
+        results = lb_view.map(_active_sample, sizes, block=False,
                 ordered=False, chunksize=chunk)
     else:
-        samples = d_view.map(_active_sample, sizes, block=False)
-    samples = list(samples)
+        results = d_view.map(_active_sample, sizes, block=False)
+    samples = list(results)
+    LOGGER.info("parallel speed-up was %.3g",
+            results.serial_time / results.wall_time)
     z_score = compute_zscore(total_ratio(original), samples)
     if return_sample:
         return (z_score, samples)
@@ -201,16 +212,22 @@ def metabolic_coherence(d_view, organism, active, bnumber2gene, rxn_centric=None
         return numpy.nan
     with d_view.sync_imports(quiet=True):
         import random
+        import sys
+    # dirty developer fix
+    d_view.execute("sys.path.append('/home/moritz/CodeBase/Development/pyorganism')",
+            block=True)
     d_view.push(dict(network=rxn_centric, total_ratio=total_ratio), block=True)
     sizes = [size for i in xrange(int(random_num))]
     if isinstance(lb_view, LoadBalancedView):
         num_krnl = len(lb_view)
         chunk = random_num // num_krnl // num_krnl
-        samples = lb_view.map(_active_sample, sizes, block=False,
+        results = lb_view.map(_active_sample, sizes, block=False,
                 ordered=False, chunksize=chunk)
     else:
-        samples = d_view.map(_active_sample, sizes, block=False)
-    samples = list(samples)
+        results = d_view.map(_active_sample, sizes, block=False)
+    samples = list(results)
+    LOGGER.info("parallel speed-up was %.3g",
+            results.serial_time / results.wall_time)
     z_score = compute_zscore(total_ratio(original), samples)
     if return_sample:
         return (z_score, samples)
