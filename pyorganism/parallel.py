@@ -78,8 +78,10 @@ def digital_ctc(d_view, organism, active, random_num=1E04, return_sample=False,
     with d_view.sync_imports(quiet=True):
         import random
         import sys
-    # dirty developer fix
+    # dirty development fix
     d_view.execute("sys.path.append('/home/moritz/CodeBase/Development/pyorganism')",
+            block=True)
+    d_view.execute("sys.path.append('/home/engineer/CodeBase/Development/pyorganism')",
             block=True)
     d_view.push(dict(network=organism.trn, total_ratio=total_ratio), block=True)
     sizes = [size for i in xrange(int(random_num))]
@@ -135,7 +137,9 @@ def analog_ctc(d_view, organism, active, random_num=1E04, return_sample=False,
     with d_view.sync_imports(quiet=True):
         import random
         import sys
-    # dirty developer fix
+    # dirty development fix
+    d_view.execute("sys.path.append('/home/engineer/CodeBase/Development/pyorganism')",
+            block=True)
     d_view.execute("sys.path.append('/home/moritz/CodeBase/Development/pyorganism')",
             block=True)
     d_view.push(dict(network=organism.gpn, total_ratio=total_ratio), block=True)
@@ -213,7 +217,9 @@ def metabolic_coherence(d_view, organism, active, bnumber2gene, rxn_centric=None
     with d_view.sync_imports(quiet=True):
         import random
         import sys
-    # dirty developer fix
+    # dirty development fix
+    d_view.execute("sys.path.append('/home/engineer/CodeBase/Development/pyorganism')",
+            block=True)
     d_view.execute("sys.path.append('/home/moritz/CodeBase/Development/pyorganism')",
             block=True)
     d_view.push(dict(network=rxn_centric, total_ratio=total_ratio), block=True)
