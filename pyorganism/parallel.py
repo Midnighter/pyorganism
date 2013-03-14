@@ -17,7 +17,7 @@ PyOrganism Parallel Applications
 """
 
 
-__all__ = []
+__all__ = ["digital_ctc", "analog_ctc", "metabolic_coherence"]
 
 
 import logging
@@ -75,14 +75,7 @@ def digital_ctc(d_view, organism, active, random_num=1E04, return_sample=False,
     if size == 0:
         LOGGER.warn("empty effective network")
         return numpy.nan
-    with d_view.sync_imports(quiet=True):
-        import random
-        import sys
-    # dirty development fix
-    d_view.execute("sys.path.append('/home/moritz/CodeBase/Development/pyorganism')",
-            block=True)
-    d_view.execute("sys.path.append('/home/engineer/CodeBase/Development/pyorganism')",
-            block=True)
+    d_view.execute("import random", block=True)
     d_view.push(dict(network=organism.trn, total_ratio=total_ratio), block=True)
     sizes = [size for i in xrange(int(random_num))]
     if isinstance(lb_view, LoadBalancedView):
@@ -134,14 +127,7 @@ def analog_ctc(d_view, organism, active, random_num=1E04, return_sample=False,
     if size == 0:
         LOGGER.warn("empty effective network")
         return numpy.nan
-    with d_view.sync_imports(quiet=True):
-        import random
-        import sys
-    # dirty development fix
-    d_view.execute("sys.path.append('/home/engineer/CodeBase/Development/pyorganism')",
-            block=True)
-    d_view.execute("sys.path.append('/home/moritz/CodeBase/Development/pyorganism')",
-            block=True)
+    d_view.execute("import random", block=True)
     d_view.push(dict(network=organism.gpn, total_ratio=total_ratio), block=True)
     sizes = [size for i in xrange(int(random_num))]
     if isinstance(lb_view, LoadBalancedView):
@@ -214,14 +200,7 @@ def metabolic_coherence(d_view, organism, active, bnumber2gene, rxn_centric=None
     if size == 0:
         LOGGER.warn("empty effective network")
         return numpy.nan
-    with d_view.sync_imports(quiet=True):
-        import random
-        import sys
-    # dirty development fix
-    d_view.execute("sys.path.append('/home/engineer/CodeBase/Development/pyorganism')",
-            block=True)
-    d_view.execute("sys.path.append('/home/moritz/CodeBase/Development/pyorganism')",
-            block=True)
+    d_view.execute("import random", block=True)
     d_view.push(dict(network=rxn_centric, total_ratio=total_ratio), block=True)
     sizes = [size for i in xrange(int(random_num))]
     if isinstance(lb_view, LoadBalancedView):
