@@ -44,7 +44,7 @@ def main(db_path):
         filename = os.path.join(ver, "xml_contents.pkl")
         if os.path.exists(filename):
             if ask:
-                choice = raw_input("Re-parse existing XML tags? [yes|no|all|zero]")
+                choice = raw_input("Re-parse existing XML tags? [yes|[no]|all|zero]: ")
                 choice = choice.lower()
             if choice.startswith("a"):
                 ask = False
