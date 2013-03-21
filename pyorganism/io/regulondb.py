@@ -95,8 +95,15 @@ def read_genes(filename, sep="\t", comment="#", encoding=None, mode="rb",
             gc = misc.convert(row.gc_content.string, unicode)
             if not gc:
                 gc = None
+            name = misc.convert(row.gene_name.string, unicode)
+            if name and bpattern.match(name):
+                bnumber = name
+            else:
+                bnumber = None
+
             gene = elem.Gene(unique_id=misc.convert(row.gene_id.string, unicode),
-                name=misc.convert(row.gene_name.string, unicode),
+                name=name,
+                bnumber=bnumber,
                 position_start=start,
                 position_end=end,
                 strand=misc.convert(row.gene_strand.string, unicode),
@@ -104,6 +111,7 @@ def read_genes(filename, sep="\t", comment="#", encoding=None, mode="rb",
             genes.append(gene)
 
     genes = list()
+    bpattern = re.compile(r"b\d{4}")
     # read information from the file
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
@@ -124,7 +132,7 @@ def update_gene_synonyms(filename, sep="\t", comment="#", encoding=None,
         soup = BeautifulSoup(file_handle, "lxml")
         for row in soup.rowset.find_all(name="row", recursive=False):
             try:
-                gene = elem.Gene.get(misc.convert(row.object_id.string, unicode))
+                gene = elem.Gene[misc.convert(row.object_id.string, unicode)]
             except KeyError:
                 continue
             synonym = misc.convert(row.object_synonym_name.string, unicode)
@@ -156,7 +164,7 @@ def update_gene_external(filename, sep="\t", comment="#", encoding=None,
         soup = BeautifulSoup(file_handle, "lxml")
         for row in soup.rowset.find_all(name="row", recursive=False):
             try:
-                gene = elem.Gene.get(misc.convert(row.object_id.string, unicode))
+                gene = elem.Gene[misc.convert(row.object_id.string, unicode)]
             except KeyError:
                 continue
             synonym = misc.convert(row.ext_reference_id.string, unicode)
@@ -221,7 +229,7 @@ def update_product_synonyms(filename, sep="\t", comment="#", encoding=None,
         soup = BeautifulSoup(file_handle, "lxml")
         for row in soup.rowset.find_all(name="row", recursive=False):
             try:
-                product = elem.Product.get(misc.convert(row.object_id.string, unicode))
+                product = elem.Product[misc.convert(row.object_id.string, unicode)]
             except KeyError:
                 continue
             product.synonyms.add(misc.convert(row.object_synonym_name.string, unicode))
@@ -245,7 +253,7 @@ def update_product_external(filename, sep="\t", comment="#", encoding=None,
         soup = BeautifulSoup(file_handle, "lxml")
         for row in soup.rowset.find_all(name="row", recursive=False):
             try:
-                product = elem.Product.get(misc.convert(row.object_id.string, unicode))
+                product = elem.Product[misc.convert(row.object_id.string, unicode)]
             except KeyError:
                 continue
             synonym = misc.convert(row.ext_reference_id.string, unicode)
@@ -274,13 +282,13 @@ def link_gene_product(filename, sep="\t", comment="#", encoding=None,
         for row in soup.rowset.find_all(name="row", recursive=False):
             try:
                 eck12 = misc.convert(row.gene_id.string, unicode)
-                gene = elem.Gene.get(eck12)
+                gene = elem.Gene[eck12]
             except KeyError:
                 LOGGER.warn("unknown gene: {0}".format(eck12))
                 continue
             try:
                 eck12 = misc.convert(row.product_id.string, unicode)
-                gene.product = elem.Product.get(eck12)
+                gene.product = elem.Product[eck12]
             except KeyError:
                 LOGGER.warn("unknown product: {0}".format(eck12))
                 continue
@@ -310,13 +318,13 @@ def read_gene_regulation(filename, sep="\t", comment="#", encoding=None,
         for row in soup.rowset.find_all(name="row", recursive=False):
             try:
                 eck12 = misc.convert(row.gene_id_regulator.string, unicode)
-                gene_u = elem.Gene.get(eck12)
+                gene_u = elem.Gene[eck12]
             except KeyError:
                 LOGGER.warn("unknown gene: {0}".format(eck12))
                 continue
             try:
                 eck12 = misc.convert(row.gene_id_regulated.string, unicode)
-                gene_v = elem.Gene.get(eck12)
+                gene_v = elem.Gene[eck12]
             except KeyError:
                 LOGGER.warn("unknown gene: {0}".format(eck12))
                 continue
@@ -348,7 +356,7 @@ def read_sigma_factors(filename, sep="\t", comment="#", encoding=None,
             sigma_factor.synonyms.add(misc.convert(row.sigma_synonyms.string, unicode))
             try:
                 eck12 = misc.convert(row.sigma_gene_id.string, unicode)
-                gene = elem.Gene.get(eck12)
+                gene = elem.Gene[eck12]
             except KeyError:
                 LOGGER.warn("unknown gene: {0}".format(eck12))
                 continue
@@ -403,7 +411,7 @@ def update_transcription_factor_synonyms(filename, sep="\t", comment="#", encodi
         soup = BeautifulSoup(file_handle, "lxml")
         for row in soup.rowset.find_all(name="row", recursive=False):
             try:
-                t_factor = elem.TranscriptionFactor.get(misc.convert(row.object_id.string, unicode))
+                t_factor = elem.TranscriptionFactor[misc.convert(row.object_id.string, unicode)]
             except KeyError:
                 continue
             t_factor.synonyms.add(misc.convert(row.object_synonym_name.string, unicode))
@@ -427,7 +435,7 @@ def update_transcription_factor_external(filename, sep="\t", comment="#", encodi
         soup = BeautifulSoup(file_handle, "lxml")
         for row in soup.rowset.find_all(name="row", recursive=False):
             try:
-                t_factor = elem.TranscriptionFactor.get(misc.convert(row.object_id.string, unicode))
+                t_factor = elem.TranscriptionFactor[misc.convert(row.object_id.string, unicode)]
             except KeyError:
                 continue
             t_factor.synonyms.add(misc.convert(row.ext_reference_id.string, unicode))
@@ -452,13 +460,13 @@ def link_gene_product_transcription_factor(filename, sep="\t", comment="#",
         for row in soup.rowset.find_all(name="row", recursive=False):
             try:
                 eck12 = misc.convert(row.transcription_factor_id.string, unicode)
-                t_factor = elem.TranscriptionFactor.get(eck12)
+                t_factor = elem.TranscriptionFactor[eck12]
             except KeyError:
                 LOGGER.warn("unknown transcription factor: {0}".format(eck12))
                 continue
             try:
                 eck12 = misc.convert(row.product_id.string, unicode)
-                product = elem.Product.get(eck12)
+                product = elem.Product[eck12]
             except KeyError:
                 LOGGER.warn("unknown product: {0}".format(eck12))
                 continue

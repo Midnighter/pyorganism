@@ -28,7 +28,7 @@ from .singletonmixin import Singleton
 
 
 BREWER_SET1 = ["#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00", "#FFFF33",
-        "#A65628", "#F781BF", "#8DD3C7"]
+        "#A65628", "#F781BF", "#8DD3C7", "#1B9E77"]
 
 
 class NullHandler(logging.Handler):

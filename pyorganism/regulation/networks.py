@@ -69,7 +69,7 @@ class GRN(nx.MultiDiGraph):
 
     def from_link_list(self, links):
         for (u, v, inter) in links:
-            self.add_edge(elem.Gene.get(u), elem.Gene.get(v), key=inter)
+            self.add_edge(elem.Gene[u], elem.Gene[v], key=inter)
 
     def to_trn(self):
         trn = TRN(name="Transcriptinal Regulatory Network (TRN)")
@@ -115,19 +115,19 @@ class TRN(nx.MultiDiGraph):
         for (u, v, inter) in links:
             if u == v:
                 try:
-                    element = elem.TranscriptionFactor.get(u)
+                    element = elem.TranscriptionFactor[u]
                 except KeyError:
-                    element = elem.Gene.get(u)
+                    element = elem.Gene[u]
                 self.add_edge(element, element, key=inter)
             else:
                 try:
-                    elem_u = elem.TranscriptionFactor.get(u)
+                    elem_u = elem.TranscriptionFactor[u]
                 except KeyError:
-                    elem_u = elem.Gene.get(u)
+                    elem_u = elem.Gene[u]
                 try:
-                    elem_v = elem.TranscriptionFactor.get(v)
+                    elem_v = elem.TranscriptionFactor[v]
                 except KeyError:
-                    elem_v = elem.Gene.get(v)
+                    elem_v = elem.Gene[v]
                 self.add_edge(elem_u, elem_v, key=inter)
 
     def to_couplons(self, sf_links):

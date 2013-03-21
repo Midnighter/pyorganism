@@ -20,6 +20,7 @@ PyOrganism Base Classes
 __all__ = ["UniqueBase"]
 
 
+import weakref
 import logging
 
 from . import miscellaneous as misc
@@ -48,7 +49,7 @@ class MetaBase(type):
         """
         Adds a unique `dict` to each class.
         """
-        cls_dct["_memory"] = dict()
+        cls_dct["_memory"] = weakref.WeakValueDictionary()
         return super(MetaBase, mcls).__new__(mcls, cls_name, cls_bases, cls_dct)
 
     def __call__(cls, unique_id="", **kw_args):
@@ -63,6 +64,8 @@ class MetaBase(type):
         else:
             return memory
 
+    def __getitem__(cls, unique_id):
+        return cls._memory[unique_id]
 
 class UniqueBase(object):
     """
@@ -102,9 +105,9 @@ class UniqueBase(object):
     # immutable class attribute is subclass-specific automatically
     _counter = 0
 
-    @classmethod
-    def get(cls, unique_id):
-        return cls._memory[unique_id]
+#    @classmethod
+#    def __getitem__(cls, unique_id):
+#        return cls._memory[unique_id]
 
     def __init__(self, unique_id="", **kw_args):
         """
@@ -120,6 +123,7 @@ class UniqueBase(object):
         else:
             self.unique_id = u"{0}_{1:d}".format(self.__class__.__name__,
                     self._index)
+        self.__skip_setstate = False
         self.__class__._memory[self.unique_id] = self
 
     def __reduce__(self):
@@ -131,7 +135,7 @@ class UniqueBase(object):
         that we can unpickle the correct objects no matter the pickle version
         used.
         """
-        return (self.__class__, self.__getnewargs__(), self.__getstate__())
+        return (_unpickle_call, self.__getnewargs__(), self.__getstate__())
 
     def __getnewargs__(self):
         """
@@ -141,12 +145,13 @@ class UniqueBase(object):
         The `unique_id` is all we need for persistent state. It allows us to
         retrieve an existing object with that ID or generate it accordingly.
         """
-        return (self.unique_id,)
+        return (self.__class__, self.unique_id)
 
     def __getstate__(self):
         """
         We could take more fine-grained control here.
         """
+        self.__skip_setstate = False
         return self.__dict__
 
     def __setstate__(self, state):
@@ -158,14 +163,9 @@ class UniqueBase(object):
         attributes with the unpickled ones (kind of a workaround, can't decide
         when an object was newly created upon unpickling).
         """
-        for (name, value) in state.iteritems():
-            # default return value in order to update old class definitions
-            if not getattr(self, name, False):
-                setattr(self, name, value)
-        if not self.unique_id in self.__class__._memory:
-            # old pickle, we need to update class attributes
-            self.__class__._memory[self.unique_id] = self
-            self.__class__._counter = len(self.__class__._memory)
+        if self.__skip_setstate:
+            return
+        self.__dict__.update(state)
 
     def __str__(self):
         return str(self.unique_id)
@@ -175,4 +175,13 @@ class UniqueBase(object):
 
     def __repr__(self):
         return u"<{0}.{1} {2:d}>".format(self.__module__, self.__class__.__name__, id(self))
+
+def _unpickle_call(cls, unique_id):
+    """
+    Prevents setting of state iff the object existed before.
+    """
+    skip = unique_id in cls._memory
+    obj = cls(unique_id)
+    obj.__skip_setstate = skip
+    return obj
 
