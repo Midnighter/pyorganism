@@ -64,12 +64,15 @@ def digital_ctc(d_view, organism, active, random_num=1E04, return_sample=False,
         Dissecting the logical types of network control in gene expression profiles.
         BMC Systems Biology 2, 18.
     """
+    random_num = int(random_num)
     if organism.trn is None or organism.trn.size() == 0:
         LOGGER.warn("empty transcriptional regulatory network")
         return numpy.nan
     active = set([gene.regulatory_product if\
         isinstance(gene.regulatory_product, elem.TranscriptionFactor) else\
         gene for gene in active])
+    LOGGER.info("picked %d transcription factors", sum(1 for item in active if
+        isinstance(item, elem.TranscriptionFactor)))
     original = effective_network(organism.trn, active)
     size = len(original)
     if size == 0:
@@ -77,14 +80,83 @@ def digital_ctc(d_view, organism, active, random_num=1E04, return_sample=False,
         return numpy.nan
     d_view.execute("import random", block=True)
     d_view.push(dict(network=organism.trn, total_ratio=total_ratio), block=True)
-    sizes = [size for i in xrange(int(random_num))]
+    sizes = [size for i in xrange(random_num)]
     if isinstance(lb_view, LoadBalancedView):
         num_krnl = len(lb_view)
-        chunk = random_num // num_krnl // num_krnl
-        results = lb_view.map(_active_sample, sizes, block=False,
-                ordered=False, chunksize=chunk)
+        chunk = random_num // num_krnl // 2
+        results = lb_view.map(_active_sample, sizes,
+                block=False, ordered=False, chunksize=chunk)
     else:
         results = d_view.map(_active_sample, sizes, block=False)
+    samples = list(results)
+    LOGGER.info("parallel speed-up was %.3g",
+            results.serial_time / results.wall_time)
+    z_score = compute_zscore(total_ratio(original), samples)
+    if return_sample:
+        return (z_score, samples)
+    else:
+        return z_score
+
+def digital_ctc2(d_view, organism, active, random_num=1E04, return_sample=False,
+        lb_view=None, **kw_args):
+    """
+    Compute the digital control type confidence of an effective TRN.
+
+    Parameters
+    ----------
+    d_view: `IPython.parallel.DirectView`
+        The view is necessary to communicate with the engines.
+    active: iterable
+        An iterable with names of genes that are active in a specific
+        condition.
+    lb_view: `IPython.parallel.LoadBalancedView`
+        Using a load-balanced view can yield speed improvements.
+
+    Warning
+    -------
+    Unknown gene names are silently ignored.
+
+    References
+    ----------
+    [1] Marr, C., Geertz, M., Hütt, M.-T., Muskhelishvili, G., 2008.
+        Dissecting the logical types of network control in gene expression profiles.
+        BMC Systems Biology 2, 18.
+    """
+    random_num = int(random_num)
+    if organism.trn is None or organism.trn.size() == 0:
+        LOGGER.warn("empty transcriptional regulatory network")
+        return numpy.nan
+    active = set([gene.regulatory_product if\
+        isinstance(gene.regulatory_product, elem.TranscriptionFactor) else\
+        gene for gene in active])
+    LOGGER.info("picked %d transcription factors", sum(1 for item in active if
+        isinstance(item, elem.TranscriptionFactor)))
+    original = effective_network(organism.trn, active)
+    size = len(original)
+    if size == 0:
+        LOGGER.warn("empty effective network")
+        return numpy.nan
+    d_view.execute("import random", block=True)
+    d_view.push(dict(network=organism.trn, total_ratio=total_ratio), block=True)
+    # new null model separates TFs and genes
+    t_factors = set(node for node in organism.trn if isinstance(node, elem.TranscriptionFactor))
+    genes = set(node for node in organism.trn if isinstance(node, elem.Gene))
+    d_view.push(dict(genes=genes, tfs=t_factors), block=True)
+    # separate numbers
+    tf_num = sum(1 for item in original if isinstance(item, elem.TranscriptionFactor))
+    gene_num = sum(1 for item in original if isinstance(item, elem.Gene))
+    if isinstance(lb_view, LoadBalancedView):
+        num_krnl = len(lb_view)
+        chunk = random_num // num_krnl // 2
+        results = lb_view.map(_trn_sample,
+                [tf_num for i in xrange(random_num)],
+                [gene_num for i in xrange(random_num)],
+                block=False, ordered=False, chunksize=chunk)
+    else:
+        results = d_view.map(_trn_sample,
+                [tf_num for i in xrange(random_num)],
+                [gene_num for i in xrange(random_num)],
+                block=False)
     samples = list(results)
     LOGGER.info("parallel speed-up was %.3g",
             results.serial_time / results.wall_time)
@@ -132,7 +204,7 @@ def analog_ctc(d_view, organism, active, random_num=1E04, return_sample=False,
     sizes = [size for i in xrange(int(random_num))]
     if isinstance(lb_view, LoadBalancedView):
         num_krnl = len(lb_view)
-        chunk = random_num // num_krnl // num_krnl
+        chunk = random_num // num_krnl // 2
         results = lb_view.map(_active_sample, sizes, block=False,
                 ordered=False, chunksize=chunk)
     else:
@@ -205,7 +277,7 @@ def metabolic_coherence(d_view, organism, active, bnumber2gene, rxn_centric=None
     sizes = [size for i in xrange(int(random_num))]
     if isinstance(lb_view, LoadBalancedView):
         num_krnl = len(lb_view)
-        chunk = random_num // num_krnl // num_krnl
+        chunk = random_num // num_krnl // 2
         results = lb_view.map(_active_sample, sizes, block=False,
                 ordered=False, chunksize=chunk)
     else:
@@ -228,6 +300,19 @@ def _active_sample(size):
     local_net = network
     sample = random.sample(local_net.nodes(), size)
     subnet = local_net.subgraph(sample)
+    result = total_ratio(subnet)
+    return result
+
+@interactive
+def _trn_sample(tf_num, gene_num):
+    """
+    Sample from affected genes and transcription factors as null model.
+    """
+    # make use of global variables `network`, `tfs`, `genes`
+    trn = network
+    local_tfs = random.sample(tfs, tf_num)
+    local_genes = random.sample(genes, gene_num)
+    subnet = trn.subgraph(local_tfs + local_genes)
     result = total_ratio(subnet)
     return result
 

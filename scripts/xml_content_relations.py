@@ -12,9 +12,11 @@ Compile XML Tag Relationships
 :Date:
     2012-09-06
 :Copyright:
-    Copyright(c) 2012 Jacobs University of Bremen. All rights reserved.
+    Copyright |c| 2012 Jacobs University Bremen, all rights reserved.
 :File:
     xml_content_relations.py
+
+.. |c| unicode:: U+A9
 """
 
 
