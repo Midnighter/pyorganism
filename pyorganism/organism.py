@@ -237,6 +237,34 @@ class Organism(object):
         else:
             return z_score
 
+    def digital_ctc2(self, active, random_num=1E04, return_sample=False, **kw_args):
+        random_num = int(random_num)
+        if self.trn is None or self.trn.size() == 0:
+            LOGGER.warn("empty transcriptional regulatory network")
+            return numpy.nan
+        active = set([gene.regulatory_product if\
+            isinstance(gene.regulatory_product, elem.TranscriptionFactor) else\
+            gene for gene in active])
+        LOGGER.info("picked %d transcription factors", sum(1 for item in active if
+            isinstance(item, elem.TranscriptionFactor)))
+        original = effective_network(self.trn, active)
+        size = len(original)
+        if size == 0:
+            LOGGER.warn("empty effective network")
+            return numpy.nan
+        # new null model separates TFs and genes
+        t_factors = set(node for node in self.trn if isinstance(node, elem.TranscriptionFactor))
+        genes = set(node for node in self.trn if isinstance(node, elem.Gene))
+        # separate numbers
+        tf_num = sum(1 for item in original if isinstance(item, elem.TranscriptionFactor))
+        gene_num = sum(1 for item in original if isinstance(item, elem.Gene))
+        samples = [trn_sample(self.trn, t_factors, tf_num, genes, gene_num) for i in range(int(random_num))]
+        z_score = compute_zscore(total_ratio(original), samples)
+        if return_sample:
+            return (z_score, samples)
+        else:
+            return z_score
+
     def analog_control(self, active, **kw_args):
         """
         Compute the analog control from an effective GPN.
@@ -493,6 +521,16 @@ def active_sample(network, size):
     """
     sample = random.sample(network.nodes(), size)
     subnet = network.subgraph(sample)
+    result = total_ratio(subnet)
+    return result
+
+def trn_sample(trn, tfs, tf_num, genes, gene_num):
+    """
+    Sample from affected genes and transcription factors as null model.
+    """
+    local_tfs = random.sample(tfs, tf_num)
+    local_genes = random.sample(genes, gene_num)
+    subnet = trn.subgraph(local_tfs + local_genes)
     result = total_ratio(subnet)
     return result
 
