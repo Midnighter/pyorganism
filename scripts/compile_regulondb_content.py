@@ -28,11 +28,11 @@ LOGGER.setLevel(logging.INFO)
 
 import sys
 import os
-from glob import glob
+#from glob import glob
 
 import pyorganism
 import pyorganism.regulation as pyreg
-import pyorganism.metabolism as pymet
+#import pyorganism.metabolism as pymet
 import pyorganism.io.regulondb as regdb
 
 

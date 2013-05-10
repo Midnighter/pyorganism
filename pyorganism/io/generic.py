@@ -105,7 +105,7 @@ def open_file(filename, **kw_args):
 def read_tabular(file_h, sep="\t", comment="#"):
     reader = csv.reader(file_h, delimiter=sep, quoting=csv.QUOTE_MINIMAL,
             skipinitialspace=True)
-    return (row for row in reader if row and not row[0].startswith(comment))
+    return (row for row in reader if row and not row.startswith(comment))
 
 def read_pickle(filename, mode="rb", **kw_args):
     kw_args["mode"] = mode.lower()
