@@ -584,35 +584,6 @@ def read_transcription_units(filename, sep="\t", comment="#", encoding=None,
             parse_flat_file(file_h)
     return dict(units)
 
-def read_operons(filename, sep="\t", comment="#", encoding=None,
-        mode="rb", **kw_args):
-    """
-    Extract operon information.
-    """
-
-    def parse_flat_file(file_handle):
-        raise NotImplementedError
-
-    def parse_xhtml(file_handle):
-        soup = BeautifulSoup(file_handle, "lxml")
-        for row in soup.rowset.find_all(name="row", recursive=False):
-            a = misc.convert(row.operon_id.string, unicode)
-            b = misc.convert(row.firstgeneposleft.string, unicode)
-            c = misc.convert(row.lastgeneposright.string, unicode)
-            d = misc.convert(row.operon_strand.string, unicode)
-            operons.append((a, b, c, d))
-
-    # read information from the file
-    kw_args["mode"] = mode
-    kw_args["encoding"] = encoding
-    operons = list()
-    with open_file(filename, **kw_args) as (file_h, ext):
-        if ext == ".xml":
-            parse_xhtml(file_h)
-        else:
-            parse_flat_file(file_h)
-    return operons
-
 def read_tu_objects(filename, sep="\t", comment="#", encoding=None,
         mode="rb", **kw_args):
     """
@@ -650,6 +621,78 @@ def read_tu_objects(filename, sep="\t", comment="#", encoding=None,
         else:
             parse_flat_file(file_h)
     return dict(units)
+
+def read_operons(filename, sep="\t", comment="#", encoding=None,
+        mode="rb", **kw_args):
+    """
+    Extract operon information.
+
+    Parameters
+    ----------
+    filename: str
+        Relative or absolute path to file that contains the  RegulonDB information.
+
+    Returns
+    -------
+    """
+
+    def parse_flat_file(file_handle):
+        raise NotImplementedError
+
+    def parse_xhtml(file_handle):
+        soup = BeautifulSoup(file_handle, "lxml")
+        for row in soup.rowset.find_all(name="row", recursive=False):
+            gene_left = misc.convert(row.firstgeneposleft.string, unicode)
+            if not gene_left:
+                gene_left = None
+            gene_right = misc.convert(row.lastgeneposright.string, unicode)
+            if not gene_right:
+                gene_right = None
+            reg_left = misc.convert(row.regulationposleft.string, unicode)
+            if not reg_left:
+                reg_left = None
+            reg_right = misc.convert(row.regulationposright.string, unicode)
+            if not reg_right:
+                reg_right = None
+            strand = misc.convert(row.operon_strand.string, unicode)
+            if not strand:
+                strand = None
+            op = elem.Operon(unique_id=misc.convert(row.operon_id.string, unicode),
+                    name=misc.convert(row.operon_name.string, unicode),
+                    strand=strand,
+                    gene_position_start=gene_left,
+                    gene_position_end=gene_right,
+                    regulation_position_start=reg_left,
+                    regulation_position_end=reg_right)
+            operons.append(op)
+
+    # read information from the file
+    kw_args["mode"] = mode
+    kw_args["encoding"] = encoding
+    operons = list()
+    with open_file(filename, **kw_args) as (file_h, ext):
+        if ext == ".xml":
+            parse_xhtml(file_h)
+        else:
+            parse_flat_file(file_h)
+    return operons
+
+def update_operons(operons, genes, **kw_args):
+    """
+    Extract operon information.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
+    for gene in genes:
+        for op in operons:
+            if gene.strand == op.strand and\
+                    all(pos >= op.gene_position_start for pos in gene.position) and\
+                    all(pos <= op.gene_position_end for pos in gene.position):
+                op.genes.append(gene)
 
 def read_tf_gene_network(genes, filename, sep="\t", comment="#",
         encoding=None, mode="rb", **kw_args):

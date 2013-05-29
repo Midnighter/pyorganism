@@ -155,3 +155,31 @@ class NucleoidAssociatedProtein(Regulator):
                 **kw_args)
 
 
+class TranscriptionUnit(UniqueBase):
+
+    def __init__(self, unique_id="", **kw_args):
+        super(TranscriptionUnit, self).__init__(unique_id=unique_id,
+                **kw_args)
+
+
+class Operon(UniqueBase):
+
+    def __init__(self, unique_id="", name="", strand=None,
+            gene_position_start=None, gene_position_end=None,
+            regulation_position_start=None, regulation_position_end=None, **kw_args):
+        super(Operon, self).__init__(unique_id=unique_id,
+                **kw_args)
+        self.name = name
+        self.strand = strand
+        self.gene_position_start = misc.convert(gene_position_start, int)
+        self.gene_position_end = misc.convert(gene_position_end, int)
+        self.regulation_position_start = misc.convert(regulation_position_start, int)
+        self.regulation_position_end = misc.convert(regulation_position_end, int)
+        self.genes = list()
+
+    def print_info(self, stream=sys.stdout):
+        print >> stream, "ECK12:", self.unique_id
+        print >> stream, "name:", self.name
+        print >> stream, "Genes:", ", ".join([gene.name for gene in self.genes])
+
+
