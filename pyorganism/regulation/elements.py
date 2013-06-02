@@ -51,6 +51,7 @@ class Gene(UniqueBase):
         self.gc_content = misc.convert(gc_content, float)
         self.product = product
         self.regulatory_product = regulatory_product
+        self.operons = set()
 
     def __contains__(self, name):
         if name == self.unique_id:
@@ -180,6 +181,6 @@ class Operon(UniqueBase):
     def print_info(self, stream=sys.stdout):
         print >> stream, "ECK12:", self.unique_id
         print >> stream, "name:", self.name
-        print >> stream, "Genes:", ", ".join([gene.name for gene in self.genes])
+        print >> stream, "Genes:", ", ".join([gene.name if gene.name else "?" for gene in self.genes])
 
 

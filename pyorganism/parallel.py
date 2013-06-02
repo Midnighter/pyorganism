@@ -25,12 +25,14 @@ import numpy
 import random
 import re
 
+from itertools import izip
 from IPython.parallel import interactive, LoadBalancedView
 
 from .regulation import elements as elem
 from . import miscellaneous as misc
 from .statistics import compute_zscore
 from .organism import effective_network, total_ratio
+from .regulation.control import gpn_expression_level_similarity
 
 
 LOGGER = logging.getLogger(__name__)
@@ -218,6 +220,60 @@ def analog_ctc(d_view, organism, active, random_num=1E04, return_sample=False,
     else:
         return z_score
 
+def continuous_analog_ctc(d_view, organism, active, expr_levels, random_num=1E04,
+        return_sample=False, lb_view=None, **kw_args):
+    """
+    Compute the analog control from an effective GPN.
+
+    Parameters
+    ----------
+    active: iterable
+        An iterable with names of genes.
+    expr_levels: iterable
+        An iterable in the same order as `active` with expression levels
+        (floats).
+
+    Warning
+    -------
+    Unknown gene names are silently ignored.
+
+    References
+    ----------
+    [1] Marr, C., Geertz, M., Hütt, M.-T., Muskhelishvili, G., 2008.
+        Dissecting the logical types of network control in gene expression profiles.
+        BMC Systems Biology 2, 18.
+    """
+    random_num = int(random_num)
+    if organism.gpn is None or organism.gpn.size() == 0:
+        LOGGER.warn("empty gene proximity network")
+        return numpy.nan
+    original = effective_network(organism.gpn, active)
+    size = len(original)
+    if size == 0:
+        LOGGER.warn("empty effective network")
+        return numpy.nan
+    d_view.execute("import numpy", block=True)
+    rnd_levels = numpy.array(expr_levels, dtype=float, copy=True)
+    d_view.push(dict(network=original, expr_levels=rnd_levels, izip=izip,
+            continuous_coherence=gpn_expression_level_similarity), block=True)
+    active_genes = [active for i in xrange(random_num)]
+    if isinstance(lb_view, LoadBalancedView):
+        num_krnl = len(lb_view)
+        chunk = random_num // num_krnl // 2
+        results = lb_view.map(_gpn_operon_based_sampling, active_genes, block=False,
+                ordered=False, chunksize=chunk)
+    else:
+        results = d_view.map(_gpn_operon_based_sampling, active_genes, block=False)
+    sample = list(results)
+    gene2level = dict(izip(active, expr_levels))
+    orig_ratio = gpn_expression_level_similarity(original, gene2level)
+    z_score = compute_zscore(orig_ratio, sample)
+    if return_sample:
+        return (z_score, sample)
+    else:
+        return z_score
+
+
 def metabolic_coherence(d_view, organism, active, bnumber2gene, rxn_centric=None,
         random_num=1E04, return_sample=False, lb_view=None, **kw_args):
     """
@@ -342,4 +398,44 @@ def _trn_sample(tf_num, gene_num):
 #            for i in range(int(random_num))]
 #    distribution = [control_type(sample, **kw_args) for sample in samples]
 #    return distribution
+
+@interactive
+def _gpn_operon_based_sampling(active):
+    # make use of global variables `network`, `expr_levels`,
+    # `continuous_coherence`
+    local_gpn = network
+    local_levels = expr_levels
+    all_ops = set(op for gene in active for op in gene.operons)
+    orig_gene2level = dict(izip(active, local_levels))
+    gene2level = dict()
+    no_op = list()
+    count = 0
+    for gene in active:
+        if gene in gene2level:
+            continue
+        if not gene.operons:
+            no_op.append(gene)
+            continue
+        # multiple operons per gene exist in older versions of RegulonDB
+        # we pick shortest of those operons
+        ops = list(gene.operons)
+        lengths = [len(op.genes) for op in ops]
+        op = ops[numpy.argsort(lengths)[0]]
+        targets = list(all_ops.difference(set([op])))
+        rnd_op = targets[numpy.random.randint(len(targets))]
+#        all_ops.difference_update(set([rnd_op]))
+        base_level = numpy.nan
+        for gn in rnd_op.genes:
+            if gn in orig_gene2level:
+                base_level = orig_gene2level[gn]
+                break
+        if numpy.isnan(base_level) and count < 10:
+            count += 1
+            LOGGER.warn("no change in base level")
+        for (i, gn) in enumerate(op.genes):
+            gene2level[gn] = base_level
+    no_op_levels = [orig_gene2level[gene] for gene in no_op]
+    numpy.random.shuffle(no_op_levels)
+    gene2level.update(izip(no_op, no_op_levels))
+    return continuous_coherence(local_gpn, gene2level)
 

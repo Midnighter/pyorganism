@@ -693,6 +693,7 @@ def update_operons(operons, genes, **kw_args):
                     all(pos >= op.gene_position_start for pos in gene.position) and\
                     all(pos <= op.gene_position_end for pos in gene.position):
                 op.genes.append(gene)
+                gene.operons.add(op)
 
 def read_tf_gene_network(genes, filename, sep="\t", comment="#",
         encoding=None, mode="rb", **kw_args):

@@ -237,7 +237,7 @@ def continuous_analog_ctc(organism, active, expr_levels, random_num=1E04,
         LOGGER.warn("empty effective network")
         return numpy.nan
     rnd_levels = numpy.array(expr_levels, dtype=float, copy=True)
-    sample = [gpn_sample_expression_levels(original, active, rnd_levels)\
+    sample = [gpn_operon_based_sampling(original, active, rnd_levels)\
             for i in range(random_num)]
     gene2level = dict(izip(active, expr_levels))
     orig_ratio = gpn_expression_level_similarity(original, gene2level)
@@ -489,7 +489,50 @@ def gpn_sample_expression_levels(network, active, expr_level):
     gene2level = dict(izip(active, expr_level))
     return gpn_expression_level_similarity(network, gene2level)
 
+def gpn_operon_based_sampling(network, active, expr_level):
+    all_ops = set(op for gene in active for op in gene.operons)
+    orig_gene2level = dict(izip(active, expr_level))
+    gene2level = dict()
+    no_op = list()
+    count = 0
+    for gene in active:
+        if gene in gene2level:
+            continue
+        if not gene.operons:
+            no_op.append(gene)
+            continue
+        # multiple operons per gene exist in older versions of RegulonDB
+        # we pick shortest of those operons
+        ops = list(gene.operons)
+        lengths = [len(op.genes) for op in ops]
+        op = ops[numpy.argsort(lengths)[0]]
+        targets = list(all_ops.difference(set([op])))
+        rnd_op = targets[numpy.random.randint(len(targets))]
+        all_ops.difference_update(set([rnd_op]))
+        base_level = numpy.nan
+        for gn in rnd_op.genes:
+            if gn in orig_gene2level:
+                base_level = orig_gene2level[gn]
+        if numpy.isnan(base_level) and count < 10:
+            count += 1
+            LOGGER.warn("no change in base level")
+        for (i, gn) in enumerate(op.genes):
+            if i < len(rnd_op.genes):
+                comp = rnd_op.genes[i]
+                exists = comp in orig_gene2level
+            else:
+                exists = False
+            if exists:
+                level = orig_gene2level[comp]
+            else:
+                level = base_level
+            gene2level[gn] = level
+    no_op_levels = [orig_gene2level[gene] for gene in no_op]
+    numpy.random.shuffle(no_op_levels)
+    gene2level.update(izip(no_op, no_op_levels))
+    return gpn_expression_level_similarity(network, gene2level)
+
 def gpn_expression_level_similarity(network, gene2level):
-    return sum(1.0 - abs(gene2level[u] - gene2level[v])\
-            for (u, v) in network.edges_iter())
+    return sum([1.0 - abs(gene2level[u] - gene2level[v])\
+            for (u, v) in network.edges_iter()])
 
