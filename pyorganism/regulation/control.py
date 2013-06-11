@@ -17,7 +17,7 @@ Regulatory Control Measures
 """
 
 
-__all__ = ["digital_control", "digital_ctc", "analog_control", "analog_ctc",
+__all__ = ["digital_control", "digital_ctc", "continuous_digital_ctc", "analog_control", "analog_ctc",
         "continuous_analog_ctc", "metabolic_coherence_ratio", "metabolic_coherence"]
 
 
@@ -42,19 +42,21 @@ LOGGER.addHandler(misc.NullHandler())
 OPTIONS = misc.OptionsManager.get_instance()
 
 
-def digital_control(organism, active, **kw_args):
+def digital_control(trn, active, **kw_args):
     """
-    Compute the digital control from an effective TRN.
+    Compute the digital control of an effective TRN using a list of
+    differentially expressed genes.
 
     Parameters
     ----------
+    trn: nx.(Multi)DiGraph
+        Static transcriptional regulatory network.
     active: iterable
-        An iterable with names of genes that are active in a specific
-        condition.
+        An iterable with gene instances that are differentially expressed.
 
     Warning
     -------
-    Unknown gene names are silently ignored.
+    Gene instances not in the TRN are silently ignored.
 
     References
     ----------
@@ -62,31 +64,38 @@ def digital_control(organism, active, **kw_args):
         Dissecting the logical types of network control in gene expression profiles.
         BMC Systems Biology 2, 18.
     """
-    if self.trn is None or self.trn.size() == 0:
+    if trn is None or trn.size() == 0:
         LOGGER.warn("empty transcriptional regulatory network")
         return numpy.nan
     active = set([gene.regulatory_product if\
         isinstance(gene.regulatory_product, elem.TranscriptionFactor) else\
         gene for gene in active])
-    subnet = effective_network(self.trn, active)
+    subnet = effective_network(trn, active)
     if len(subnet) == 0:
         LOGGER.warn("empty effective network")
         return numpy.nan
     return total_ratio(subnet)
 
-def digital_ctc(self, active, random_num=1E04, return_sample=False, **kw_args):
+def digital_ctc(trn, active, random_num=1E04, return_sample=False, **kw_args):
     """
-    Compute the digital control type confidence of an effective TRN.
+    Compute the digital control type confidence of an effective TRN using a list
+    of differentially expressed genes.
 
     Parameters
     ----------
+    trn: nx.(Multi)DiGraph
+        Static transcriptional regulatory network.
     active: iterable
-        An iterable with names of genes that are active in a specific
-        condition.
+        An iterable with gene instances that are differentially expressed.
 
     Warning
     -------
-    Unknown gene names are silently ignored.
+    Gene instances not in the TRN are silently ignored.
+
+    Notes
+    -----
+    In the null model the number of transcription factors (nodes with
+    out-degree > 0) are kept constant.
 
     References
     ----------
@@ -94,53 +103,100 @@ def digital_ctc(self, active, random_num=1E04, return_sample=False, **kw_args):
         Dissecting the logical types of network control in gene expression profiles.
         BMC Systems Biology 2, 18.
     """
-    if self.trn is None or self.trn.size() == 0:
-        LOGGER.warn("empty transcriptional regulatory network")
-        return numpy.nan
-    active = set([gene.regulatory_product if\
-        isinstance(gene.regulatory_product, elem.TranscriptionFactor) else\
-        gene for gene in active])
-    original = effective_network(self.trn, active)
-    size = len(original)
-    if size == 0:
-        LOGGER.warn("empty effective network")
-        return numpy.nan
-    sample = [active_sample(self.trn, size) for i in range(int(random_num))]
-    z_score = compute_zscore(total_ratio(original), sample)
-    if return_sample:
-        return (z_score, sample)
-    else:
-        return z_score
-
-def digital_ctc2(self, active, random_num=1E04, return_sample=False, **kw_args):
     random_num = int(random_num)
-    if self.trn is None or self.trn.size() == 0:
+    if trn is None or trn.size() == 0:
         LOGGER.warn("empty transcriptional regulatory network")
         return numpy.nan
     active = set([gene.regulatory_product if\
         isinstance(gene.regulatory_product, elem.TranscriptionFactor) else\
         gene for gene in active])
-    LOGGER.info("picked %d transcription factors", sum(1 for item in active if
-        isinstance(item, elem.TranscriptionFactor)))
-    original = effective_network(self.trn, active)
+    original = effective_network(trn, active)
     size = len(original)
     if size == 0:
         LOGGER.warn("empty effective network")
         return numpy.nan
     # new null model separates TFs and genes
-    t_factors = set(node for node in self.trn if isinstance(node, elem.TranscriptionFactor))
-    genes = set(node for node in self.trn if isinstance(node, elem.Gene))
+    t_factors = set(node for node in trn if isinstance(node, elem.TranscriptionFactor))
+    genes = set(node for node in trn if isinstance(node, elem.Gene))
     # separate numbers
     tf_num = sum(1 for item in original if isinstance(item, elem.TranscriptionFactor))
     gene_num = sum(1 for item in original if isinstance(item, elem.Gene))
-    samples = [trn_sample(self.trn, t_factors, tf_num, genes, gene_num) for i in range(int(random_num))]
-    z_score = compute_zscore(total_ratio(original), samples)
+    LOGGER.info("picked %d transcription factors", tf_num)
+    samples = [trn_sample(trn, t_factors, tf_num, genes, gene_num) for i in range(int(random_num))]
+    orig_ratio = total_ratio(original)
+    z_score = compute_zscore(orig_ratio, samples)
     if return_sample:
         return (z_score, samples)
     else:
         return z_score
 
-def analog_control(self, active, **kw_args):
+def continuous_digital_ctc(trn, active, expr_levels, random_num=1E04,
+        return_sample=False, **kw_args):
+    """
+    Compute a continuous digital control type confidence of given gene
+    expression levels in the effective TRN.
+
+    Parameters
+    ----------
+    trn: nx.(Multi)DiGraph
+        Static transcriptional regulatory network.
+    active: iterable
+        An iterable with gene instances.
+    expr_levels: iterable
+        An iterable in the same order as ``active`` with expression levels.
+
+    Warning
+    -------
+    Gene instances not in the TRN are silently ignored.
+
+    Notes
+    -----
+    The null model randomises expression levels but leaves the topology
+    unchanged.
+
+    References
+    ----------
+    [1] Marr, C., Geertz, M., Hütt, M.-T., Muskhelishvili, G., 2008.
+        Dissecting the logical types of network control in gene expression profiles.
+        BMC Systems Biology 2, 18.
+    """
+    random_num = int(random_num)
+    if trn is None or trn.size() == 0:
+        LOGGER.warn("empty transcriptional regulatory network")
+        return numpy.nan
+    active_nodes = set([gene.regulatory_product if\
+        isinstance(gene.regulatory_product, elem.TranscriptionFactor) else\
+        gene for gene in active])
+    original = effective_network(trn, active_nodes)
+    size = len(original)
+    if size == 0:
+        LOGGER.warn("empty effective network")
+        return numpy.nan
+    gene2level = dict(izip(active, expr_levels))
+    active = original.nodes()
+    orig_levels = numpy.zeros(len(original), dtype=float)
+    for (i, node) in enumerate(active):
+        if isinstance(node, elem.TranscriptionFactor):
+            orig_levels[i] = numpy.mean([gene2level[gene] for gene in node.coded_from if
+                    gene in gene2level])
+        else:
+            orig_levels[i] = gene2level[node]
+    orig2level = dict(izip(active, orig_levels))
+    # null model using all expression levels
+    sample = [trn_sample_expression_levels(original, active, expr_levels)\
+            for i in xrange(random_num)]
+    # null model only using effective nodes' expression levels in  TRN
+    sample = [trn_sample_expression_levels(original, active, orig_levels)\
+            for i in xrange(random_num)]
+#    gene2level = dict(izip(active_nodes, rnd_levels))
+    orig_ratio = trn_expression_level_similarity(original, orig2level)
+    z_score = compute_zscore(orig_ratio, sample)
+    if return_sample:
+        return (z_score, sample)
+    else:
+        return z_score
+
+def analog_control(gpn, active, **kw_args):
     """
     Compute the analog control from an effective GPN.
 
@@ -482,6 +538,17 @@ def lagging_gc(gene, clockwise):
     else:
         if gene.strand == "forward":
             return gene.gc_content
+
+def trn_sample_expression_levels(network, active, expr_level):
+    numpy.random.shuffle(expr_level)
+    # build map here because expr_level are shuffled
+    gene2level = dict(izip(active, expr_level))
+    return trn_expression_level_similarity(network, gene2level)
+
+def trn_expression_level_similarity(network, gene2level):
+    return sum([gene2level[u] - gene2level[v] for (u, v) in network.edges_iter()])
+#    return sum([1.0 - abs(gene2level[u] - gene2level[v])\
+#            for (u, v) in network.edges_iter()])
 
 def gpn_sample_expression_levels(network, active, expr_level):
     numpy.random.shuffle(expr_level)
