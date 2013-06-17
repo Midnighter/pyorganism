@@ -17,7 +17,8 @@ PyOrganism Regulation Parallel Applications
 """
 
 
-__all__ = ["digital_ctc", "continuous_digital_ctc", "analog_ctc", "metabolic_coherence"]
+__all__ = ["digital_ctc", "continuous_digital_ctc", "analog_ctc",
+        "continuous_analog_ctc","metabolic_coherence"]
 
 
 import logging
@@ -115,7 +116,8 @@ def digital_ctc(d_view, trn, active, random_num=1E04, return_sample=False,
         return z_score
 
 def continuous_digital_ctc(d_view, trn, active, expr_levels, random_num=1E04,
-        return_sample=False, lb_view=None, **kw_args):
+        return_sample=False, lb_view=None, random_levels="all",
+        evaluater=trn_expression_level_similarity, **kw_args):
     """
     Compute a continuous digital control type confidence of given gene
     expression levels in the effective TRN.
@@ -170,29 +172,30 @@ def continuous_digital_ctc(d_view, trn, active, expr_levels, random_num=1E04,
         else:
             orig_levels[i] = gene2level[node]
     orig2level = dict(izip(active, orig_levels))
+    d_view.execute("import numpy", block=True)
     # null model using all expression levels
-    d_view.push(dict(network=original, expr_levels=expr_levels, izip=izip,
-        continuous_coherence=trn_expression_level_similarity), block=True) # TODO
+    if random_levels == "all":
+        d_view.push(dict(network=original, expr_levels=expr_levels, izip=izip,
+                continuous_coherence=evaluater), block=True) # TODO
     # null model only using effective nodes' expression levels in  TRN
-    d_view.push(dict(network=original, expr_levels=orig_levels, izip=izip,
-        continuous_coherence=trn_expression_level_similarity), block=True) # TODO
-# TODO
-#    if isinstance(lb_view, LoadBalancedView):
-#        num_krnl = len(lb_view)
-#        chunk = random_num // num_krnl // 2
-#        results = lb_view.map(_trn_sample_expression_levels,
-#                [tf_num for i in xrange(random_num)],
-#                [gene_num for i in xrange(random_num)],
-#                block=False, ordered=False, chunksize=chunk)
-#    else:
-#        results = d_view.map(_trn_sample,
-#                [tf_num for i in xrange(random_num)],
-#                [gene_num for i in xrange(random_num)],
-#                block=False)
+    elif random_levels == "effective":
+        d_view.push(dict(network=original, expr_levels=orig_levels, izip=izip,
+                continuous_coherence=evaluater), block=True) # TODO
+    # TODO pushed active, call remote without parameters
+    if isinstance(lb_view, LoadBalancedView):
+        num_krnl = len(lb_view)
+        chunk = random_num // num_krnl // 2
+        results = lb_view.map(_trn_sample_expression_levels,
+                [active for i in xrange(random_num)],
+                block=False, ordered=False, chunksize=chunk)
+    else:
+        results = d_view.map(_trn_sample_expression_levels,
+                [active for i in xrange(random_num)],
+                block=False)
     sample = list(results)
     LOGGER.info("parallel speed-up was %.3g",
             results.serial_time / results.wall_time)
-    orig_ratio = trn_expression_level_similarity(original, orig2level)
+    orig_ratio = evaluater(original, orig2level)
     z_score = compute_zscore(orig_ratio, sample)
     if return_sample:
         return (z_score, sample)
@@ -431,15 +434,15 @@ def _trn_sample(tf_num, gene_num):
 #    return distribution
 
 @interactive
-def _trn_sample_expression_levels():
+def _trn_sample_expression_levels(active):
     # make use of global variables `network`, `expr_levels`,
     # `continuous_coherence`, `active`
     local_trn = network
-    local_nodes = active
+#    local_nodes = active
     local_levels = numpy.array(expr_levels, dtype=float, copy=True)
     numpy.random.shuffle(local_levels)
     # build map here because expr_level are shuffled
-    gene2level = dict(izip(local_nodes, local_levels))
+    gene2level = dict(izip(active, local_levels))
     return continuous_coherence(local_trn, gene2level)
 
 @interactive

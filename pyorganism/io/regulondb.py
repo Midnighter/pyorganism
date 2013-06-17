@@ -22,6 +22,7 @@ import logging
 import re
 import itertools
 
+from operator import attrgetter
 from collections import defaultdict
 from bs4 import BeautifulSoup
 from .. import miscellaneous as misc
@@ -687,13 +688,20 @@ def update_operons(operons, genes, **kw_args):
     Returns
     -------
     """
+    begin = attrgetter("position")
     for gene in genes:
+        gene.operons = set()
         for op in operons:
             if gene.strand == op.strand and\
                     all(pos >= op.gene_position_start for pos in gene.position) and\
                     all(pos <= op.gene_position_end for pos in gene.position):
                 op.genes.append(gene)
                 gene.operons.add(op)
+    for op in operons:
+        if op.strand == "reverse":
+            op.genes.sort(key=begin, reverse=True)
+        else:
+            op.genes.sort(key=begin)
 
 def read_tf_gene_network(genes, filename, sep="\t", comment="#",
         encoding=None, mode="rb", **kw_args):

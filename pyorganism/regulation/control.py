@@ -547,8 +547,6 @@ def trn_sample_expression_levels(network, active, expr_level):
 
 def trn_expression_level_similarity(network, gene2level):
     return sum([gene2level[u] - gene2level[v] for (u, v) in network.edges_iter()])
-#    return sum([1.0 - abs(gene2level[u] - gene2level[v])\
-#            for (u, v) in network.edges_iter()])
 
 def gpn_sample_expression_levels(network, active, expr_level):
     numpy.random.shuffle(expr_level)
