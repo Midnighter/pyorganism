@@ -29,20 +29,24 @@ Requirements
 
 * networkx_
 * numpy_
+* reading/writing SBML files requires libsbml_
 * FBA requires either:
     * Gurobi_,
     * GLPK_,
     * MOSEK_,
     * or any other linear programming solver that you are willing to provide the
       Python interface for (like gurobipy or cvxopt_).
+* KEGG interface requires SOAPpy_
 * (pytables_ for HDF5 storage can be replaced by pickling of numpy objects)
 
 .. _networkx: http://networkx.github.com/
 .. _numpy: http://www.numpy.org/
+.. _libsbml: http://sbml.org/Software/libSBML
 .. _Gurobi: http://www.gurobi.com/
 .. _GLPK: http://www.gnu.org/software/glpk/
 .. _MOSEK: http://www.mosek.com/
 .. _cvxopt: http://abel.ee.ucla.edu/cvxopt/
+.. _SOAPpy: http://pywebsvcs.sourceforge.net/
 .. _pytables: http://www.pytables.org/
 
 
