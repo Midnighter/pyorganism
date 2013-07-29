@@ -25,7 +25,6 @@ __all__ = ["SBMLParser"]
 import logging
 #import re
 
-from ..singletonmixin import Singleton
 from .. import miscellaneous as misc
 from ..metabolism import elements as pymet
 from ..errors import PyOrganismError
@@ -39,7 +38,7 @@ LOGGER.addHandler(misc.NullHandler())
 OPTIONS = misc.OptionsManager.get_instance()
 
 
-class SBMLParser(Singleton):
+class SBMLParser(object):
     """
     A class implementing methods for parsing a SBML model
     """
@@ -63,7 +62,7 @@ class SBMLParser(Singleton):
                 if sbml_err.getSeverity() == libsbml.LIBSBML_SEV_FATAL:
                     fatal = True
         if fatal:
-            raise PyOrganismError("fatal error in SBML parsing")
+            raise PyOrganismError("fatal error in parsing SBML document")
         model = document.getModel()
         # parse compartments
         compartments = [self._parse_compartment(comp) for comp in
