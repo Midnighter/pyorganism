@@ -137,11 +137,11 @@ class SBMLParser(object):
     def _parse_reaction(self, reaction, model, note_sep=":"):
         """Able to parse entries from getListOfReactions"""
         identifier = self._strip_reaction_id(reaction.getId())
-        if OPTIONS.exchange_reaction in identifier:
-            # TODO
-            for cmpd in
-                (self._parse_species(model.getSpecies(elem.getSpecies())) for
-                        elem in reaction.getListOfReactions()):
+#        if OPTIONS.exchange_reaction in identifier:
+#            # TODO
+#            for cmpd in
+#                (self._parse_species(model.getSpecies(elem.getSpecies())) for
+#                        elem in reaction.getListOfReactions()):
         name = reaction.getName()
         # parse additional reaction parameters
         params = dict()

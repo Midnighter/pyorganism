@@ -290,7 +290,11 @@ def _grb_make_integer(self, reaction):
 def _grb__add_reaction(self, reaction, lb, ub):
     if self._rxn2var.has_key(reaction):
         return False
-    assert lb < ub
+    numeric_ub = not ub is None
+    numeric_lb = not lb is None
+    if numeric_ub and numeric_lb and ub < lb:
+        raise PyOrganismError("Trying to set an upper bound that is smaller"\
+        " than the lower bound for '%s'.", str(reaction))
     if reaction.reversible:
         # we rely on lb being numeric here due to default options
         if lb < 0.0 and ub < 0.0:
@@ -308,7 +312,9 @@ def _grb__add_reaction(self, reaction, lb, ub):
         self._rev2var[reaction] = var_rev
         self._var2rev[var_rev] = reaction
     else:
-        assert lb >= 0.0 and ub >= 0.0
+        if (numeric_ub and ub < 0.0) or (numeric_lb and lb < 0.0):
+            raise PyOrganismError("trying to set a negative bound for an\
+                    irreversible reaction '%s'.", str(reaction))
         var = self._model.addVar(lb, ub, name=str(reaction))
     self._rxn2var[reaction] = var
     self._var2rxn[var] = reaction
