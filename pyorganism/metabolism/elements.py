@@ -185,15 +185,19 @@ class BasicCompartment(UniqueBase):
     and name.
     """
 
-    def __init__(self, unique_id="", **kw_args):
+    def __init__(self, unique_id="", suffix="", **kw_args):
         """
         Parameters
         ----------
         unique_id: str
             A string uniquely identifying the compartment among its class.
+        suffix: str (optional)
+            A string appended to compounds for input/output.
         """
         super(BasicCompartment, self).__init__(unique_id=unique_id, **kw_args)
-        self._contained = set()
+        self.suffix = suffix
+        self._compounds = set()
+        self._compartmentalized = set()
 
     def __contains__(self, element):
         """
@@ -209,8 +213,11 @@ class BasicCompartment(UniqueBase):
             raise PyOrganismError(u"unrecognised metabolic component '{0}'",
                     element)
 
+    def __len__(self):
+        return len(self._compounds)
+
     def __iter__(self):
-        return iter(self._contained)
+        return iter(self._compounds)
 
     def register(self, element):
         """
@@ -219,7 +226,17 @@ class BasicCompartment(UniqueBase):
         element: `BasicCompound`
             Compound that is found in this compartment.
         """
-        self._contained.add(element)
+        if isinstance(element, BasicCompartmentCompound):
+            self._compounds.add(element.compound)
+            self._compartmentalized.add(element)
+        else:
+            self._compounds.add(element)
+
+    def iter_compounds(self):
+        return self.__iter__()
+
+    def iter_compartmentalized(self):
+        return iter(self._compartmentalized)
 
 
 class BasicCompartmentCompound(BasicCompound):
@@ -247,7 +264,7 @@ class BasicCompartmentCompound(BasicCompound):
         self.compound = compound
         self.compartment = compartment
         if not self.compartment is None:
-            self.compartment.register(self.compound)
+            self.compartment.register(self)
 
     def __getattr__(self, attr):
         """
@@ -270,8 +287,7 @@ class SBMLCompartment(BasicCompartment):
     """
 
     def __init__(self, unique_id="", name="", outside=None, constant=True,
-            suffix="", spatial_dimensions=None, size=None, units=None,
-            **kw_args):
+            spatial_dimensions=None, size=None, units=None, **kw_args):
         """
         Parameters
         ----------
@@ -284,8 +300,6 @@ class SBMLCompartment(BasicCompartment):
         constant: bool (optional)
             Determines whether the size attribute is allowed to change during
             model simulation.
-        suffix: str (optional)
-            A string appended to compounds for input/output.
         spatial_dimensions: int (optional)
             From 0 to 3, normal models have three dimensions.
         size: float (optional)
@@ -302,7 +316,6 @@ class SBMLCompartment(BasicCompartment):
         self.name = name
         self.outside = misc.convert(outside, SBMLCompartment)
         self.constant = bool(constant)
-        self.suffix = suffix
         self.spatial_dimensions = misc.convert(spatial_dimensions, int)
         self.size = size
         self.units = units

@@ -122,8 +122,9 @@ class OptionsManager(Singleton):
         self.compound_prefix = "M_"
         self.reaction_prefix = "R_"
         self.reversible_suffix = "_Rev"
-        self.compartments = {"_c": "Cytosol", "_e": "Extra_organism",
-                "_b": "Exchange", "_p": "Periplasm"}
+        self.exchange_reaction = "EX"
+        self.compartment_suffixes = {"Cytosol": "_c", "Extra_organism": "_e",
+                "Exchange": "_b", "Periplasm": "_p"}
         self.lp_solver = "gurobi"
         self.lower_bound = 0.0
         self.upper_bound = 1000.0

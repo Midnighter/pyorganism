@@ -79,11 +79,9 @@ class SBMLParser(object):
                 reactions=reactions, compounds=compounds)
 
     def _parse_compartment(self, compartment):
-        suffix = ""
-        for (suff, name) in OPTIONS.compartments.iteritems():
-            if name == compartment.getId():
-                suffix = suff
-        return pymet.SBMLCompartment(unique_id=compartment.getId(),
+        unique = compartment.getId()
+        suffix = OPTIONS.compartment_suffixes[unique]
+        return pymet.SBMLCompartment(unique_id=unique,
                 name=compartment.getName(),
                 outside=compartment.getOutside(),
                 constant=compartment.getConstant(),
@@ -93,17 +91,17 @@ class SBMLParser(object):
 
     def _strip_species_id(self, name):
         identifier = name
-#        identifier = name.replace("_DASH_", "-")
+        identifier = name.replace("_DASH_", "-")
 #        identifier = identifier.replace("_LPAREN_", "(")
 #        identifier = identifier.replace("_RPAREN_", ")")
         if identifier.startswith(OPTIONS.compound_prefix):
             identifier = identifier[len(OPTIONS.compound_prefix):]
         compartment = None
-        for suffix in OPTIONS.compartments.iterkeys():
+        for (unique, suffix) in OPTIONS.compartment_suffixes.iteritems():
             if identifier.endswith(suffix):
                 identifier = identifier[:-len(suffix)]
                 compartment = pymet.SBMLCompartment(
-                        unique_id=OPTIONS.compartments[suffix], suffix=suffix)
+                        unique_id=unique, suffix=suffix)
                 break
         return (identifier, compartment)
 
@@ -119,7 +117,7 @@ class SBMLParser(object):
         name = compound.getName()
         cmpd = pymet.SBMLCompound(unique_id=identifier, name=name,
                 charge=compound.getCharge())
-        if not comp:
+        if comp is None:
             return cmpd
         else:
             return pymet.SBMLCompartmentCompound(unique_id=identifier + comp.suffix,
@@ -127,7 +125,7 @@ class SBMLParser(object):
 
     def _strip_reaction_id(self, name):
         identifier = name
-#        identifier = name.replace("_DASH_", "-")
+        identifier = name.replace("_DASH_", "-")
 #        identifier = identifier.replace("_LPAREN_", "(")
 #        identifier = identifier.replace("_RPAREN_", ")")
         if identifier.startswith(OPTIONS.reaction_prefix):
@@ -139,6 +137,11 @@ class SBMLParser(object):
     def _parse_reaction(self, reaction, model, note_sep=":"):
         """Able to parse entries from getListOfReactions"""
         identifier = self._strip_reaction_id(reaction.getId())
+        if OPTIONS.exchange_reaction in identifier:
+            # TODO
+            for cmpd in
+                (self._parse_species(model.getSpecies(elem.getSpecies())) for
+                        elem in reaction.getListOfReactions()):
         name = reaction.getName()
         # parse additional reaction parameters
         params = dict()

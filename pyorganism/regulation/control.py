@@ -22,9 +22,10 @@ __all__ = ["digital_control", "digital_ctc", "continuous_digital_ctc", "analog_c
 
 
 import logging
-import numpy
 import random
 import re
+
+import numpy
 
 from operator import attrgetter
 from copy import copy
@@ -216,16 +217,16 @@ def analog_control(gpn, active, **kw_args):
         Dissecting the logical types of network control in gene expression profiles.
         BMC Systems Biology 2, 18.
     """
-    if self.gpn is None or self.gpn.size() == 0:
+    if gpn is None or gpn.size() == 0:
         LOGGER.warn("empty gene proximity network")
         return numpy.nan
-    subnet = effective_network(self.gpn, active)
+    subnet = effective_network(gpn, active)
     if len(subnet) == 0:
         LOGGER.warn("empty effective network")
         return numpy.nan
     return total_ratio(subnet)
 
-def analog_ctc(self, active, random_num=1E04, return_sample=False, **kw_args):
+def analog_ctc(gpn, active, random_num=1E04, return_sample=False, **kw_args):
     """
     Compute the analog control from an effective GPN.
 
@@ -245,22 +246,22 @@ def analog_ctc(self, active, random_num=1E04, return_sample=False, **kw_args):
         Dissecting the logical types of network control in gene expression profiles.
         BMC Systems Biology 2, 18.
     """
-    if self.gpn is None or self.gpn.size() == 0:
+    if gpn is None or gpn.size() == 0:
         LOGGER.warn("empty gene proximity network")
         return numpy.nan
-    original = effective_network(self.gpn, active)
+    original = effective_network(gpn, active)
     size = len(original)
     if size == 0:
         LOGGER.warn("empty effective network")
         return numpy.nan
-    sample = [active_sample(self.gpn, size) for i in range(int(random_num))]
+    sample = [active_sample(gpn, size) for i in range(int(random_num))]
     z_score = compute_zscore(total_ratio(original), sample)
     if return_sample:
         return (z_score, sample)
     else:
         return z_score
 
-def continuous_analog_ctc(organism, active, expr_levels, random_num=1E04,
+def continuous_analog_ctc(gpn, active, expr_levels, random_num=1E04,
         return_sample=False, **kw_args):
     """
     Compute the analog control from an effective GPN.
@@ -284,10 +285,10 @@ def continuous_analog_ctc(organism, active, expr_levels, random_num=1E04,
         BMC Systems Biology 2, 18.
     """
     random_num = int(random_num)
-    if organism.gpn is None or organism.gpn.size() == 0:
+    if gpn is None or gpn.size() == 0:
         LOGGER.warn("empty gene proximity network")
         return numpy.nan
-    original = effective_network(organism.gpn, active)
+    original = effective_network(gpn, active)
     size = len(original)
     if size == 0:
         LOGGER.warn("empty effective network")
@@ -303,7 +304,7 @@ def continuous_analog_ctc(organism, active, expr_levels, random_num=1E04,
     else:
         return z_score
 
-def metabolic_coherence_ratio(self, active, bnumber2gene, rxn_centric=None,
+def metabolic_coherence_ratio(metabolic_network, active, bnumber2gene, rxn_centric=None,
         **kw_args):
     """
     Compute the metabolic coherence ratio (MCR) from an effective metabolic
@@ -326,11 +327,11 @@ def metabolic_coherence_ratio(self, active, bnumber2gene, rxn_centric=None,
 
     """
     if rxn_centric is None:
-        if self.metabolic_network is None:
+        if metabolic_network is None:
             LOGGER.warn("no metabolic network")
             return numpy.nan
         else:
-            rxn_centric = self.metabolic_network.to_reaction_centric()
+            rxn_centric = metabolic_network.to_reaction_centric()
     if rxn_centric.size() == 0:
         LOGGER.warn("empty metabolic network")
         return numpy.nan
@@ -411,7 +412,7 @@ def metabolic_coherence(self, active, bnumber2gene, rxn_centric=None,
     else:
         return z_score
 
-def robustness(self, control_type, active, fraction=0.1,
+def robustness(control_type, active, fraction=0.1,
         random_num=1E04, control_num=1E04, **kw_args):
     """
     Cut a fraction of active genes.
@@ -424,7 +425,7 @@ def robustness(self, control_type, active, fraction=0.1,
     distribution = [control_type(sample, **kw_args) for sample in samples]
     return distribution
 
-def robustness_with_replacement(self, control_type, active, replacement, fraction=0.1,
+def robustness_with_replacement(control_type, active, replacement, fraction=0.1,
         random_num=1E04, control_num=1E04, **kw_args):
     """
     Replace a fraction of the active genes with other genes.
@@ -438,11 +439,11 @@ def robustness_with_replacement(self, control_type, active, replacement, fractio
     distribution = [control_type(sample, **kw_args) for sample in samples]
     return distribution
 
-def stat_expression_forks(self, statistic, active, ori=(3923657, 3924034),
+def stat_expression_forks(genes, statistic, active, ori=(3923657, 3924034),
         ter=None):
     end = attrgetter("position_end")
     # assume the maximal end position of the genes is the total length
-    genome_length = end(max(self.genes, key=end))
+    genome_length = end(max(genes, key=end))
     if ter is None:
         LOGGER.debug("genome length = {0:d}".format(genome_length))
         ter = int(round(genome_length / 2.0 + (ori[1] + ori[0]) / 2.0)) % genome_length
@@ -554,8 +555,14 @@ def gpn_sample_expression_levels(network, active, expr_level):
     gene2level = dict(izip(active, expr_level))
     return gpn_expression_level_similarity(network, gene2level)
 
+def trn_operon_based_sampling(trn, orn, active, expr_level):
+    all_ops = set(op for elem in active for op in elem.get_operons())
+    orig_gene2level = dict(izip(active, expr_level))
+    out_ops = [node for (node, deg) in orn.out_degree_iter() if deg > 0]
+    # build set differences to get active out-degree operons and targets
+
 def gpn_operon_based_sampling(network, active, expr_level):
-    all_ops = set(op for gene in active for op in gene.operons)
+    all_ops = set(op for elem in active for op in elem.get_operons())
     orig_gene2level = dict(izip(active, expr_level))
     gene2level = dict()
     no_op = list()
@@ -569,7 +576,7 @@ def gpn_operon_based_sampling(network, active, expr_level):
         # multiple operons per gene exist in older versions of RegulonDB
         # we pick shortest of those operons
         ops = list(gene.operons)
-        lengths = [len(op.genes) for op in ops]
+        lengths = [len(op) for op in ops]
         op = ops[numpy.argsort(lengths)[0]]
         targets = list(all_ops.difference(set([op])))
         rnd_op = targets[numpy.random.randint(len(targets))]

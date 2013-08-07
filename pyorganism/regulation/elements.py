@@ -66,6 +66,9 @@ class Gene(UniqueBase):
         else:
             return False
 
+    def get_operons(self):
+        return self.operons
+
     def print_info(self, stream=sys.stdout):
         print >> stream, "ECK12:", self.unique_id
         print >> stream, "name:", self.name
@@ -99,6 +102,9 @@ class Product(UniqueBase):
         else:
             return False
 
+    def get_operons(self):
+        return set(op for gene in self.coded_from for op in gene.operons)
+
     def print_info(self, stream=sys.stdout):
         print >> stream, "ECK12:", self.unique_id
         print >> stream, "name:", self.name
@@ -129,6 +135,9 @@ class Regulator(UniqueBase):
             return True
         else:
             return False
+
+    def get_operons(self):
+        return set(op for gene in self.coded_from for op in gene.operons)
 
     def print_info(self, stream=sys.stdout):
         print >> stream, "ECK12:", self.unique_id
@@ -162,6 +171,9 @@ class TranscriptionUnit(UniqueBase):
         super(TranscriptionUnit, self).__init__(unique_id=unique_id,
                 **kw_args)
 
+    def __len__(self):
+        return len(self.genes)
+
 
 class Operon(UniqueBase):
 
@@ -177,6 +189,9 @@ class Operon(UniqueBase):
         self.regulation_position_start = misc.convert(regulation_position_start, int)
         self.regulation_position_end = misc.convert(regulation_position_end, int)
         self.genes = list()
+
+    def __len__(self):
+        return len(self.genes)
 
     def print_info(self, stream=sys.stdout):
         print >> stream, "ECK12:", self.unique_id

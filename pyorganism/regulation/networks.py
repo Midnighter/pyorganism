@@ -18,16 +18,18 @@ PyOrganism Regulatory Networks
 """
 
 
-__all__ = ["GRN", "TRN", "CouplonGenerator", "GPNGenerator"]
+__all__ = ["GRN", "TRN", "ORN", "CouplonGenerator", "GPNGenerator"]
 
 
 import logging
 import itertools
+
 import numpy
 import networkx as nx
 
 from datetime import date
 from operator import itemgetter, attrgetter
+
 from .. import miscellaneous as misc
 from ..io.generic import open_file, parser_warning
 from ..errors import PyOrganismError
@@ -60,8 +62,8 @@ class GRN(nx.MultiDiGraph):
 
     Examples
     --------
-    >>> trn = GRN(name="simple")
-    >>> trn.add_edge("lacZ", "ada", interaction=0)
+    >>> grn = GRN(name="simple")
+    >>> grn.add_edge("lacZ", "ada", key=0)
     """
 
     def __init__(self, data=None, name="", **kw_args):
@@ -74,11 +76,11 @@ class GRN(nx.MultiDiGraph):
     def to_trn(self):
         trn = TRN(name="Transcriptinal Regulatory Network (TRN)")
         for (gene_u, gene_v, k) in self.edges_iter(keys=True):
-            if type(gene_u.regulatory_product) == elem.TranscriptionFactor:
+            if isinstance(gene_u.regulatory_product, elem.TranscriptionFactor):
                 u = gene_u.regulatory_product
             else:
                 u = gene_u
-            if type(gene_v.regulatory_product) == elem.TranscriptionFactor:
+            if isinstance(gene_v.regulatory_product, elem.TranscriptionFactor):
                 v = gene_v.regulatory_product
             else:
                 v = gene_v
@@ -91,8 +93,8 @@ class TRN(nx.MultiDiGraph):
     TRN - Transriptional Regulatory Network
 
     A directed network containing containing transcription factors (TFs) and
-    their regulatory targets, i.e., genes. Every link must have an attribute
-    denoting the regulatory interaction:
+    their regulatory targets, i.e., genes. Every link has an attribute
+    denoting the regulatory interaction stored as the key:
         * inhibitory: -1
         * activating: 1
         * unknown: 0
@@ -105,7 +107,7 @@ class TRN(nx.MultiDiGraph):
     Examples
     --------
     >>> trn = TRN(name="simple")
-    >>> trn.add_edge("Ada", "ada", interaction=0)
+    >>> trn.add_edge("Ada", "ada", key=0)
     """
 
     def __init__(self, data=None, name="", **kw_args):
@@ -269,6 +271,44 @@ class TRN(nx.MultiDiGraph):
 #                else:
 #                    warnings(line)
 #                    warnings = LOGGER.warn
+
+
+class ORN(nx.MultiDiGraph):
+    """
+    ORN - Operon Regulatory Network
+
+    A directed network containing containing operons and their regulatory
+    interactions given by the regulation of genes.
+    Every link must have an attribute denoting the regulatory interaction:
+        * inhibitory: -1
+        * activating: 1
+        * unknown: 0
+        * dual: 2
+
+    Notes
+    -----
+    Please also read the documentation for networkx.MultiDiGraph.
+
+    Examples
+    --------
+    >>> orn = ORN(name="simple")
+    >>> orn.from_trn(trn)
+    """
+
+    def __init__(self, data=None, name="", **kw_args):
+        super(ORN, self).__init__(data=data, name=name, **kw_args)
+
+    def from_trn(self, trn):
+        for (u, v, inter) in trn.edges_iter(keys=True):
+            for (op_1, op_2) in itertools.product(u.get_operons(),
+                    v.get_operons()):
+                self.add_edge(op_1, op_2, key=inter)
+
+    def from_grn(self, grn):
+        for (u, v, inter) in grn.edges_iter(keys=True):
+            for (op_1, op_2) in itertools.product(u.get_operons(),
+                    v.get_operons()):
+                self.add_edge(op_1, op_2, key=inter)
 
 
 class CouplonGenerator(nx.DiGraph):

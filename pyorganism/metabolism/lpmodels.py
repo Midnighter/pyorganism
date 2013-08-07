@@ -290,19 +290,25 @@ def _grb_make_integer(self, reaction):
 def _grb__add_reaction(self, reaction, lb, ub):
     if self._rxn2var.has_key(reaction):
         return False
+    assert lb < ub
     if reaction.reversible:
         # we rely on lb being numeric here due to default options
-        if lb < 0:
+        if lb < 0.0 and ub < 0.0:
+            var_rev = self._model.addVar(abs(ub), abs(lb), name=str(reaction) +
+                    OPTIONS.reversible_suffix)
+            var = self._model.addVar(0.0, 0.0, name=str(reaction))
+        elif lb < 0.0:
             var_rev = self._model.addVar(0.0, abs(lb), name=str(reaction) +
                     OPTIONS.reversible_suffix)
             var = self._model.addVar(0.0, ub, name=str(reaction))
         else:
-            var_rev = self._model.addVar(lb, ub, name=str(reaction) +
+            var_rev = self._model.addVar(0.0, 0.0, name=str(reaction) +
                     OPTIONS.reversible_suffix)
             var = self._model.addVar(lb, ub, name=str(reaction))
         self._rev2var[reaction] = var_rev
         self._var2rev[var_rev] = reaction
     else:
+        assert lb >= 0.0 and ub >= 0.0
         var = self._model.addVar(lb, ub, name=str(reaction))
     self._rxn2var[reaction] = var
     self._var2rxn[var] = reaction
@@ -377,7 +383,7 @@ def _grb_iter_reactions(self, compound=None, coefficients=False):
 def _grb_modify_reaction_coefficients(self, reaction, coefficients):
     # we allow for lazy updating of the model here (better not be a bug)
     if hasattr(reaction, "__iter__"):
-        if hasattr(coefficients, "__iter__"):
+        if not hasattr(coefficients, "__iter__"):
             coefficients = itertools.repeat(coefficients)
         for (rxn, coeff_iter) in itertools.izip(reaction, coefficients):
             self._change_coefficients(rxn, coeff_iter)
@@ -400,16 +406,21 @@ def _grb__adjust_bounds(self, reaction, lb, ub):
     if reaction.reversible:
         var_rev = self._rev2var[reaction]
         if numeric_ub:
-            var.ub = ub
-            var_rev.ub = ub
+            # upper bound negative:
+            # only reverse reaction is active
+            if ub < 0.0:
+                var.ub = 0.0
+                var_rev.lb = abs(ub)
+            else:
+                var.ub = ub
+                var_rev.lb = 0.0
         if numeric_lb:
             if lb < 0.0:
-                var_rev.lb = 0.0
-                var_rev.ub = abs(lb)
                 var.lb = 0.0
+                var_rev.ub = abs(lb)
             else:
-                var_rev.lb = lb
                 var.lb = lb
+                var_rev.ub = 0.0
     else:
         if numeric_ub:
             var.ub = ub
@@ -420,13 +431,9 @@ def _grb_modify_reaction_bounds(self, reaction, lb=None, ub=None):
     # we allow for lazy updating of the model here (better not be a bug)
     if hasattr(reaction, "__iter__"):
         # we really modify multiple reactions
-        if hasattr(lb, "__iter__"):
-            lb_iter = lb
-        else:
+        if not hasattr(lb, "__iter__"):
             lb_iter = itertools.repeat(lb)
-        if hasattr(ub, "__iter__"):
-            ub_iter = ub
-        else:
+        if not hasattr(ub, "__iter__"):
             ub_iter = itertools.repeat(ub)
         for (rxn, lb, ub) in itertools.izip(reaction, lb_iter, ub_iter):
             self._adjust_bounds(rxn, lb, ub)
