@@ -21,16 +21,15 @@ PyOrganism Statistics
 __all__ = ["compute_zscore"]
 
 
-import warnings
-#import logging
+import logging
 import numpy
 
-#from . import miscellaneous as misc
+from . import miscellaneous as misc
 #from .errors import PyOrganismError
 
 
-#LOGGER = logging.getLogger(__name__)
-#LOGGER.addHandler(misc.NullHandler())
+LOGGER = logging.getLogger(__name__)
+LOGGER.addHandler(misc.NullHandler())
 
 
 def compute_zscore(obs, random_stats):
@@ -46,10 +45,11 @@ def compute_zscore(obs, random_stats):
         return numpy.nan
     random_stats = numpy.ma.masked_invalid(random_stats)
     if random_stats.mask.all():
-        warnings.warn("invalid null model values")
+        LOGGER.warn("invalid null model values")
         return numpy.nan
-    mean = numpy.mean(random_stats[numpy.logical_not(random_stats.mask)])
-    std = numpy.std(random_stats[numpy.logical_not(random_stats.mask)])
+    values = random_stats[numpy.logical_not(random_stats.mask)]
+    mean = numpy.mean(values)
+    std = numpy.std(values)
     nominator = obs - mean
     if nominator == 0.0:
         return nominator

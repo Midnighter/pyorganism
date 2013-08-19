@@ -30,6 +30,7 @@ import numpy
 from operator import attrgetter
 from copy import copy
 from itertools import izip
+from collections import defaultdict
 
 from . import elements as elem
 from .. import miscellaneous as misc
@@ -556,10 +557,14 @@ def gpn_sample_expression_levels(network, active, expr_level):
     return gpn_expression_level_similarity(network, gene2level)
 
 def trn_operon_based_sampling(trn, orn, active, expr_level):
-    all_ops = set(op for elem in active for op in elem.get_operons())
-    orig_gene2level = dict(izip(active, expr_level))
-    out_ops = [node for (node, deg) in orn.out_degree_iter() if deg > 0]
-    # build set differences to get active out-degree operons and targets
+    ops2level = defaultdict(list)
+    for (elem, level) in izip(active, expr_level):
+        for op in elem.get_operons():
+            ops2level[op].append(level)
+    ops = ops2level.keys()
+    levels = [numpy.mean(ops2level[op]) for op in ops]
+    # select out- and in-ops and then compute similarity
+    return gpn_expression_level_similarity(orn, elem2level)
 
 def gpn_operon_based_sampling(network, active, expr_level):
     all_ops = set(op for elem in active for op in elem.get_operons())
@@ -570,7 +575,7 @@ def gpn_operon_based_sampling(network, active, expr_level):
     for gene in active:
         if gene in gene2level:
             continue
-        if not gene.operons:
+        if len(gene.get_operons()) == 0:
             no_op.append(gene)
             continue
         # multiple operons per gene exist in older versions of RegulonDB

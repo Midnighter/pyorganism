@@ -343,15 +343,25 @@ class MetabolicSystem(object):
             for cmpd in rxn.substrates:
                 if stoichiometric_coefficients:
                     net.add_edge(cmpd, rxn,
-                            stoichiometry=abs(rxn.stoichiometric_coefficient(cmpd)))
+                            stoichiometry=rxn.stoichiometric_coefficient(cmpd))
+#                    if rxn.reversible:
+#                        net.add_edge(rxn, cmpd,
+#                                stoichiometry=rxn.stoichiometric_coefficient(cmpd))
                 else:
                     net.add_edge(cmpd, rxn)
+#                    if rxn.reversible:
+#                        net.add_edge(rxn, cmpd)
             for cmpd in rxn.products:
                 if stoichiometric_coefficients:
                     net.add_edge(rxn, cmpd,
-                            stoichiometry=abs(rxn.stoichiometric_coefficient(cmpd)))
+                            stoichiometry=rxn.stoichiometric_coefficient(cmpd))
+#                    if rxn.reversible:
+#                        net.add_edge(cmpd, rxn,
+#                                stoichiometry=rxn.stoichiometric_coefficient(cmpd))
                 else:
                     net.add_edge(rxn, cmpd)
+#                    if rxn.reversible:
+#                        net.add_edge(cmpd, rxn)
 #            if disjoint_reversible and rxn.reversible:
 #                for cmpd in rxn.substrates:
 #                    if stoichiometric_coefficients:

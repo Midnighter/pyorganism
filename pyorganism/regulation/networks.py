@@ -87,6 +87,14 @@ class GRN(nx.MultiDiGraph):
             trn.add_edge(u, v, key=k)
         return trn
 
+    def to_grn(self):
+        orn = ORN()
+        for (u, v, inter) in self.edges_iter(keys=True):
+            for (op_1, op_2) in itertools.product(u.get_operons(),
+                    v.get_operons()):
+                orn.add_edge(op_1, op_2, key=inter)
+        return orn
+
 
 class TRN(nx.MultiDiGraph):
     """
@@ -131,6 +139,14 @@ class TRN(nx.MultiDiGraph):
                 except KeyError:
                     elem_v = elem.Gene[v]
                 self.add_edge(elem_u, elem_v, key=inter)
+
+    def to_orn(self):
+        orn = ORN()
+        for (u, v, inter) in self.edges_iter(keys=True):
+            for (op_1, op_2) in itertools.product(u.get_operons(),
+                    v.get_operons()):
+                orn.add_edge(op_1, op_2, key=inter)
+        return orn
 
     def to_couplons(self, sf_links):
         couplon_gen = CouplonGenerator(self)
@@ -297,18 +313,6 @@ class ORN(nx.MultiDiGraph):
 
     def __init__(self, data=None, name="", **kw_args):
         super(ORN, self).__init__(data=data, name=name, **kw_args)
-
-    def from_trn(self, trn):
-        for (u, v, inter) in trn.edges_iter(keys=True):
-            for (op_1, op_2) in itertools.product(u.get_operons(),
-                    v.get_operons()):
-                self.add_edge(op_1, op_2, key=inter)
-
-    def from_grn(self, grn):
-        for (u, v, inter) in grn.edges_iter(keys=True):
-            for (op_1, op_2) in itertools.product(u.get_operons(),
-                    v.get_operons()):
-                self.add_edge(op_1, op_2, key=inter)
 
 
 class CouplonGenerator(nx.DiGraph):
