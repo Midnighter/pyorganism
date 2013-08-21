@@ -32,6 +32,7 @@ from copy import copy
 from itertools import izip
 from collections import defaultdict
 
+from .networks import to_operon_based
 from . import elements as elem
 from .. import miscellaneous as misc
 #from ..errors import PyOrganismError
@@ -556,15 +557,25 @@ def gpn_sample_expression_levels(network, active, expr_level):
     gene2level = dict(izip(active, expr_level))
     return gpn_expression_level_similarity(network, gene2level)
 
-def trn_operon_based_sampling(trn, orn, active, expr_level):
-    ops2level = defaultdict(list)
+def trn_operon_based_sampling(trn, active, expr_level):
+    op2level = defaultdict(list)
     for (elem, level) in izip(active, expr_level):
         for op in elem.get_operons():
-            ops2level[op].append(level)
-    ops = ops2level.keys()
-    levels = [numpy.mean(ops2level[op]) for op in ops]
-    # select out- and in-ops and then compute similarity
-    return gpn_expression_level_similarity(orn, elem2level)
+            op2level[op].append(level)
+    ops = op2level.keys()
+    levels = [numpy.mean(op2level[op]) for op in ops]
+    op2level = dict(izip(ops, levels))
+    # select out- and in-ops and then compute similarity based on different
+    # null-models
+    orn = to_operon_based(trn)
+    active_orn = orn.subgraph(ops)
+    out_ops = set(node for (node, deg) in active_orn.out_degree_iter() if deg > 0)
+    in_ops = set(ops).difference(out_ops)
+    out_levels = [op2level[op] for op in out_ops]
+    in_levels = [op2level[op] for op in in_ops]
+    op2level = dict(izip(out_ops, numpy.random.shuffle(out_levels)))
+    op2level.update(izip(in_ops, numpy.random.shuffle(in_levels)))
+    return trn_expression_level_similarity(orn, op2level)
 
 def gpn_operon_based_sampling(network, active, expr_level):
     all_ops = set(op for elem in active for op in elem.get_operons())

@@ -87,14 +87,6 @@ class GRN(nx.MultiDiGraph):
             trn.add_edge(u, v, key=k)
         return trn
 
-    def to_grn(self):
-        orn = ORN()
-        for (u, v, inter) in self.edges_iter(keys=True):
-            for (op_1, op_2) in itertools.product(u.get_operons(),
-                    v.get_operons()):
-                orn.add_edge(op_1, op_2, key=inter)
-        return orn
-
 
 class TRN(nx.MultiDiGraph):
     """
@@ -139,14 +131,6 @@ class TRN(nx.MultiDiGraph):
                 except KeyError:
                     elem_v = elem.Gene[v]
                 self.add_edge(elem_u, elem_v, key=inter)
-
-    def to_orn(self):
-        orn = ORN()
-        for (u, v, inter) in self.edges_iter(keys=True):
-            for (op_1, op_2) in itertools.product(u.get_operons(),
-                    v.get_operons()):
-                orn.add_edge(op_1, op_2, key=inter)
-        return orn
 
     def to_couplons(self, sf_links):
         couplon_gen = CouplonGenerator(self)
@@ -287,32 +271,6 @@ class TRN(nx.MultiDiGraph):
 #                else:
 #                    warnings(line)
 #                    warnings = LOGGER.warn
-
-
-class ORN(nx.MultiDiGraph):
-    """
-    ORN - Operon Regulatory Network
-
-    A directed network containing containing operons and their regulatory
-    interactions given by the regulation of genes.
-    Every link must have an attribute denoting the regulatory interaction:
-        * inhibitory: -1
-        * activating: 1
-        * unknown: 0
-        * dual: 2
-
-    Notes
-    -----
-    Please also read the documentation for networkx.MultiDiGraph.
-
-    Examples
-    --------
-    >>> orn = ORN(name="simple")
-    >>> orn.from_trn(trn)
-    """
-
-    def __init__(self, data=None, name="", **kw_args):
-        super(ORN, self).__init__(data=data, name=name, **kw_args)
 
 
 class CouplonGenerator(nx.DiGraph):
@@ -641,4 +599,19 @@ class GPNGenerator(object):
                 diff_4 = min(diff_4, genome_length - diff_4)
                 # we only use the UR triangle of the distances matrix
                 self.distances[i, j] = min(diff_1, diff_2, diff_3, diff_4)
+
+
+def to_operon_based(network):
+    orn = type(network)()
+    if orn.is_multigraph():
+        for (u, v, inter) in network.edges_iter(keys=True):
+            for (op_1, op_2) in itertools.product(u.get_operons(),
+                    v.get_operons()):
+                orn.add_edge(op_1, op_2, key=inter)
+    else:
+        for (u, v) in network.edges_iter():
+            for (op_1, op_2) in itertools.product(u.get_operons(),
+                    v.get_operons()):
+                orn.add_edge(op_1, op_2)
+    return orn
 
