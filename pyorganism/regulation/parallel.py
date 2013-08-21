@@ -31,9 +31,8 @@ from IPython.parallel import interactive, LoadBalancedView
 
 from . import elements as elem
 from .. import miscellaneous as misc
+from . import control as cntrl
 from ..statistics import compute_zscore
-from .control import effective_network, total_ratio,\
-        gpn_expression_level_similarity, trn_expression_level_similarity
 
 
 LOGGER = logging.getLogger(__name__)
@@ -73,26 +72,18 @@ def digital_ctc(d_view, trn, active, random_num=1E04, return_sample=False,
         BMC Systems Biology 2, 18.
     """
     random_num = int(random_num)
-    if trn is None or trn.size() == 0:
-        LOGGER.warn("empty transcriptional regulatory network")
-        return numpy.nan
-    active = set([gene.regulatory_product if\
-        isinstance(gene.regulatory_product, elem.TranscriptionFactor) else\
-        gene for gene in active])
-    original = effective_network(trn, active)
-    size = len(original)
-    if size == 0:
-        LOGGER.warn("empty effective network")
-        return numpy.nan
+    original = cntrl.setup_trn(trn, active)
+    if original is numpy.nan:
+        return original
     d_view.execute("import random", block=True)
-    d_view.push(dict(network=trn, total_ratio=total_ratio), block=True)
+    d_view.push(dict(network=trn, total_ratio=cntrl.discrete_total_ratio), block=True)
     # new null model separates TFs and genes
     t_factors = set(node for node in trn if isinstance(node, elem.TranscriptionFactor))
     genes = set(node for node in trn if isinstance(node, elem.Gene))
     d_view.push(dict(genes=genes, tfs=t_factors), block=True)
     # separate numbers
-    tf_num = sum(1 for item in original if isinstance(item, elem.TranscriptionFactor))
-    gene_num = sum(1 for item in original if isinstance(item, elem.Gene))
+    tf_num = sum(int(isinstance(item, elem.TranscriptionFactor)) for item in original)
+    gene_num = len(original) - tf_num
     LOGGER.info("picked %d transcription factors", tf_num)
     if isinstance(lb_view, LoadBalancedView):
         num_krnl = len(lb_view)
@@ -109,15 +100,17 @@ def digital_ctc(d_view, trn, active, random_num=1E04, return_sample=False,
     samples = list(results)
     LOGGER.info("parallel speed-up was %.3g",
             results.serial_time / results.wall_time)
-    z_score = compute_zscore(total_ratio(original), samples)
+    orig_ratio = cntrl.discrete_total_ratio(original)
+    z_score = compute_zscore(orig_ratio, samples)
     if return_sample:
         return (z_score, samples)
     else:
         return z_score
 
+#TODO: adjust to operon based
 def continuous_digital_ctc(d_view, trn, active, expr_levels, random_num=1E04,
-        return_sample=False, lb_view=None, random_levels="all",
-        evaluater=trn_expression_level_similarity, **kw_args):
+        return_sample=False, lb_view=None,
+        evaluater=cntrl.continuous_functional_coherence, **kw_args):
     """
     Compute a continuous digital control type confidence of given gene
     expression levels in the effective TRN.
@@ -151,36 +144,28 @@ def continuous_digital_ctc(d_view, trn, active, expr_levels, random_num=1E04,
         BMC Systems Biology 2, 18.
     """
     random_num = int(random_num)
-    if trn is None or trn.size() == 0:
-        LOGGER.warn("empty transcriptional regulatory network")
-        return numpy.nan
-    active_nodes = set([gene.regulatory_product if\
-        isinstance(gene.regulatory_product, elem.TranscriptionFactor) else\
-        gene for gene in active])
-    original = effective_network(trn, active_nodes)
-    size = len(original)
-    if size == 0:
-        LOGGER.warn("empty effective network")
-        return numpy.nan
+    original = cntrl.setup_trn(trn, active)
+    if original is numpy.nan:
+        return original
     gene2level = dict(izip(active, expr_levels))
     active = original.nodes()
-    orig_levels = numpy.zeros(len(original), dtype=float)
+    orig_levels = numpy.zeros(len(active), dtype=float)
     for (i, node) in enumerate(active):
         if isinstance(node, elem.TranscriptionFactor):
-            orig_levels[i] = numpy.mean([gene2level[gene] for gene in node.coded_from if
-                    gene in gene2level])
+            orig_levels[i] = numpy.mean([gene2level[gene] for gene in\
+                    node.coded_from if gene in gene2level])
         else:
             orig_levels[i] = gene2level[node]
     orig2level = dict(izip(active, orig_levels))
+    (op_net, op2level) = cntrl._setup_continuous_operon_based(original, orig2level)
+    # in TRN structure the out-hubs and spokes differentiation matters
+    out_ops = set(node for (node, deg) in op_net.out_degree_iter() if deg > 0)
+    in_ops = set(op_net.nodes_iter()).difference(out_ops)
+    out_levels = [op2level[op] for op in out_ops]
+    in_levels = [op2level[op] for op in in_ops]
     d_view.execute("import numpy", block=True)
-    # null model using all expression levels
-    if random_levels == "all":
-        d_view.push(dict(network=original, expr_levels=expr_levels, izip=izip,
-                continuous_coherence=evaluater), block=True) # TODO
-    # null model only using effective nodes' expression levels in  TRN
-    elif random_levels == "effective":
-        d_view.push(dict(network=original, expr_levels=orig_levels, izip=izip,
-                continuous_coherence=evaluater), block=True) # TODO
+    d_view.push(dict(network=op_net, , izip=izip,
+            continuous_coherence=evaluater), block=True) # TODO
     # TODO pushed active, call remote without parameters
     if isinstance(lb_view, LoadBalancedView):
         num_krnl = len(lb_view)
@@ -195,14 +180,14 @@ def continuous_digital_ctc(d_view, trn, active, expr_levels, random_num=1E04,
     sample = list(results)
     LOGGER.info("parallel speed-up was %.3g",
             results.serial_time / results.wall_time)
-    orig_ratio = evaluater(original, orig2level)
+    orig_ratio = evaluater(op_net, op2level)
     z_score = compute_zscore(orig_ratio, sample)
     if return_sample:
         return (z_score, sample)
     else:
         return z_score
 
-def analog_ctc(d_view, organism, active, random_num=1E04, return_sample=False,
+def analog_ctc(d_view, gpn, active, random_num=1E04, return_sample=False,
         lb_view=None, **kw_args):
     """
     Compute the analog control from an effective GPN.
@@ -227,17 +212,14 @@ def analog_ctc(d_view, organism, active, random_num=1E04, return_sample=False,
         Dissecting the logical types of network control in gene expression profiles.
         BMC Systems Biology 2, 18.
     """
-    if organism.gpn is None or organism.gpn.size() == 0:
-        LOGGER.warn("empty gene proximity network")
-        return numpy.nan
-    original = effective_network(organism.gpn, active)
-    size = len(original)
-    if size == 0:
-        LOGGER.warn("empty effective network")
-        return numpy.nan
+    random_num = int(random_num)
+    original = cntrl.setup_gpn(gpn, active)
+    if original is numpy.nan:
+        return original
     d_view.execute("import random", block=True)
-    d_view.push(dict(network=organism.gpn, total_ratio=total_ratio), block=True)
-    sizes = [size for i in xrange(int(random_num))]
+    d_view.push(dict(network=gpn, total_ratio=cntrl.discrete_total_ratio), block=True)
+    size = len(original)
+    sizes = [size for i in xrange(random_num)]
     if isinstance(lb_view, LoadBalancedView):
         num_krnl = len(lb_view)
         chunk = random_num // num_krnl // 2
@@ -254,6 +236,7 @@ def analog_ctc(d_view, organism, active, random_num=1E04, return_sample=False,
     else:
         return z_score
 
+#TODO: adjust to operon based
 def continuous_analog_ctc(d_view, organism, active, expr_levels, random_num=1E04,
         return_sample=False, lb_view=None, **kw_args):
     """

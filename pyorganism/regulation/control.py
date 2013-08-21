@@ -17,8 +17,12 @@ Regulatory Control Measures
 """
 
 
-__all__ = ["digital_control", "digital_ctc", "continuous_digital_ctc", "analog_control", "analog_ctc",
-        "continuous_analog_ctc", "metabolic_coherence_ratio", "metabolic_coherence"]
+__all__ = ["digital_control", "digital_ctc", "continuous_digital_ctc",
+        "analog_control", "analog_ctc", "continuous_analog_ctc",
+        "metabolic_coherence_ratio", "metabolic_coherence",
+        "continuous_difference_coherence",
+        "continuous_abs_coherence",
+        "continuous_functional_coherence"]
 
 
 import logging
@@ -27,7 +31,6 @@ import re
 
 import numpy
 
-from operator import attrgetter
 from copy import copy
 from itertools import izip
 from collections import defaultdict
@@ -44,6 +47,34 @@ LOGGER.addHandler(misc.NullHandler())
 
 OPTIONS = misc.OptionsManager.get_instance()
 
+
+def setup_trn(trn, active):
+    if trn is None or trn.size() == 0:
+        LOGGER.warn("empty transcriptional regulatory network")
+        return numpy.nan
+    active_nodes = set([gene.regulatory_product if\
+        isinstance(gene.regulatory_product, elem.TranscriptionFactor) else\
+        gene for gene in active])
+    original = effective_network(trn, active_nodes)
+    if original.size() == 0:
+        LOGGER.warn("empty effective network")
+        return numpy.nan
+    return original
+
+def setup_continuous_operon_based(network, elem2level):
+    op2level = defaultdict(list)
+    for (elem, level) in elem2level.iteritems():
+        for op in elem.get_operons():
+            op2level[op].append(level)
+    ops = op2level.keys()
+    levels = [numpy.mean(op2level[op]) for op in ops]
+    op2level = dict(izip(ops, levels))
+    op_net = to_operon_based(network)
+    active_net = op_net.subgraph(ops)
+    if len(active_net) == 0 or active_net.size() == 0:
+        LOGGER.warn("empty operon network")
+        return numpy.nan
+    return (active_net, op2level)
 
 def digital_control(trn, active, **kw_args):
     """
@@ -67,17 +98,10 @@ def digital_control(trn, active, **kw_args):
         Dissecting the logical types of network control in gene expression profiles.
         BMC Systems Biology 2, 18.
     """
-    if trn is None or trn.size() == 0:
-        LOGGER.warn("empty transcriptional regulatory network")
-        return numpy.nan
-    active = set([gene.regulatory_product if\
-        isinstance(gene.regulatory_product, elem.TranscriptionFactor) else\
-        gene for gene in active])
-    subnet = effective_network(trn, active)
-    if len(subnet) == 0:
-        LOGGER.warn("empty effective network")
-        return numpy.nan
-    return total_ratio(subnet)
+    original = setup_trn(trn, active)
+    if original is numpy.nan:
+        return original
+    return discrete_total_ratio(original)
 
 def digital_ctc(trn, active, random_num=1E04, return_sample=False, **kw_args):
     """
@@ -107,26 +131,18 @@ def digital_ctc(trn, active, random_num=1E04, return_sample=False, **kw_args):
         BMC Systems Biology 2, 18.
     """
     random_num = int(random_num)
-    if trn is None or trn.size() == 0:
-        LOGGER.warn("empty transcriptional regulatory network")
-        return numpy.nan
-    active = set([gene.regulatory_product if\
-        isinstance(gene.regulatory_product, elem.TranscriptionFactor) else\
-        gene for gene in active])
-    original = effective_network(trn, active)
-    size = len(original)
-    if size == 0:
-        LOGGER.warn("empty effective network")
-        return numpy.nan
+    original = setup_trn(trn, active)
+    if original is numpy.nan:
+        return original
     # new null model separates TFs and genes
     t_factors = set(node for node in trn if isinstance(node, elem.TranscriptionFactor))
     genes = set(node for node in trn if isinstance(node, elem.Gene))
     # separate numbers
-    tf_num = sum(1 for item in original if isinstance(item, elem.TranscriptionFactor))
-    gene_num = sum(1 for item in original if isinstance(item, elem.Gene))
+    tf_num = sum(int(isinstance(item, elem.TranscriptionFactor)) for item in original)
+    gene_num = len(original) - tf_num
     LOGGER.info("picked %d transcription factors", tf_num)
-    samples = [trn_sample(trn, t_factors, tf_num, genes, gene_num) for i in range(int(random_num))]
-    orig_ratio = total_ratio(original)
+    samples = [trn_sample(trn, t_factors, tf_num, genes, gene_num) for i in range(random_num)]
+    orig_ratio = discrete_total_ratio(original)
     z_score = compute_zscore(orig_ratio, samples)
     if return_sample:
         return (z_score, samples)
@@ -164,40 +180,42 @@ def continuous_digital_ctc(trn, active, expr_levels, random_num=1E04,
         BMC Systems Biology 2, 18.
     """
     random_num = int(random_num)
-    if trn is None or trn.size() == 0:
-        LOGGER.warn("empty transcriptional regulatory network")
-        return numpy.nan
-    active_nodes = set([gene.regulatory_product if\
-        isinstance(gene.regulatory_product, elem.TranscriptionFactor) else\
-        gene for gene in active])
-    original = effective_network(trn, active_nodes)
-    size = len(original)
-    if size == 0:
-        LOGGER.warn("empty effective network")
-        return numpy.nan
+    original = setup_trn(trn, active)
+    if original is numpy.nan:
+        return original
     gene2level = dict(izip(active, expr_levels))
     active = original.nodes()
-    orig_levels = numpy.zeros(len(original), dtype=float)
+    orig_levels = numpy.zeros(len(active), dtype=float)
     for (i, node) in enumerate(active):
         if isinstance(node, elem.TranscriptionFactor):
-            orig_levels[i] = numpy.mean([gene2level[gene] for gene in node.coded_from if
-                    gene in gene2level])
+            orig_levels[i] = numpy.mean([gene2level[gene] for gene in\
+                    node.coded_from if gene in gene2level])
         else:
             orig_levels[i] = gene2level[node]
     orig2level = dict(izip(active, orig_levels))
-    # null model using all expression levels
-    sample = [trn_sample_expression_levels(original, active, expr_levels)\
-            for i in xrange(random_num)]
-    # null model only using effective nodes' expression levels in  TRN
-    sample = [trn_sample_expression_levels(original, active, orig_levels)\
-            for i in xrange(random_num)]
-#    gene2level = dict(izip(active_nodes, rnd_levels))
-    orig_ratio = trn_expression_level_similarity(original, orig2level)
+    (op_net, op2level) = setup_continuous_operon_based(original, orig2level)
+    # in TRN structure the out-hubs and spokes differentiation matters
+    out_ops = set(node for (node, deg) in op_net.out_degree_iter() if deg > 0)
+    in_ops = set(op_net.nodes_iter()).difference(out_ops)
+    out_levels = [op2level[op] for op in out_ops]
+    in_levels = [op2level[op] for op in in_ops]
+    sample = [continuous_trn_operon_sampling(op_net, out_ops, out_levels,
+            in_ops, in_levels) for i in xrange(random_num)]
+    orig_ratio = continuous_functional_coherence(op_net, op2level)
     z_score = compute_zscore(orig_ratio, sample)
     if return_sample:
         return (z_score, sample)
     else:
         return z_score
+
+def setup_gpn(gpn, active):
+    if gpn is None or gpn.size() == 0:
+        LOGGER.warn("empty gene proximity network")
+        return numpy.nan
+    original = effective_network(gpn, active)
+    if original.size() == 0:
+        LOGGER.warn("empty effective network")
+        return numpy.nan
 
 def analog_control(gpn, active, **kw_args):
     """
@@ -219,14 +237,10 @@ def analog_control(gpn, active, **kw_args):
         Dissecting the logical types of network control in gene expression profiles.
         BMC Systems Biology 2, 18.
     """
-    if gpn is None or gpn.size() == 0:
-        LOGGER.warn("empty gene proximity network")
-        return numpy.nan
-    subnet = effective_network(gpn, active)
-    if len(subnet) == 0:
-        LOGGER.warn("empty effective network")
-        return numpy.nan
-    return total_ratio(subnet)
+    original = setup_gpn(gpn, active)
+    if original is numpy.nan:
+        return original
+    return discrete_total_ratio(gpn)
 
 def analog_ctc(gpn, active, random_num=1E04, return_sample=False, **kw_args):
     """
@@ -248,16 +262,14 @@ def analog_ctc(gpn, active, random_num=1E04, return_sample=False, **kw_args):
         Dissecting the logical types of network control in gene expression profiles.
         BMC Systems Biology 2, 18.
     """
-    if gpn is None or gpn.size() == 0:
-        LOGGER.warn("empty gene proximity network")
-        return numpy.nan
-    original = effective_network(gpn, active)
+    random_num = int(random_num)
+    original = setup_gpn(gpn, active)
+    if original is numpy.nan:
+        return original
     size = len(original)
-    if size == 0:
-        LOGGER.warn("empty effective network")
-        return numpy.nan
-    sample = [active_sample(gpn, size) for i in range(int(random_num))]
-    z_score = compute_zscore(total_ratio(original), sample)
+    sample = [active_sample(gpn, size) for i in xrange(random_num)]
+    orig_ratio = discrete_total_ratio(original)
+    z_score = compute_zscore(orig_ratio, sample)
     if return_sample:
         return (z_score, sample)
     else:
@@ -287,19 +299,16 @@ def continuous_analog_ctc(gpn, active, expr_levels, random_num=1E04,
         BMC Systems Biology 2, 18.
     """
     random_num = int(random_num)
-    if gpn is None or gpn.size() == 0:
-        LOGGER.warn("empty gene proximity network")
-        return numpy.nan
-    original = effective_network(gpn, active)
-    size = len(original)
-    if size == 0:
-        LOGGER.warn("empty effective network")
-        return numpy.nan
-    rnd_levels = numpy.array(expr_levels, dtype=float, copy=True)
-    sample = [gpn_operon_based_sampling(original, active, rnd_levels)\
-            for i in range(random_num)]
-    gene2level = dict(izip(active, expr_levels))
-    orig_ratio = gpn_expression_level_similarity(original, gene2level)
+    original = setup_gpn(gpn, active)
+    if original is numpy.nan:
+        return original
+    orig2level = dict(izip(active, expr_levels))
+    (op_net, op2level) = setup_continuous_operon_based(original, orig2level)
+    active = op2level.keys()
+    levels = [op2level[op] for op in active]
+    sample = [continuous_gpn_operon_sampling(op_net, active, levels) for i in\
+            xrange(random_num)]
+    orig_ratio = continuous_abs_coherence(op_net, op2level)
     z_score = compute_zscore(orig_ratio, sample)
     if return_sample:
         return (z_score, sample)
@@ -355,7 +364,7 @@ def metabolic_coherence_ratio(metabolic_network, active, bnumber2gene, rxn_centr
     if len(subnet) == 0:
         LOGGER.warn("empty effective network")
         return numpy.nan
-    return total_ratio(subnet)
+    return discrete_total_ratio(subnet)
 
 def metabolic_coherence(self, active, bnumber2gene, rxn_centric=None,
         random_num=1E04, return_sample=False, **kw_args):
@@ -408,11 +417,66 @@ def metabolic_coherence(self, active, bnumber2gene, rxn_centric=None,
         LOGGER.warn("empty effective network")
         return numpy.nan
     sample = [active_sample(rxn_centric, size) for i in xrange(int(random_num))]
-    z_score = compute_zscore(total_ratio(original), sample)
+    z_score = compute_zscore(discrete_total_ratio(original), sample)
     if return_sample:
         return (z_score, sample)
     else:
         return z_score
+
+def effective_network(network, active):
+    """
+    Return the effective network imposed by a subset of nodes.
+    """
+    subnet = network.subgraph(active)
+    size = len(subnet)
+    LOGGER.info("{0:d}/{1:d} node(s) effective network - {2:d} entities ignored"\
+            .format(size, len(network), len(active) - size))
+    return subnet
+
+def discrete_marr_ratio(network):
+    control = sum(1 for (node, deg) in network.degree_iter() if deg > 0)
+    if control == len(network):
+        return numpy.nan
+    else:
+        return control / float(len(network) - control)
+
+def discrete_total_ratio(network):
+    control = sum(1 for (node, deg) in network.degree_iter() if deg > 0)
+    return control / float(len(network))
+
+def active_sample(network, size):
+    """
+    Sample from affected genes as null model.
+    """
+    sample = random.sample(network.nodes(), size)
+    subnet = network.subgraph(sample)
+    result = discrete_total_ratio(subnet)
+    return result
+
+def trn_sample(trn, tfs, tf_num, genes, gene_num):
+    """
+    Sample from affected genes and transcription factors as null model.
+    """
+    local_tfs = random.sample(tfs, tf_num)
+    local_genes = random.sample(genes, gene_num)
+    subnet = trn.subgraph(local_tfs + local_genes)
+    result = discrete_total_ratio(subnet)
+    return result
+
+def jack_replace(active, replacement, replace_num):
+    positions = random.sample(xrange(len(active)), replace_num)
+    tmp = copy(active)
+    replace = random.sample(replacement, replace_num)
+    for (i, k) in enumerate(positions):
+        tmp[k] = replace[i]
+    return tmp
+
+def jackknife(active, remove_num):
+    positions = random.sample(xrange(len(active)), remove_num)
+    tmp = copy(active)
+    for i in positions:
+        del tmp[i]
+    return tmp
 
 def robustness(control_type, active, fraction=0.1,
         random_num=1E04, control_num=1E04, **kw_args):
@@ -441,186 +505,32 @@ def robustness_with_replacement(control_type, active, replacement, fraction=0.1,
     distribution = [control_type(sample, **kw_args) for sample in samples]
     return distribution
 
-def stat_expression_forks(genes, statistic, active, ori=(3923657, 3924034),
-        ter=None):
-    end = attrgetter("position_end")
-    # assume the maximal end position of the genes is the total length
-    genome_length = end(max(genes, key=end))
-    if ter is None:
-        LOGGER.debug("genome length = {0:d}".format(genome_length))
-        ter = int(round(genome_length / 2.0 + (ori[1] + ori[0]) / 2.0)) % genome_length
-        LOGGER.debug("terminus location = {0:d}".format(ter))
-        ter = (ter, ter)
-    dist = abs(ori[1] - ter[0])
-    full = genome_length - ori[1]
-    fork = list()
-    counter_fork = list()
-    for gene in active:
-        if None in gene.position:
-            continue
-        if gene.position_start > ori[1] and gene.position_start < (ori[1] + dist):
-            location = gene.position_start - ori[1]
-            fork.append((location, statistic(gene, True)))
-        elif gene.position_start < ter[0] and gene.position_start > (ter[0] - dist):
-            location = full + gene.position_start
-            fork.append((location, statistic(gene, True)))
-        else:
-            location = ori[0] - gene.position_end
-            counter_fork.append((location, statistic(gene, False)))
-    return ([x for x in fork if not x[1] is None],
-            [x for x in counter_fork if not x[1] is None])
-
-
-def effective_network(network, active):
-    """
-    Return the effective network imposed by a subset of nodes.
-    """
-    subnet = network.subgraph(active)
-    size = len(subnet)
-    LOGGER.info("{0:d}/{1:d} node(s) effective network - {2:d} entities ignored"\
-            .format(size, len(network), len(active) - size))
-    return subnet
-
-def marr_ratio(network):
-    control = sum(1 for (node, deg) in network.degree_iter() if deg > 0)
-    if control == len(network):
-        return numpy.nan
-    else:
-        return control / float(len(network) - control)
-
-def total_ratio(network):
-    control = sum(1 for (node, deg) in network.degree_iter() if deg > 0)
-    return control / float(len(network))
-
-def active_sample(network, size):
-    """
-    Sample from affected genes as null model.
-    """
-    sample = random.sample(network.nodes(), size)
-    subnet = network.subgraph(sample)
-    result = total_ratio(subnet)
-    return result
-
-def trn_sample(trn, tfs, tf_num, genes, gene_num):
-    """
-    Sample from affected genes and transcription factors as null model.
-    """
-    local_tfs = random.sample(tfs, tf_num)
-    local_genes = random.sample(genes, gene_num)
-    subnet = trn.subgraph(local_tfs + local_genes)
-    result = total_ratio(subnet)
-    return result
-
-def jack_replace(active, replacement, replace_num):
-    positions = random.sample(xrange(len(active)), replace_num)
-    tmp = copy(active)
-    replace = random.sample(replacement, replace_num)
-    for (i, k) in enumerate(positions):
-        tmp[k] = replace[i]
-    return tmp
-
-def jackknife(active, remove_num):
-    positions = random.sample(xrange(len(active)), remove_num)
-    tmp = copy(active)
-    for i in positions:
-        del tmp[i]
-    return tmp
-
-def leading_gc(gene, clockwise):
-    if clockwise:
-        if gene.strand == "forward":
-            return gene.gc_content
-    else:
-        if gene.strand == "reverse":
-            return gene.gc_content
-
-def lagging_gc(gene, clockwise):
-    if clockwise:
-        if gene.strand == "reverse":
-            return gene.gc_content
-    else:
-        if gene.strand == "forward":
-            return gene.gc_content
-
-def trn_sample_expression_levels(network, active, expr_level):
-    numpy.random.shuffle(expr_level)
-    # build map here because expr_level are shuffled
-    gene2level = dict(izip(active, expr_level))
-    return trn_expression_level_similarity(network, gene2level)
-
-def trn_expression_level_similarity(network, gene2level):
-    return sum([gene2level[u] - gene2level[v] for (u, v) in network.edges_iter()])
-
-def gpn_sample_expression_levels(network, active, expr_level):
-    numpy.random.shuffle(expr_level)
-    # build map here because expr_level are shuffled
-    gene2level = dict(izip(active, expr_level))
-    return gpn_expression_level_similarity(network, gene2level)
-
-def trn_operon_based_sampling(trn, active, expr_level):
-    op2level = defaultdict(list)
-    for (elem, level) in izip(active, expr_level):
-        for op in elem.get_operons():
-            op2level[op].append(level)
-    ops = op2level.keys()
-    levels = [numpy.mean(op2level[op]) for op in ops]
-    op2level = dict(izip(ops, levels))
+def continuous_trn_operon_sampling(op_net, out_ops, out_levels, in_ops,
+        in_levels):
     # select out- and in-ops and then compute similarity based on different
     # null-models
-    orn = to_operon_based(trn)
-    active_orn = orn.subgraph(ops)
-    out_ops = set(node for (node, deg) in active_orn.out_degree_iter() if deg > 0)
-    in_ops = set(ops).difference(out_ops)
-    out_levels = [op2level[op] for op in out_ops]
-    in_levels = [op2level[op] for op in in_ops]
     op2level = dict(izip(out_ops, numpy.random.shuffle(out_levels)))
     op2level.update(izip(in_ops, numpy.random.shuffle(in_levels)))
-    return trn_expression_level_similarity(orn, op2level)
+    return continuous_functional_coherence(op_net, op2level)
 
-def gpn_operon_based_sampling(network, active, expr_level):
-    all_ops = set(op for elem in active for op in elem.get_operons())
-    orig_gene2level = dict(izip(active, expr_level))
-    gene2level = dict()
-    no_op = list()
-    count = 0
-    for gene in active:
-        if gene in gene2level:
-            continue
-        if len(gene.get_operons()) == 0:
-            no_op.append(gene)
-            continue
-        # multiple operons per gene exist in older versions of RegulonDB
-        # we pick shortest of those operons
-        ops = list(gene.operons)
-        lengths = [len(op) for op in ops]
-        op = ops[numpy.argsort(lengths)[0]]
-        targets = list(all_ops.difference(set([op])))
-        rnd_op = targets[numpy.random.randint(len(targets))]
-        all_ops.difference_update(set([rnd_op]))
-        base_level = numpy.nan
-        for gn in rnd_op.genes:
-            if gn in orig_gene2level:
-                base_level = orig_gene2level[gn]
-        if numpy.isnan(base_level) and count < 10:
-            count += 1
-            LOGGER.warn("no change in base level")
-        for (i, gn) in enumerate(op.genes):
-            if i < len(rnd_op.genes):
-                comp = rnd_op.genes[i]
-                exists = comp in orig_gene2level
-            else:
-                exists = False
-            if exists:
-                level = orig_gene2level[comp]
-            else:
-                level = base_level
-            gene2level[gn] = level
-    no_op_levels = [orig_gene2level[gene] for gene in no_op]
-    numpy.random.shuffle(no_op_levels)
-    gene2level.update(izip(no_op, no_op_levels))
-    return gpn_expression_level_similarity(network, gene2level)
+def continuous_gpn_operon_sampling(op_net, active, levels):
+    op2level = dict(izip(op_net, numpy.random.shuffle(levels)))
+    return continuous_abs_coherence(op_net, op2level)
 
-def gpn_expression_level_similarity(network, gene2level):
-    return sum([1.0 - abs(gene2level[u] - gene2level[v])\
-            for (u, v) in network.edges_iter()])
+def continuous_difference_coherence(network, elem2level):
+    return sum([elem2level[u] - elem2level[v] for (u, v) in\
+            network.edges_iter()])
+
+def continuous_abs_coherence(network, elem2level):
+    return sum([1.0 - abs(elem2level[u] - elem2level[v]) for (u, v) in\
+            network.edges_iter()])
+
+def continuous_functional_coherence(network, elem2level):
+    total = 0.0
+    for (u, v, k) in network.edges_iter(keys=True):
+        if k == 1:
+            total += 1.0 - abs(elem2level[u] - elem2level[v])
+        elif k == -1:
+            total += abs(elem2level[u] - elem2level[v])
+    return total
 
