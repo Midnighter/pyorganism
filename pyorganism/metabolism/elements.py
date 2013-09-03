@@ -330,7 +330,7 @@ class SBMLCompound(BasicCompound):
 
     def __init__(self, unique_id="", name="", formula=None, kegg_id=None,
             cas_id=None, in_chl=None, in_chl_key=None, smiles=None, charge=None,
-            mass=None, **kw_args):
+            mass=None, notes=dict(), **kw_args):
         """
         Parameters
         ----------
@@ -354,6 +354,9 @@ class SBMLCompound(BasicCompound):
             Electric charge on the compound (may be pH dependent).
         mass: float (optional)
             A unit-less magnitude determining the mass of the compound.
+        notes: float (optional)
+            Other notes about this compound usually parsed from an SBML
+            document.
         """
         super(SBMLCompound, self).__init__(unique_id=unique_id, **kw_args)
         self.name = name
@@ -365,6 +368,7 @@ class SBMLCompound(BasicCompound):
         self.smiles = smiles
         self.charge = misc.convert(charge, int)
         self.mass = misc.convert(mass, float)
+        self.notes = notes
 
     def __contains__(self, element):
         """

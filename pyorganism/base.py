@@ -67,6 +67,9 @@ class MetaBase(type):
     def __getitem__(cls, unique_id):
         return cls._memory[unique_id]
 
+    def __len__(cls):
+        return len(cls._memory)
+
 class UniqueBase(object):
     """
     Base class for all objects that should be unique based on an identifier.

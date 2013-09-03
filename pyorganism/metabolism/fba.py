@@ -21,32 +21,32 @@ Flux Balance Analysis Model
 """
 
 
-__all__ = ["iAF1260_minimal_medium", "FBAModel"]
+__all__ = ["FBAModel"]
 
 
 from .lpmodels import MetaLPModelFacade
 
 
-iAF1260_minimal_medium = ["ca2_b",
-        "cl_b",
-        "co2_b",
-        "cobalt2_b",
-        "cu2_b",
-        "fe2_b",
-        "fe3_b",
-        "h_b",
-        "h2o_b",
-        "k_b",
-        "mg2_b",
-        "mn2_b",
-        "mobd_b",
-        "na1_b",
-        "nh4_b",
-        "pi_b",
-        "so4_b",
-        "tungs_b",
-        "zn2_b",
-        "cbl1_b"]
+#iAF1260_minimal_medium = ["ca2_b",
+#        "cl_b",
+#        "co2_b",
+#        "cobalt2_b",
+#        "cu2_b",
+#        "fe2_b",
+#        "fe3_b",
+#        "h_b",
+#        "h2o_b",
+#        "k_b",
+#        "mg2_b",
+#        "mn2_b",
+#        "mobd_b",
+#        "na1_b",
+#        "nh4_b",
+#        "pi_b",
+#        "so4_b",
+#        "tungs_b",
+#        "zn2_b",
+#        "cbl1_b"]
 
 
 class FBAModel(object):

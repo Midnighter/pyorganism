@@ -428,6 +428,14 @@ def _trn_sample_expression_levels(active):
     gene2level = dict(izip(active, local_levels))
     return continuous_coherence(local_trn, gene2level)
 
+def continuous_trn_operon_sampling(op_net, out_ops, out_levels, in_ops,
+        in_levels):
+    # select out- and in-ops and then compute similarity based on different
+    # null-models
+    op2level = dict(izip(out_ops, numpy.random.shuffle(out_levels)))
+    op2level.update(izip(in_ops, numpy.random.shuffle(in_levels)))
+    return continuous_functional_coherence(op_net, op2level)
+
 @interactive
 def _gpn_operon_based_sampling(active):
     # make use of global variables `network`, `expr_levels`,
