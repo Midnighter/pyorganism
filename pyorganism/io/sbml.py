@@ -99,6 +99,8 @@ class SBMLParser(object):
         self.compartment_ids = dict()
         self.compound_ids = dict()
         self.reaction_ids = dict()
+        self.exchange = dict()
+        self._known_suffices = set(OPTIONS.compartment_suffixes.itervalues())
         self._model = self.document.getModel()
         for compartment in self._model.getListOfCompartments():
             self._parse_compartment(compartment)
@@ -215,9 +217,14 @@ class SBMLParser(object):
         if compartment is None:
             self.compound_ids[compound.getId()] = cmpd
         else:
-            self.compound_ids[compound.getId()] = pyel.SBMLCompartmentCompound(
-                    unique_id=identifier + compartment.suffix,
-                    compound=cmpd, compartment=compartment)
+            if compound.getId().endswith(compartment.suffix):
+                self.compound_ids[compound.getId()] = pyel.SBMLCompartmentCompound(
+                        unique_id=identifier + compartment.suffix,
+                        compound=cmpd, compartment=compartment)
+            else:
+                self.exchange[compound.getId()] = pyel.SBMLCompartmentCompound(
+                        unique_id=identifier + compartment.suffix,
+                        compound=cmpd, compartment=compartment)
 
     def _strip_reaction_id(self, name):
         identifier = name
@@ -233,11 +240,6 @@ class SBMLParser(object):
     def _parse_reaction(self, reaction):
         """Able to parse entries from getListOfReactions"""
         identifier = self._strip_reaction_id(reaction.getId())
-#        if OPTIONS.exchange_reaction in identifier:
-#            # TODO
-#            for cmpd in
-#                (self._parse_species(model.getSpecies(elem.getSpecies())) for
-#                        elem in reaction.getListOfReactions()):
         name = reaction.getName()
         # parse additional reaction parameters
         try:
