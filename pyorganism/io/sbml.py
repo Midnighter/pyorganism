@@ -99,7 +99,8 @@ class SBMLParser(object):
         self.compartment_ids = dict()
         self.compound_ids = dict()
         self.reaction_ids = dict()
-        self.exchange = dict()
+        self.exchange = pyel.SBMLCompartment(unique_id="EX", name="Exchange",
+                suffix=OPTIONS.exchange_suffix)
         self._known_suffices = set(OPTIONS.compartment_suffixes.itervalues())
         self._model = self.document.getModel()
         for compartment in self._model.getListOfCompartments():
@@ -111,6 +112,7 @@ class SBMLParser(object):
         for rxn in self._model.getListOfReactions():
             self._parse_reaction(rxn)
         LOGGER.info("%d reactions", len(self.reaction_ids))
+        self.compartment_ids["EX"] = self.exchange
         return MetabolicSystem(compartments=self.compartment_ids.values(),
                 compounds=self.compound_ids.values(),
                 reactions=self.reaction_ids.values())
@@ -202,7 +204,10 @@ class SBMLParser(object):
 #        identifier = identifier.replace("_RPAREN_", ")")
         if identifier.startswith(OPTIONS.compound_prefix):
             identifier = identifier[len(OPTIONS.compound_prefix):]
-        if compartment is None:
+        if identifier.endswith(OPTIONS.exchange_suffix):
+            compartment = self.exchange
+            identifier = identifier[:-len(compartment.suffix)]
+        elif compartment is None:
             for (unique, suffix) in OPTIONS.compartment_suffixes.iteritems():
                 if identifier.endswith(suffix):
                     identifier = identifier[:-len(suffix)]
@@ -217,14 +222,9 @@ class SBMLParser(object):
         if compartment is None:
             self.compound_ids[compound.getId()] = cmpd
         else:
-            if compound.getId().endswith(compartment.suffix):
-                self.compound_ids[compound.getId()] = pyel.SBMLCompartmentCompound(
-                        unique_id=identifier + compartment.suffix,
-                        compound=cmpd, compartment=compartment)
-            else:
-                self.exchange[compound.getId()] = pyel.SBMLCompartmentCompound(
-                        unique_id=identifier + compartment.suffix,
-                        compound=cmpd, compartment=compartment)
+            self.compound_ids[compound.getId()] = pyel.SBMLCompartmentCompound(
+                    unique_id=identifier + compartment.suffix,
+                    compound=cmpd, compartment=compartment)
 
     def _strip_reaction_id(self, name):
         identifier = name

@@ -106,6 +106,7 @@ def _grb_populate(attrs):
     attrs["_bounds"] = _grb__bounds
     attrs["_fixed"] = _grb__fixed
     attrs["_add_transport"] = _grb__add_transport
+    attrs["_adjust_transport_bounds"] = _grb__adjust_transport_bounds
     attrs["_add_source"] = _grb__add_source
     attrs["_add_drain"] = _grb__add_drain
     attrs["_var2reaction"] = _grb__var2reaction
@@ -524,7 +525,7 @@ def _grb__add_source(self, compound, lb, ub):
             name=str(compound) + "_Source")
     return True
 
-def _grb_add_compound_source(self, compound, lb=None, ub=None):
+def _grb_add_source(self, compound, lb=None, ub=None):
     if lb is None:
         lb = OPTIONS.lower_bound
     if ub is None:
@@ -556,6 +557,32 @@ def _grb_add_compound_source(self, compound, lb=None, ub=None):
 def _grb_iter_sources(self):
     return self._sources.iterkeys()
 
+def _grb__adjust_transport_bounds(self, compound, var, lb, ub):
+    numeric_ub = not ub is None
+    numeric_lb = not lb is None
+    if numeric_ub and numeric_lb and ub < lb:
+        raise PyOrganismError("Trying to set an upper bound that is smaller"\
+        " than the lower bound for transport of '%s'.", str(compound))
+    if numeric_lb:
+        var.lb = lb
+    if numeric_ub:
+        var.ub = ub
+
+def _grb_modify_source_bounds(self, source, lb=None, ub=None):
+    # we allow for lazy updating of the model here (better not be a bug)
+    if hasattr(source, "__iter__"):
+        # we really modify multiple reactions
+        if not hasattr(lb, "__iter__"):
+            lb_iter = itertools.repeat(lb)
+        if not hasattr(ub, "__iter__"):
+            ub_iter = itertools.repeat(ub)
+        for (src, lb, ub) in itertools.izip(source, lb_iter, ub_iter):
+            self._adjust_transport_bounds(self._sources[src], lb, ub)
+    else:
+        self._adjust_transport_bounds(self._sources[source], lb, ub)
+    # for some reasons lazy updating of bounds does not work
+    self._model.update()
+
 def _grb_delete_source(self, compound):
     if hasattr(compound, "__iter__"):
         for cmpd in compound:
@@ -573,7 +600,7 @@ def _grb__add_drain(self, compound, lb, ub):
             name=str(compound) + "_Drain")
     return True
 
-def _grb_add_compound_drain(self, compound, lb=None, ub=None):
+def _grb_add_drain(self, compound, lb=None, ub=None):
     if lb is None:
         lb = OPTIONS.lower_bound
     if ub is None:
@@ -604,6 +631,21 @@ def _grb_add_compound_drain(self, compound, lb=None, ub=None):
 
 def _grb_iter_drains(self):
     return self._drains.iterkeys()
+
+def _grb_modify_drain_bounds(self, drain, lb=None, ub=None):
+    # we allow for lazy updating of the model here (better not be a bug)
+    if hasattr(drain, "__iter__"):
+        # we really modify multiple reactions
+        if not hasattr(lb, "__iter__"):
+            lb_iter = itertools.repeat(lb)
+        if not hasattr(ub, "__iter__"):
+            ub_iter = itertools.repeat(ub)
+        for (drn, lb, ub) in itertools.izip(drain, lb_iter, ub_iter):
+            self._adjust_transport_bounds(self._drains[drn], lb, ub)
+    else:
+        self._adjust_transport_bounds(self._drains[drain], lb, ub)
+    # for some reasons lazy updating of bounds does not work
+    self._model.update()
 
 def _grb_delete_drain(self, compound):
     if hasattr(compound, "__iter__"):
