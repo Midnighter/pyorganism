@@ -308,8 +308,8 @@ class MetabolicSystem(object):
         objectives = list()
         factors = list()
         for rxn in self.reactions:
-            if rxn.lower_bound >= 0:
-                rxn.reversible = False
+#            if rxn.lower_bound >= 0:
+#                rxn.reversible = False
             if not rxn.flux_value is None:
                 known_fluxes.append((rxn, rxn.flux_value))
             if rxn.objective_coefficient:

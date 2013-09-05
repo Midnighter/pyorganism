@@ -100,6 +100,7 @@ def _grb_populate(attrs):
     attrs["_add_compound"] = _grb__add_compound
     attrs["_change_participation"] = _grb__change_participation
     attrs["_add_reaction"] = _grb__add_reaction
+    attrs["_del_reaction"] = _grb__del_reaction
     attrs["_change_coefficients"] = _grb__change_coefficients
     attrs["_adjust_bounds"] = _grb__adjust_bounds
     attrs["_bounds"] = _grb__bounds
@@ -725,6 +726,8 @@ def _grb_parsimonious_fba(self):
         self._model.setObjective(self._grb.LinExpr(minimize))
     self._model.modelSense = self._grb.GRB.MINIMIZE
     self._model.optimize()
+    self._reset_objective()
+
 
 def _grb__status(self):
     """
