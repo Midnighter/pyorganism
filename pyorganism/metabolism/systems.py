@@ -391,8 +391,8 @@ def generate_fba_model(metabolism, name="", fluxes=False):
     model.set_objective_reaction(objectives, factors)
     exchange = pymet.SBMLCompartment["EX"]
     for cmpd in exchange.iter_compartmentalized():
-        model.add_compound_drain(cmpd, lb=OPTIONS.lower_bound, ub=OPTIONS.upper_bound)
-        model.add_compound_source(cmpd, lb=OPTIONS.lower_bound, ub=OPTIONS.upper_bound)
+        model.add_drain(cmpd, lb=OPTIONS.lower_bound, ub=OPTIONS.upper_bound)
+        model.add_source(cmpd, lb=OPTIONS.lower_bound, ub=OPTIONS.upper_bound)
     if fluxes:
         return (model, dict(known_fluxes))
     else:

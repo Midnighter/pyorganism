@@ -43,3 +43,8 @@ except ImportError:
     warnings.warn("You do not have the required SOAPpy package: KEGG interface\
             is disabled.")
 
+def clear():
+    """
+    Clear all memories of elements' classes.
+    """
+    pass

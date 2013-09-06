@@ -315,7 +315,7 @@ class FBAModel(object):
         """
         raise self._error
 
-    def add_compound_source(self, compound, lb=None, ub=None):
+    def add_source(self, compound, lb=None, ub=None):
         """
         Adds a source for a certain compound or compounds to the model.
 
@@ -352,7 +352,7 @@ class FBAModel(object):
         """
         raise self._error
 
-    def add_compound_drain(self, compound, lb=None, ub=None):
+    def add_drain(self, compound, lb=None, ub=None):
         """
         Adds a drain for a certain compound or compounds to the model.
 
