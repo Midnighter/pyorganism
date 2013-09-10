@@ -19,11 +19,12 @@ SBML Metabolic Model Parser
 """
 
 
-__all__ = ["SBMLParser", "ARABIDOPSIS_THALIANA", "ESCHERICHIA_COLI_textbook",
-        "ESCHERICHIA_COLI_iAF1260", "ESCHERICHIA_COLI_iJO1366",
+__all__ = ["SBMLParser", "ARABIDOPSIS_THALIANA", "ARABIDOPSIS_THALIANA_AraGEM",
+        "ESCHERICHIA_COLI_textbook", "ESCHERICHIA_COLI_iAF1260", "ESCHERICHIA_COLI_iJO1366",
         "SACCHAROMICES_CEREVISIAE_iND750", "HOMO_SAPIENS_Recon1"]
 
 
+import warnings
 import os
 import logging
 #import re
@@ -44,6 +45,10 @@ ARABIDOPSIS_THALIANA =  {"Peroxisome": "_x", "Cytoplasm": "_c",
         "Plastid": "_p", "Golgi_appratus": "_g",
         "Vacuole": "_v", "Mitochondrion": "_m",
         "Endoplasmic_reticulum": "_r"}
+ARABIDOPSIS_THALIANA_AraGEM =  {"Peroxisome": "_x", "Cytosol": "_c",
+        "Plastid": "_p",
+        "Vacuole": "_v", "Mitochondria": "_m",
+        "Extracellular": "_ext"}
 
 ESCHERICHIA_COLI_textbook = {"C_c": "_c", "C_e": "_e"}
 ESCHERICHIA_COLI_iAF1260 = {"C_c": "_c", "C_p": "_p", "C_e": "_e"}
@@ -69,6 +74,7 @@ class SBMLParser(object):
 #        self.reaction_property = re.compile("([a-z]+[a-z_0-9]*)$", re.UNICODE)
         self._key = None
         self._value = None
+        self._recognized_tags = set(["<body>", "<html>", "<listOfGenes>"])
 
     def __call__(self, model, **kw_args):
         """
@@ -87,7 +93,8 @@ class SBMLParser(object):
         if num_err > 0:
             for i in xrange(num_err):
                 sbml_err = self.document.getError(i)
-                LOGGER.warn(sbml_err.getShortMessage())
+#                warnings.warn(sbml_err.getShortMessage())
+                warnings.warn(sbml_err.getMessage())
                 if sbml_err.getSeverity() == libsbml.LIBSBML_SEV_FATAL:
                     fatal = True
         if fatal:
@@ -131,13 +138,13 @@ class SBMLParser(object):
         tmp = content.split(note_sep, 1)
         if len(tmp) == 1:
             if not self._value is None:
-                LOGGER.warn("replacing note value: '%s'", self._value)
+                LOGGER.debug("replacing note value: '%s'", self._value)
             self._value = content
         elif len(tmp) == 2:
             if not self._key is None:
                 info[self._key] = None
             elif not self._value is None:
-                LOGGER.warn("replacing note value: '%s'", self._value)
+                LOGGER.debug("replacing note value: '%s'", self._value)
             self._key = tmp[0].strip().lower().replace(" ", "_")
             self._value = tmp[1].strip()
         else:
@@ -159,15 +166,7 @@ class SBMLParser(object):
             tag = node.toString()
             if tag == "<p>":
                 self._parse_notes_paragraph(node, info)
-            elif tag == "<body>":
-                for j in range(node.getNumChildren()):
-                    child = node.getChild(j)
-                    child_tag = child.toString()
-                    if child_tag == "<p>":
-                        self._parse_notes_paragraph(child, info)
-                    else:
-                        LOGGER.warn("unexpected child XML tag '%s'", child_tag)
-            elif tag == "<html>":
+            elif tag in self._recognized_tags:
                 for j in range(node.getNumChildren()):
                     child = node.getChild(j)
                     child_tag = child.toString()
@@ -197,6 +196,7 @@ class SBMLParser(object):
 
         @todo: Check for meta information and parse if available
         """
+        slurped = False
         compartment = self.compartment_ids.get(compound.getCompartment())
         identifier = compound.getId()
         identifier = identifier.replace("_DASH_", "-")
@@ -207,14 +207,17 @@ class SBMLParser(object):
         if identifier.endswith(OPTIONS.exchange_suffix):
             compartment = self.exchange
             identifier = identifier[:-len(compartment.suffix)]
+            slurped = True
         elif compartment is None:
             for (unique, suffix) in OPTIONS.compartment_suffixes.iteritems():
                 if identifier.endswith(suffix):
                     identifier = identifier[:-len(suffix)]
                     compartment = self.compartment_ids[unique]
+                    slurped = True
                     break
-        else:
+        elif identifier.endswith(compartment.suffix):
             identifier = identifier[:-len(compartment.suffix)]
+            slurped = True
         name = compound.getName()
         info = self._parse_notes(compound)
         cmpd = pyel.SBMLCompound(unique_id=identifier, name=name,
@@ -222,9 +225,14 @@ class SBMLParser(object):
         if compartment is None:
             self.compound_ids[compound.getId()] = cmpd
         else:
-            self.compound_ids[compound.getId()] = pyel.SBMLCompartmentCompound(
-                    unique_id=identifier + compartment.suffix,
-                    compound=cmpd, compartment=compartment)
+            if slurped:
+                self.compound_ids[compound.getId()] = pyel.SBMLCompartmentCompound(
+                        unique_id=identifier + compartment.suffix,
+                        compound=cmpd, compartment=compartment)
+            else:
+                self.compound_ids[compound.getId()] = pyel.SBMLCompartmentCompound(
+                        unique_id=identifier, compound=cmpd,
+                        compartment=compartment)
 
     def _strip_reaction_id(self, name):
         identifier = name

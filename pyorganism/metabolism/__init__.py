@@ -48,3 +48,4 @@ def clear():
     Clear all memories of elements' classes.
     """
     pass
+

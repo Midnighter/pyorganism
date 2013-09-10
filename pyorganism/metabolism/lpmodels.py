@@ -439,10 +439,8 @@ def _grb_modify_reaction_bounds(self, reaction, lb=None, ub=None):
     # we allow for lazy updating of the model here (better not be a bug)
     if hasattr(reaction, "__iter__"):
         # we really modify multiple reactions
-        if not hasattr(lb, "__iter__"):
-            lb_iter = itertools.repeat(lb)
-        if not hasattr(ub, "__iter__"):
-            ub_iter = itertools.repeat(ub)
+        lb_iter = lb if hasattr(lb, "__iter__") else itertools.repeat(lb)
+        ub_iter = ub if hasattr(ub, "__iter__") else itertools.repeat(ub)
         for (rxn, lb, ub) in itertools.izip(reaction, lb_iter, ub_iter):
             self._adjust_bounds(rxn, lb, ub)
     else:
