@@ -19,8 +19,8 @@ PyOrganism Regulatory Elements
 
 
 __all__ = ["Gene", "Product", "TranscriptionFactor", "SigmaFactor",
-        "NucleoidAssociatedProtein"]
-
+        "NucleoidAssociatedProtein", "Promoter", "TranscriptionUnit", "Operon",
+        "Conformation"]
 
 import sys
 import logging
@@ -148,8 +148,9 @@ class Regulator(UniqueBase):
 
 class TranscriptionFactor(Regulator):
 
-    def __init__(self, unique_id="", **kw_args):
+    def __init__(self, unique_id="", conformations=None, **kw_args):
         super(TranscriptionFactor, self).__init__(unique_id=unique_id, **kw_args)
+        self.conformations = misc.convert(conformations, set, set())
 
 
 class SigmaFactor(Regulator):
@@ -165,19 +166,60 @@ class NucleoidAssociatedProtein(Regulator):
                 **kw_args)
 
 
+class Conformation(UniqueBase):
+
+    def __init__(self, unique_id="", name="", tf=None, state=None,
+            conformation_type=None, interaction=None, apo_holo=None, **kw_args):
+        super(Conformation, self).__init__(unique_id=unique_id, **kw_args)
+        self.name = name
+        self.t_factor = tf
+        self.final_state = state
+        self.type = conformation_type
+        self.interaction = interaction
+        self.apo_holo = apo_holo
+
+
+class Promoter(UniqueBase):
+
+    def __init__(self, unique_id="", name="", strand=None, pos_1=None,
+            sequence=None, sigma_factor=None, note=None, **kw_args):
+        super(Promoter, self).__init__(unique_id=unique_id,
+                **kw_args)
+        self.name = name
+        self.strand = strand
+        self.pos_1 = misc.convert(pos_1, int)
+        self.sigma_factor = misc.convert(sigma_factor, list, list())
+        self.sequence = sequence
+        self.note = note
+
+    def print_info(self, stream=sys.stdout):
+        print >> stream, "ECK12:", self.unique_id
+        print >> stream, "name:", self.name
+
+
 class TranscriptionUnit(UniqueBase):
 
-    def __init__(self, unique_id="", **kw_args):
+    def __init__(self, unique_id="", name="", promoter=None, operon=None,
+            genes=None, **kw_args):
         super(TranscriptionUnit, self).__init__(unique_id=unique_id,
                 **kw_args)
+        self.name = name
+        self.promoter = promoter
+        self.operon = operon
+        self.genes = misc.convert(genes, list, list())
 
     def __len__(self):
         return len(self.genes)
 
+    def print_info(self, stream=sys.stdout):
+        print >> stream, "ECK12:", self.unique_id
+        print >> stream, "name:", self.name
+        print >> stream, "Genes:", ", ".join([gene.name if gene.name else "?" for gene in self.genes])
+
 
 class Operon(UniqueBase):
 
-    def __init__(self, unique_id="", name="", strand=None,
+    def __init__(self, unique_id="", name="", strand=None, promoters=None, genes=None,
             gene_position_start=None, gene_position_end=None,
             regulation_position_start=None, regulation_position_end=None, **kw_args):
         super(Operon, self).__init__(unique_id=unique_id,
@@ -188,7 +230,8 @@ class Operon(UniqueBase):
         self.gene_position_end = misc.convert(gene_position_end, int)
         self.regulation_position_start = misc.convert(regulation_position_start, int)
         self.regulation_position_end = misc.convert(regulation_position_end, int)
-        self.genes = list()
+        self.promoters = misc.convert(promoters, set, set())
+        self.genes = misc.convert(genes, list, list())
 
     def __len__(self):
         return len(self.genes)

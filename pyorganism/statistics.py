@@ -61,3 +61,15 @@ def compute_zscore(obs, random_stats):
     else:
         return (nominator / std)
 
+def norm_zero_unity(vec):
+    """
+    Normalise a numpy.array to values between zero and unity.
+
+    Warning
+    -------
+    Beware of infinity values.
+    """
+    min_v = vec.min(skipna=True)
+    max_v = vec.max(skipna=True)
+    return (vec - min_v) / (max_v - min_v)
+

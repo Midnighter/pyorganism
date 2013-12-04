@@ -159,33 +159,33 @@ def continuous_digital_ctc(d_view, trn, active, expr_levels, random_num=1E04,
     orig2level = dict(izip(active, orig_levels))
     (op_net, op2level) = cntrl._setup_continuous_operon_based(original, orig2level)
     # in TRN structure the out-hubs and spokes differentiation matters
-    out_ops = set(node for (node, deg) in op_net.out_degree_iter() if deg > 0)
-    in_ops = set(op_net.nodes_iter()).difference(out_ops)
-    out_levels = [op2level[op] for op in out_ops]
-    in_levels = [op2level[op] for op in in_ops]
-    d_view.execute("import numpy", block=True)
-    d_view.push(dict(network=op_net, , izip=izip,
-            continuous_coherence=evaluater), block=True) # TODO
-    # TODO pushed active, call remote without parameters
-    if isinstance(lb_view, LoadBalancedView):
-        num_krnl = len(lb_view)
-        chunk = random_num // num_krnl // 2
-        results = lb_view.map(_trn_sample_expression_levels,
-                [active for i in xrange(random_num)],
-                block=False, ordered=False, chunksize=chunk)
-    else:
-        results = d_view.map(_trn_sample_expression_levels,
-                [active for i in xrange(random_num)],
-                block=False)
-    sample = list(results)
-    LOGGER.info("parallel speed-up was %.3g",
-            results.serial_time / results.wall_time)
-    orig_ratio = evaluater(op_net, op2level)
-    z_score = compute_zscore(orig_ratio, sample)
-    if return_sample:
-        return (z_score, sample)
-    else:
-        return z_score
+#    out_ops = set(node for (node, deg) in op_net.out_degree_iter() if deg > 0)
+#    in_ops = set(op_net.nodes_iter()).difference(out_ops)
+#    out_levels = [op2level[op] for op in out_ops]
+#    in_levels = [op2level[op] for op in in_ops]
+#    d_view.execute("import numpy", block=True)
+#    d_view.push(dict(network=op_net, , izip=izip,
+#            continuous_coherence=evaluater), block=True) # TODO
+#    # TODO pushed active, call remote without parameters
+#    if isinstance(lb_view, LoadBalancedView):
+#        num_krnl = len(lb_view)
+#        chunk = random_num // num_krnl // 2
+#        results = lb_view.map(_trn_sample_expression_levels,
+#                [active for i in xrange(random_num)],
+#                block=False, ordered=False, chunksize=chunk)
+#    else:
+#        results = d_view.map(_trn_sample_expression_levels,
+#                [active for i in xrange(random_num)],
+#                block=False)
+#    sample = list(results)
+#    LOGGER.info("parallel speed-up was %.3g",
+#            results.serial_time / results.wall_time)
+#    orig_ratio = evaluater(op_net, op2level)
+#    z_score = compute_zscore(orig_ratio, sample)
+#    if return_sample:
+#        return (z_score, sample)
+#    else:
+#        return z_score
 
 def analog_ctc(d_view, gpn, active, random_num=1E04, return_sample=False,
         lb_view=None, **kw_args):
@@ -230,7 +230,7 @@ def analog_ctc(d_view, gpn, active, random_num=1E04, return_sample=False,
     samples = list(results)
     LOGGER.info("parallel speed-up was %.3g",
             results.serial_time / results.wall_time)
-    z_score = compute_zscore(total_ratio(original), samples)
+    z_score = compute_zscore(cntrl.discrete_total_ratio(original), samples)
     if return_sample:
         return (z_score, samples)
     else:
@@ -238,7 +238,8 @@ def analog_ctc(d_view, gpn, active, random_num=1E04, return_sample=False,
 
 #TODO: adjust to operon based
 def continuous_analog_ctc(d_view, organism, active, expr_levels, random_num=1E04,
-        return_sample=False, lb_view=None, **kw_args):
+        return_sample=False, lb_view=None,
+        evaluater=cntrl.continuous_abs_coherence, **kw_args):
     """
     Compute the analog control from an effective GPN.
 
@@ -264,7 +265,7 @@ def continuous_analog_ctc(d_view, organism, active, expr_levels, random_num=1E04
     if organism.gpn is None or organism.gpn.size() == 0:
         LOGGER.warn("empty gene proximity network")
         return numpy.nan
-    original = effective_network(organism.gpn, active)
+    original = cntrl.effective_network(organism.gpn, active)
     size = len(original)
     if size == 0:
         LOGGER.warn("empty effective network")
@@ -272,7 +273,7 @@ def continuous_analog_ctc(d_view, organism, active, expr_levels, random_num=1E04
     d_view.execute("import numpy", block=True)
     rnd_levels = numpy.array(expr_levels, dtype=float, copy=True)
     d_view.push(dict(network=original, expr_levels=rnd_levels, izip=izip,
-            continuous_coherence=gpn_expression_level_similarity), block=True)
+            continuous_coherence=evaluater), block=True)
     active_genes = [active for i in xrange(random_num)]
     if isinstance(lb_view, LoadBalancedView):
         num_krnl = len(lb_view)
@@ -283,7 +284,7 @@ def continuous_analog_ctc(d_view, organism, active, expr_levels, random_num=1E04
         results = d_view.map(_gpn_operon_based_sampling, active_genes, block=False)
     sample = list(results)
     gene2level = dict(izip(active, expr_levels))
-    orig_ratio = gpn_expression_level_similarity(original, gene2level)
+    orig_ratio = evaluater(original, gene2level)
     z_score = compute_zscore(orig_ratio, sample)
     if return_sample:
         return (z_score, sample)
@@ -340,13 +341,13 @@ def metabolic_coherence(d_view, organism, active, bnumber2gene, rxn_centric=None
             activity = eval(info)
             if activity:
                 active_reactions.append(rxn)
-    original = effective_network(rxn_centric, active_reactions)
+    original = cntrl.effective_network(rxn_centric, active_reactions)
     size = len(original)
     if size == 0:
         LOGGER.warn("empty effective network")
         return numpy.nan
     d_view.execute("import random", block=True)
-    d_view.push(dict(network=rxn_centric, total_ratio=total_ratio), block=True)
+    d_view.push(dict(network=rxn_centric, total_ratio=cntrl.discrete_total_ratio), block=True)
     sizes = [size for i in xrange(int(random_num))]
     if isinstance(lb_view, LoadBalancedView):
         num_krnl = len(lb_view)
@@ -358,7 +359,7 @@ def metabolic_coherence(d_view, organism, active, bnumber2gene, rxn_centric=None
     samples = list(results)
     LOGGER.info("parallel speed-up was %.3g",
             results.serial_time / results.wall_time)
-    z_score = compute_zscore(total_ratio(original), samples)
+    z_score = compute_zscore(cntrl.discrete_total_ratio(original), samples)
     if return_sample:
         return (z_score, samples)
     else:
@@ -373,7 +374,7 @@ def _active_sample(size):
     local_net = network
     sample = random.sample(local_net.nodes(), size)
     subnet = local_net.subgraph(sample)
-    result = total_ratio(subnet)
+    result = cntrl.discrete_total_ratio(subnet)
     return result
 
 @interactive
@@ -386,7 +387,7 @@ def _trn_sample(tf_num, gene_num):
     local_tfs = random.sample(tfs, tf_num)
     local_genes = random.sample(genes, gene_num)
     subnet = trn.subgraph(local_tfs + local_genes)
-    result = total_ratio(subnet)
+    result = cntrl.discrete_total_ratio(subnet)
     return result
 
 #def robustness(self, control_type, active, fraction=0.1,
@@ -434,7 +435,7 @@ def continuous_trn_operon_sampling(op_net, out_ops, out_levels, in_ops,
     # null-models
     op2level = dict(izip(out_ops, numpy.random.shuffle(out_levels)))
     op2level.update(izip(in_ops, numpy.random.shuffle(in_levels)))
-    return continuous_functional_coherence(op_net, op2level)
+    return continuous_coherence(op_net, op2level)
 
 @interactive
 def _gpn_operon_based_sampling(active):

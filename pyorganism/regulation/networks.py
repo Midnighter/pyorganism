@@ -115,22 +115,12 @@ class TRN(nx.MultiDiGraph):
 
     def from_link_list(self, links):
         for (u, v, inter) in links:
+            first = elem.TranscriptionFactor[u] if u in elem.TranscriptionFactor else elem.Gene[u]
             if u == v:
-                try:
-                    element = elem.TranscriptionFactor[u]
-                except KeyError:
-                    element = elem.Gene[u]
-                self.add_edge(element, element, key=inter)
-            else:
-                try:
-                    elem_u = elem.TranscriptionFactor[u]
-                except KeyError:
-                    elem_u = elem.Gene[u]
-                try:
-                    elem_v = elem.TranscriptionFactor[v]
-                except KeyError:
-                    elem_v = elem.Gene[v]
-                self.add_edge(elem_u, elem_v, key=inter)
+                self.add_edge(first, first, key=inter)
+                continue
+            second = elem.TranscriptionFactor[v] if v in elem.TranscriptionFactor else elem.Gene[v]
+            self.add_edge(first, second, key=inter)
 
     def to_couplons(self, sf_links):
         couplon_gen = CouplonGenerator(self)
@@ -201,72 +191,6 @@ class TRN(nx.MultiDiGraph):
 #                elif partners[2] == "unknown":
 #                    add_link(regulator, partners[1], 0, partners[3])
 #                elif partners[2] == "dual":
-#                    add_link(regulator, partners[1], 2, partners[3])
-#                else:
-#                    warnings(line)
-#                    warnings = LOGGER.warn
-#
-#    def read_regulondb(self, filename, tf2gene, name2gene=None, sep="\t",
-#            encoding="utf-8", mode="rb", **kw_args):
-#        """
-#        Retrieve the TRN from a RegulonDB flat file.
-#
-#        Transcription factors in these interactions are replaced by the genes
-#        that produce them.
-#
-#        Parameters
-#        ----------
-#        filename: str
-#            The path to the file containing the interaction information.
-#        tf2gene: dict
-#            An association between transcription factors and their genes. Parsed
-#            from a gene product file.
-#        name2gene: dict (optional)
-#            The genes in the interactions between transcription factors and genes parsed
-#            from RegulonDB are given by their name. If instead the desired
-#            identifier is their Blattner number or RegulonDB identifier, a
-#            mapping is required.
-#        sep: str (optional)
-#            The column separator; not likely to change.
-#        encoding: str (optional)
-#            The file encoding.
-#        mode: str (optional)
-#            The mode used to open a file, should always be read binary.
-#        """
-#        def use_mapping(rgltr, gene, effct, evdnc):
-#            self.add_edge(name2gene[rgltr], name2gene[gene], interaction=effct,
-#                    evidence=evdnc)
-#
-#        def no_mapping(rgltr, gene, effct, evdnc):
-#            self.add_edge(rgltr, gene, interaction=effct, evidence=evdnc)
-#
-#        if not self.name:
-#            self.name = filename
-#        kw_args["encoding"] = encoding
-#        kw_args["mode"] = mode
-#        with open_file(filename, **kw_args) as (file_h, ext):
-#            interactions = file_h.readlines()
-#        if name2gene:
-#            add_link = use_mapping
-#        else:
-#            add_link = no_mapping
-#        warnings = parser_warning
-#        for line in interactions:
-#            line = line.strip()
-#            if line == "" or line.startswith("#"):
-#                continue
-#            partners = line.split(sep)
-#            regulators = tf2gene[partners[0]]
-#            if not isinstance(regulators, list):
-#                regulators = list(regulators)
-#            for regulator in regulators:
-#                if partners[2] == "-":
-#                    add_link(regulator, partners[1], -1, partners[3])
-#                elif partners[2] == "+":
-#                    add_link(regulator, partners[1], 1, partners[3])
-#                elif partners[2] == "?":
-#                    add_link(regulator, partners[1], 0, partners[3])
-#                elif partners[2] == "+-":
 #                    add_link(regulator, partners[1], 2, partners[3])
 #                else:
 #                    warnings(line)
@@ -469,6 +393,7 @@ class GPNGenerator(object):
         proximity_threshold = int(proximity_threshold)
         length = self.distances.shape[0]
         gpn = nx.Graph(name=name, window=proximity_threshold, **kw_args)
+        gpn.add_nodes_from(self.i2name.itervalues())
         valid = self.distances > -1
         for i in xrange(length - 1):
             for j in xrange(i + 1, length):
@@ -506,7 +431,7 @@ class GPNGenerator(object):
                 # we only use the UR triangle of the distances matrix
                 self.distances[i, j] = diffs.min()
         for gene in no_position:
-            LOGGER.info("no position information for gene '{0}'".format(gene))
+            LOGGER.warn("no position information for gene '{0}'".format(gene))
 
     def read_regulondb(self, filename, gene_identifier="name", sep="\t",
             comment="#", encoding="utf-8", mode="rb", **kw_args):
@@ -603,6 +528,8 @@ class GPNGenerator(object):
 
 def to_operon_based(network):
     orn = type(network)()
+    for node in network:
+        orn.add_nodes_from(node.get_operons())
     if orn.is_multigraph():
         for (u, v, inter) in network.edges_iter(keys=True):
             for (op_1, op_2) in itertools.product(u.get_operons(),

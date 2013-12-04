@@ -65,13 +65,13 @@ class FBAModel(object):
     def copy(self):
         raise self._error
 
-    def add_compound(self, compound, coefficients):
+    def add_compound(self, compound, coefficients=None):
         """
-        Add a new reaction to the model.
+        Add a new compound to the model.
 
-        The method can also be used to add multiple reactions at the same time.
+        The method can also be used to add multiple compounds at the same time.
         In that case each argument must be an iterable of equal length and
-        matching positions corresponding to the same reaction.
+        matching positions corresponding to the same compound.
 
         Parameters
         ----------

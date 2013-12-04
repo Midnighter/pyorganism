@@ -32,7 +32,6 @@ import os
 
 import pyorganism
 import pyorganism.regulation as pyreg
-#import pyorganism.metabolism as pymet
 import pyorganism.io.regulondb as regdb
 
 
@@ -56,15 +55,15 @@ import pyorganism.io.regulondb as regdb
 #
 #    def _tar_archive(self, filename):
 
-
 def compile_genes(base_dir):
     LOGGER.info("Compiling genes...")
     genes = regdb.read_genes(os.path.join(base_dir, "gene.xml"))
+    norm = len(genes)
     LOGGER.info("Found {0:d}".format(len(genes)))
     LOGGER.info("Compiling additional information...")
     regdb.update_gene_synonyms(os.path.join(base_dir, "object_synonym.xml"))
     regdb.update_gene_external(os.path.join(base_dir, "object_external_db_link.xml"))
-    norm = float(len(genes))
+    norm = float(norm)
     num = sum(1 for gene in genes if gene.name)
     LOGGER.info("Found {0:d} genes with names ({1:.2%})".format(num, num / norm))
     num = sum(1 for gene in genes if gene.bnumber)
@@ -76,68 +75,175 @@ def compile_genes(base_dir):
 def compile_products(base_dir):
     LOGGER.info("Compiling products...")
     products = regdb.read_products(os.path.join(base_dir, "product.xml"))
-    LOGGER.info("Found {0:d}".format(len(products)))
+    norm = len(products)
+    LOGGER.info("Found {0:d}".format(norm))
     LOGGER.info("Compiling additional information...")
-    regdb.update_product_synonyms(os.path.join(base_dir, "object_synonym.xml"))
-    regdb.update_product_external(os.path.join(base_dir, "object_external_db_link.xml"))
-    norm = float(len(products))
-    num = sum(1 for elem in products if elem.name)
+    regdb.update_synonyms(os.path.join(base_dir, "object_synonym.xml"),
+            pyreg.Product)
+    regdb.update_external(os.path.join(base_dir, "object_external_db_link.xml"),
+            pyreg.Product)
+    norm = float(norm)
+    num = sum(1 for prod in products if prod.name)
     LOGGER.info("Found {0:d} products with names ({1:.2%})".format(num, num / norm))
-    num = sum(1 for elem in products if elem.synonyms)
+    num = sum(1 for prod in products if prod.synonyms)
     LOGGER.info("Found {0:d} products with synonyms ({1:.2%})".format(num, num / norm))
-    num = sum(1 for elem in products if elem.go)
+    num = sum(1 for prod in products if prod.go)
     LOGGER.info("Found {0:d} products with GO ID ({1:.2%})".format(num, num / norm))
     return products
 
-def compile_transcription_factors(base_dir):
+def compile_transcription_factors(base_dir, version):
+    # use transcription_factor.xml as it is more complete and only missing from 6.0
+    if version == (6, 0):
+        LOGGER.error("no transcription_factor.xml file for this version")
+        return
     LOGGER.info("Compiling transcription factors...")
-    t_factors = regdb.read_transcription_factors(os.path.join(base_dir, "transcription_factor.xml"))
-    LOGGER.info("Found {0:d}".format(len(t_factors)))
-    regdb.update_transcription_factor_synonyms(os.path.join(base_dir, "object_synonym.xml"))
-    regdb.update_transcription_factor_external(os.path.join(base_dir, "object_external_db_link.xml"))
-    norm = float(len(t_factors))
-    num = sum(1 for elem in t_factors if elem.name)
-    LOGGER.info("Found {0:d} transcription factors with names ({1:.2%})".format(num, num / norm))
-    num = sum(1 for elem in t_factors if elem.synonyms)
+    t_factors = regdb.read_transcription_factors( os.path.join(base_dir,
+            "transcription_factor.xml"))
+    norm = len(t_factors)
+    LOGGER.info("Found {0:d}".format(norm))
+    regdb.update_synonyms(os.path.join(base_dir, "object_synonym.xml"),
+            pyreg.TranscriptionFactor)
+    regdb.update_external(os.path.join(base_dir, "object_external_db_link.xml"),
+            pyreg.TranscriptionFactor)
+    norm = float(norm)
+    num = sum(1 for tf in t_factors if tf.name)
+    LOGGER.info("Found {0:d} transcription factors with a name ({1:.2%})".format(num, num / norm))
+    num = sum(1 for tf in t_factors if tf.synonyms)
     LOGGER.info("Found {0:d} transcription factors with synonyms ({1:.2%})".format(num, num / norm))
+    regdb.update_product_transcription_factor_link(os.path.join(base_dir,
+            "product_tf_link.xml"))
     return t_factors
 
 def compile_sigma_factors(base_dir):
     LOGGER.info("Compiling sigma factors...")
     sigma_factors = regdb.read_sigma_factors(os.path.join(base_dir, "sigma_tmp.xml"))
+    norm = len(sigma_factors)
+    LOGGER.info("Found {0:d}".format(norm))
     return sigma_factors
+
+def compile_conformations(base_dir):
+    LOGGER.info("Compiling conformations...")
+    conformations = regdb.read_conformations(os.path.join(base_dir, "conformation.xml"))
+    norm = len(conformations)
+    LOGGER.info("Found {0:d}".format(norm))
+    norm = float(norm)
+    num = sum(1 for conf in conformations if conf.final_state)
+    LOGGER.info("Found {0:d} conformations with final state ({1:.2%})".format(num, num / norm))
+    num = sum(1 for conf in conformations if conf.type)
+    LOGGER.info("Found {0:d} conformations with conformation type ({1:.2%})".format(num, num / norm))
+    num = sum(1 for conf in conformations if conf.apo_holo == u"Apo")
+    LOGGER.info("Found {0:d} apo conformations ({1:.2%})".format(num, num / norm))
+    num = sum(1 for conf in conformations if conf.apo_holo == u"Holo")
+    LOGGER.info("Found {0:d} holo conformations ({1:.2%})".format(num, num / norm))
+    return conformations
+
+def compile_promoters(base_dir):
+    LOGGER.info("Compiling promoters...")
+    promoters = regdb.read_promoters(os.path.join(base_dir, "promoter.xml"))
+    norm = len(promoters)
+    LOGGER.info("Found {0:d}".format(norm))
+    return promoters
+
+def compile_operons(base_dir):
+    LOGGER.info("Compiling operons...")
+    operons = regdb.read_operons(os.path.join(base_dir, "operon.xml"))
+    norm = len(operons)
+    LOGGER.info("Found {0:d}".format(norm))
+    return operons
+
+def compile_transcription_units(base_dir):
+    LOGGER.info("Compiling transcription units...")
+    t_units = regdb.read_transcription_units(os.path.join(base_dir,
+            "transcription_unit.xml"))
+    norm = len(t_units)
+    LOGGER.info("Found {0:d}".format(norm))
+    regdb.link_tu_genes(os.path.join(base_dir, "tu_gene_link.xml"))
+    norm = float(norm)
+    num = sum(1 for tu in t_units if tu.genes)
+    LOGGER.info("Found {0:d} transcription units that contain genes ({1:.2%})".format(num, num / norm))
+    return t_units
 
 def compile_regulation(base_dir):
     LOGGER.info("Compiling regulatory interactions...")
     interactions = regdb.read_regulatory_interactions(os.path.join(base_dir, "regulatory_interaction.xml"))
-    conformations = regdb.read_conformations(os.path.join(base_dir, "conformation.xml"))
-    t_units = regdb.read_transcription_units(os.path.join(base_dir, "transcription_unit.xml"))
-    tu_objects = regdb.read_tu_objects(os.path.join(base_dir, "tu_objects_tmp.xml"))
+    norm = len(interactions)
+    LOGGER.info("Found {0:d}".format(norm))
+    return interactions
+
 
 def main(argv):
     if not os.path.exists(argv[0]):
         sys.exit(1)
     if not os.path.exists(argv[1]):
         os.makedirs(argv[1])
-    version = float(os.path.basename(argv[0]))
+    version = argv[2] if len(argv) == 3 else os.path.basename(argv[0])
+    version = tuple([int(num) for num in version.split(".")])
     # compile genes and gene products
-    genes = compile_genes(argv[0])
-    products = compile_products(argv[0])
-    regdb.link_gene_product(os.path.join(argv[0], "gene_product_link.xml"))
-    if version >= 7.2:
-        sigma_f = compile_sigma_factors(argv[0])
-    if not version == 6.0:
-        t_f = compile_transcription_factors(argv[0])
-        regdb.link_gene_product_transcription_factor(os.path.join(argv[0], "product_tf_link.xml"))
-        regdb.product_tf_link_control(t_f, products)
+    filename = os.path.join(argv[1], "genes.pkl")
+    if os.path.exists(filename):
+        genes = pyorganism.read_pickle(filename)
+    else:
+        genes = compile_genes(argv[0])
+        pyorganism.write_pickle(genes, filename)
+    filename = os.path.join(argv[1], "products.pkl")
+    if os.path.exists(filename):
+        products = pyorganism.read_pickle(filename)
+    else:
+        products = compile_products(argv[0])
+        regdb.link_gene_product(os.path.join(argv[0], "gene_product_link.xml"))
+        pyorganism.write_pickle(products, filename)
+    filename = os.path.join(argv[1], "transcription_factors.pkl")
+    if os.path.exists(filename):
+        t_factors = pyorganism.read_pickle(filename)
+    else:
+        t_factors = compile_transcription_factors(argv[0], version)
         num = sum(1 for gene in genes if isinstance(gene.regulatory_product, pyreg.TranscriptionFactor))
         norm = float(len(genes))
         LOGGER.info("Found {0:d} genes that code for transcription factors({1:.2%})".format(num, num / norm))
-    pyorganism.write_pickle(genes, os.path.join(argv[1], "genes.pkl"))
+        pyorganism.write_pickle(t_factors, filename)
+    if version >= (7, 2):
+        filename = os.path.join(argv[1], "sigma_factors.pkl")
+        if os.path.exists(filename):
+            sigma_factors = pyorganism.read_pickle(filename)
+        else:
+            sigma_factors = compile_sigma_factors(argv[0])
+            pyorganism.write_pickle(sigma_factors, filename)
+    filename = os.path.join(argv[1], "conformations.pkl")
+    if os.path.exists(filename):
+        conformations = pyorganism.read_pickle(filename)
+    else:
+        conformations = compile_conformations(argv[0])
+        pyorganism.write_pickle(conformations, filename)
+    filename = os.path.join(argv[1], "promoters.pkl")
+    if os.path.exists(filename):
+        promoters = pyorganism.read_pickle(filename)
+    else:
+        promoters = compile_promoters(argv[0])
+        pyorganism.write_pickle(promoters, filename)
+    filename = os.path.join(argv[1], "operons.pkl")
+    if os.path.exists(filename):
+        operons = pyorganism.read_pickle(filename)
+    else:
+        operons = compile_operons(argv[0])
+        regdb.update_operons(operons, promoters, genes)
+        pyorganism.write_pickle(operons, filename)
+    filename = os.path.join(argv[1], "transcription_units.pkl")
+    if os.path.exists(filename):
+        t_units = pyorganism.read_pickle(filename)
+    else:
+        t_units = compile_transcription_units(argv[0])
+        pyorganism.write_pickle(t_units, filename)
+    filename = os.path.join(argv[1], "interactions.pkl")
+    if os.path.exists(filename):
+        interactions = pyorganism.read_pickle(filename)
+    else:
+        interactions = compile_regulation(argv[0])
+        pyorganism.write_pickle(interactions, filename)
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        LOGGER.error("{0} <distribution directory or archive> <output directory>".format(sys.argv[0]))
+    if len(sys.argv) < 3 or len(sys.argv) > 4:
+        LOGGER.error("{0} <distribution directory or archive>"\
+                " <output directory> [version]".format(sys.argv[0]))
     else:
         main(sys.argv[1:])
 

@@ -64,6 +64,9 @@ class MetaBase(type):
         else:
             return memory
 
+    def __contains__(cls, unique_id):
+        return unique_id in cls._memory
+
     def __getitem__(cls, unique_id):
         return cls._memory[unique_id]
 
@@ -107,10 +110,6 @@ class UniqueBase(object):
     __metaclass__ = MetaBase
     # immutable class attribute is subclass-specific automatically
     _counter = 0
-
-#    @classmethod
-#    def __getitem__(cls, unique_id):
-#        return cls._memory[unique_id]
 
     def __init__(self, unique_id="", **kw_args):
         """
