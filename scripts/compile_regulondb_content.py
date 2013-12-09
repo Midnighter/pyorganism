@@ -179,66 +179,68 @@ def main(argv):
     version = argv[2] if len(argv) == 3 else os.path.basename(argv[0])
     version = tuple([int(num) for num in version.split(".")])
     # compile genes and gene products
-    filename = os.path.join(argv[1], "genes.pkl")
-    if os.path.exists(filename):
-        genes = pyorganism.read_pickle(filename)
+    gene_file = os.path.join(argv[1], "genes.pkl")
+    if os.path.exists(gene_file):
+        genes = pyorganism.read_pickle(gene_file)
     else:
         genes = compile_genes(argv[0])
-        pyorganism.write_pickle(genes, filename)
-    filename = os.path.join(argv[1], "products.pkl")
-    if os.path.exists(filename):
-        products = pyorganism.read_pickle(filename)
+    product_file = os.path.join(argv[1], "products.pkl")
+    if os.path.exists(product_file):
+        products = pyorganism.read_pickle(product_file)
     else:
         products = compile_products(argv[0])
         regdb.link_gene_product(os.path.join(argv[0], "gene_product_link.xml"))
-        pyorganism.write_pickle(products, filename)
-    filename = os.path.join(argv[1], "transcription_factors.pkl")
-    if os.path.exists(filename):
-        t_factors = pyorganism.read_pickle(filename)
+    tf_file = os.path.join(argv[1], "transcription_factors.pkl")
+    if os.path.exists(tf_file):
+        t_factors = pyorganism.read_pickle(tf_file)
     else:
         t_factors = compile_transcription_factors(argv[0], version)
         num = sum(1 for gene in genes if isinstance(gene.regulatory_product, pyreg.TranscriptionFactor))
         norm = float(len(genes))
         LOGGER.info("Found {0:d} genes that code for transcription factors({1:.2%})".format(num, num / norm))
-        pyorganism.write_pickle(t_factors, filename)
     if version >= (7, 2):
-        filename = os.path.join(argv[1], "sigma_factors.pkl")
-        if os.path.exists(filename):
-            sigma_factors = pyorganism.read_pickle(filename)
+        sigma_file = os.path.join(argv[1], "sigma_factors.pkl")
+        if os.path.exists(sigma_file):
+            sigma_factors = pyorganism.read_pickle(sigma_file)
         else:
             sigma_factors = compile_sigma_factors(argv[0])
-            pyorganism.write_pickle(sigma_factors, filename)
-    filename = os.path.join(argv[1], "conformations.pkl")
-    if os.path.exists(filename):
-        conformations = pyorganism.read_pickle(filename)
+    conf_file = os.path.join(argv[1], "conformations.pkl")
+    if os.path.exists(conf_file):
+        conformations = pyorganism.read_pickle(conf_file)
     else:
         conformations = compile_conformations(argv[0])
-        pyorganism.write_pickle(conformations, filename)
-    filename = os.path.join(argv[1], "promoters.pkl")
-    if os.path.exists(filename):
-        promoters = pyorganism.read_pickle(filename)
+    prom_file = os.path.join(argv[1], "promoters.pkl")
+    if os.path.exists(prom_file):
+        promoters = pyorganism.read_pickle(prom_file)
     else:
         promoters = compile_promoters(argv[0])
-        pyorganism.write_pickle(promoters, filename)
-    filename = os.path.join(argv[1], "operons.pkl")
-    if os.path.exists(filename):
-        operons = pyorganism.read_pickle(filename)
+    op_file = os.path.join(argv[1], "operons.pkl")
+    if os.path.exists(op_file):
+        operons = pyorganism.read_pickle(op_file)
     else:
         operons = compile_operons(argv[0])
         regdb.update_operons(operons, promoters, genes)
-        pyorganism.write_pickle(operons, filename)
-    filename = os.path.join(argv[1], "transcription_units.pkl")
-    if os.path.exists(filename):
-        t_units = pyorganism.read_pickle(filename)
+    tu_file = os.path.join(argv[1], "transcription_units.pkl")
+    if os.path.exists(tu_file):
+        t_units = pyorganism.read_pickle(tu_file)
     else:
         t_units = compile_transcription_units(argv[0])
-        pyorganism.write_pickle(t_units, filename)
-    filename = os.path.join(argv[1], "interactions.pkl")
-    if os.path.exists(filename):
-        interactions = pyorganism.read_pickle(filename)
+    inter_file = os.path.join(argv[1], "interactions.pkl")
+    if os.path.exists(inter_file):
+        interactions = pyorganism.read_pickle(inter_file)
     else:
         interactions = compile_regulation(argv[0])
-        pyorganism.write_pickle(interactions, filename)
+    # write-out all pickles again since object attributes may have been updated
+    pyorganism.write_pickle(genes, gene_file)
+    pyorganism.write_pickle(products, product_file)
+    pyorganism.write_pickle(t_factors, tf_file)
+    if version >= (7, 2):
+        pyorganism.write_pickle(sigma_factors, sigma_file)
+    pyorganism.write_pickle(conformations, conf_file)
+    pyorganism.write_pickle(promoters, prom_file)
+    pyorganism.write_pickle(operons, op_file)
+    pyorganism.write_pickle(t_units, tu_file)
+    pyorganism.write_pickle(interactions, inter_file)
 
 if __name__ == "__main__":
     if len(sys.argv) < 3 or len(sys.argv) > 4:

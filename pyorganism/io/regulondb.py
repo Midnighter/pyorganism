@@ -27,6 +27,7 @@ import numpy
 from operator import attrgetter
 from collections import defaultdict
 from bs4 import BeautifulSoup
+from lxml import etree
 from .. import miscellaneous as misc
 from ..errors import PyOrganismError
 from .generic import open_file, read_tabular
@@ -45,10 +46,17 @@ NAPs = frozenset(["ECK120011186", "ECK120011224", "ECK120011229", "ECK120011235"
         "ECK120011294", "ECK120011345", "ECK120011383"])
 
 
-def find_element(name, group):
-    for element in group:
-        if name in element:
-            return element
+def iter_soup_rowset(file_handle):
+    soup = BeautifulSoup(file_handle, PARSER)
+    for row in soup.rowset.find_all(name="row", recursive=False):
+        yield dict()
+
+def iter_rowset(filename):
+    parser = etree.HTMLParser()
+    tree = etree.parse(filename, parser)
+    for el in tree.iter(tag="row"):
+        yield dict((child.tag, etree.tostring(child, method="text",
+                encoding="utf-8")) for child in el.iterchildren())
 
 def read_genes(filename, sep="\t", comment="#", encoding=None, mode="rb",
         **kw_args):
@@ -88,29 +96,28 @@ def read_genes(filename, sep="\t", comment="#", encoding=None, mode="rb",
                 genes.append(gene)
 
     def parse_xhtml(file_handle):
-        soup = BeautifulSoup(file_handle, PARSER)
-        for row in soup.rowset.find_all(name="row", recursive=False):
-            start = misc.convert(row.gene_posleft.string, unicode)
+        for row in iter_rowset(file_handle):
+            start = row["gene_posleft"]
             if not start:
                 start = None
-            end = misc.convert(row.gene_posright.string, unicode)
+            end = row["gene_posright"]
             if not end:
                 end = None
-            gc = misc.convert(row.gc_content.string, unicode)
+            gc = row["gc_content"]
             if not gc:
                 gc = None
-            name = misc.convert(row.gene_name.string, unicode)
+            name = row["gene_name"]
             if name and bpattern.match(name):
                 bnumber = name
             else:
                 bnumber = None
 
-            gene = elem.Gene(unique_id=misc.convert(row.gene_id.string, unicode),
+            gene = elem.Gene(unique_id=row["gene_id"],
                 name=name,
                 bnumber=bnumber,
                 position_start=start,
                 position_end=end,
-                strand=misc.convert(row.gene_strand.string, unicode),
+                strand=row["gene_strand"],
                 gc_content=gc)
             genes.append(gene)
 
@@ -133,13 +140,12 @@ def update_gene_synonyms(filename, sep="\t", comment="#", encoding=None,
         raise NotImplementedError
 
     def parse_xhtml(file_handle):
-        soup = BeautifulSoup(file_handle, PARSER)
-        for row in soup.rowset.find_all(name="row", recursive=False):
-            obj_id = misc.convert(row.object_id.string, unicode)
+        for row in iter_rowset(file_handle):
+            obj_id = row["object_id"]
             if obj_id not in elem.Gene:
                 continue
             gene = elem.Gene[obj_id]
-            synonym = misc.convert(row.object_synonym_name.string, unicode)
+            synonym = row["object_synonym_name"]
             if synonym is not None:
                 if bpattern.match(synonym):
                     if gene.bnumber or "obsolete" in synonym:
@@ -166,13 +172,12 @@ def update_gene_external(filename, sep="\t", comment="#", encoding=None,
         raise NotImplementedError
 
     def parse_xhtml(file_handle):
-        soup = BeautifulSoup(file_handle, PARSER)
-        for row in soup.rowset.find_all(name="row", recursive=False):
-            obj_id = misc.convert(row.object_id.string, unicode)
+        for row in iter_rowset(file_handle):
+            obj_id = row["object_id"]
             if obj_id not in elem.Gene:
                 continue
             gene = elem.Gene[obj_id]
-            synonym = misc.convert(row.ext_reference_id.string, unicode)
+            synonym = row["ext_reference_id"]
             if synonym is not None:
                 if bpattern.match(synonym):
                     if gene.bnumber or "obsolete" in synonym:
@@ -199,17 +204,16 @@ def read_products(filename, sep="\t", comment="#", encoding=None,
         raise NotImplementedError
 
     def parse_xhtml(file_handle):
-        soup = BeautifulSoup(file_handle, PARSER)
-        for row in soup.rowset.find_all(name="row", recursive=False):
+        for row in iter_rowset(file_handle):
             # typo in RegulonDB files for molecular weight
-            mw = misc.convert(row.molecular_weigth.string, unicode)
+            mw = row["molecular_weigth"]
             if not mw:
                 mw = None
-            ip = misc.convert(row.isoelectric_point.string, unicode)
+            ip = row["isoelectric_point"]
             if not ip:
                 ip = None
-            product = elem.Product(unique_id=misc.convert(row.product_id.string, unicode),
-                name=misc.convert(row.product_name.string, unicode),
+            product = elem.Product(unique_id=row["product_id"],
+                name=row["product_name"],
                 molecular_weight=mw,
                 isoelectric_point=ip)
             products.append(product)
@@ -232,14 +236,13 @@ def update_synonyms(filename, cls, sep="\t", comment="#", encoding=None,
         raise NotImplementedError
 
     def parse_xhtml(file_handle):
-        soup = BeautifulSoup(file_handle, PARSER)
-        for row in soup.rowset.find_all(name="row", recursive=False):
-            obj_id = misc.convert(row.object_id.string, unicode)
+        for row in iter_rowset(file_handle):
+            obj_id = row["object_id"]
             if obj_id not in cls:
                 continue
             inst = cls[obj_id]
-            synonym = misc.convert(row.object_synonym_name.string, unicode)
-            if synonym is not None:
+            synonym = row["object_synonym_name"]
+            if synonym:
                 inst.synonyms.add(synonym)
 
     # read information from the file
@@ -258,14 +261,13 @@ def update_external(filename, cls, sep="\t", comment="#", encoding=None,
         raise NotImplementedError
 
     def parse_xhtml(file_handle):
-        soup = BeautifulSoup(file_handle, PARSER)
-        for row in soup.rowset.find_all(name="row", recursive=False):
-            obj_id = misc.convert(row.object_id.string, unicode)
+        for row in iter_rowset(file_handle):
+            obj_id = row["object_id"]
             if obj_id not in cls:
                 continue
             inst = cls[obj_id]
-            synonym = misc.convert(row.ext_reference_id.string, unicode)
-            if synonym is not None:
+            synonym = row["ext_reference_id"]
+            if synonym:
                 inst.synonyms.add(synonym)
 
     # read information from the file
@@ -284,16 +286,15 @@ def link_gene_product(filename, sep="\t", comment="#", encoding=None,
         raise NotImplementedError
 
     def parse_xhtml(file_handle):
-        soup = BeautifulSoup(file_handle, PARSER)
-        for row in soup.rowset.find_all(name="row", recursive=False):
+        for row in iter_rowset(file_handle):
             try:
-                eck12 = misc.convert(row.gene_id.string, unicode)
+                eck12 = row["gene_id"]
                 gene = elem.Gene[eck12]
             except KeyError:
                 LOGGER.warn("unknown gene: {0}".format(eck12))
                 continue
             try:
-                eck12 = misc.convert(row.product_id.string, unicode)
+                eck12 = row["product_id"]
                 gene.product = elem.Product[eck12]
             except KeyError:
                 LOGGER.warn("unknown product: {0}".format(eck12))
@@ -320,21 +321,20 @@ def read_gene_regulation(filename, sep="\t", comment="#", encoding=None,
         raise NotImplementedError
 
     def parse_xhtml(file_handle):
-        soup = BeautifulSoup(file_handle, PARSER)
-        for row in soup.rowset.find_all(name="row", recursive=False):
+        for row in iter_rowset(file_handle):
             try:
-                eck12 = misc.convert(row.gene_id_regulator.string, unicode)
+                eck12 = row["gene_id_regulator"]
                 gene_u = elem.Gene[eck12]
             except KeyError:
                 LOGGER.warn("unknown gene: {0}".format(eck12))
                 continue
             try:
-                eck12 = misc.convert(row.gene_id_regulated.string, unicode)
+                eck12 = row["gene_id_regulated"]
                 gene_v = elem.Gene[eck12]
             except KeyError:
                 LOGGER.warn("unknown gene: {0}".format(eck12))
                 continue
-            interaction = misc.convert(row.generegulation_function.string, unicode)
+            interaction = row["generegulation_function"]
             grn.add_edge(gene_u, gene_v, key=FUNCTIONS[interaction])
 
     grn = GRN(name="Gene Regulatory Network")
@@ -355,13 +355,12 @@ def read_sigma_factors(filename, sep="\t", comment="#", encoding=None,
         raise NotImplementedError
 
     def parse_xhtml(file_handle):
-        soup = BeautifulSoup(file_handle, PARSER)
-        for row in soup.rowset.find_all(name="row", recursive=False):
-            sigma_factor = elem.SigmaFactor(unique_id=misc.convert(row.sigma_id.string, unicode),
-                    name=misc.convert(row.sigma_name.string, unicode))
-            sigma_factor.synonyms.add(misc.convert(row.sigma_synonyms.string, unicode))
+        for row in iter_rowset(file_handle):
+            sigma_factor = elem.SigmaFactor(unique_id=row["sigma_id"],
+                    name=row["sigma_name"])
+            sigma_factor.synonyms.add(row["sigma_synonyms"])
             try:
-                eck12 = misc.convert(row.sigma_gene_id.string, unicode)
+                eck12 = row["sigma_gene_id"]
                 gene = elem.Gene[eck12]
             except KeyError:
                 LOGGER.warn("unknown gene: {0}".format(eck12))
@@ -394,11 +393,10 @@ def read_transcription_factors(filename, sep="\t", comment="#", encoding=None,
         raise NotImplementedError
 
     def parse_xhtml(file_handle):
-        soup = BeautifulSoup(file_handle, PARSER)
-        for row in soup.rowset.find_all(name="row", recursive=False):
+        for row in iter_rowset(file_handle):
             t_factor = elem.TranscriptionFactor(
-                    unique_id=misc.convert(row.transcription_factor_id.string, unicode),
-                    name=misc.convert(row.transcription_factor_name.string, unicode))
+                    unique_id=row["transcription_factor_id"],
+                    name=row["transcription_factor_name"])
             t_factors.append(t_factor)
 
     # read information from the file
@@ -419,13 +417,12 @@ def update_product_transcription_factor_link(filename, sep="\t", comment="#",
         raise NotImplementedError
 
     def parse_xhtml(file_handle):
-        soup = BeautifulSoup(file_handle, PARSER)
-        for row in soup.rowset.find_all(name="row", recursive=False):
-            prod_id = misc.convert(row.product_id.string, unicode)
+        for row in iter_rowset(file_handle):
+            prod_id = row["product_id"]
             if prod_id not in elem.Product:
                 LOGGER.warn("unknown product: {0}".format(prod_id))
                 continue
-            tf_id = misc.convert(row.transcription_factor_id.string, unicode)
+            tf_id = row["transcription_factor_id"]
             if prod_id not in elem.Product:
                 LOGGER.warn("unknown transcription factor: {0}".format(prod_id))
                 continue
@@ -456,11 +453,10 @@ def read_regulatory_interactions(filename, sep="\t", comment="#",
         raise NotImplementedError
 
     def parse_xhtml(file_handle):
-        soup = BeautifulSoup(file_handle, PARSER)
-        for row in soup.rowset.find_all(name="row", recursive=False):
-            u = misc.convert(row.conformation_id.string, unicode)
-            v = misc.convert(row.promoter_id.string, unicode)
-            k = FUNCTIONS[misc.convert(row.ri_function.string, unicode)]
+        for row in iter_rowset(file_handle):
+            u = row["conformation_id"]
+            v = row["promoter_id"]
+            k = FUNCTIONS[row["ri_function"]]
             interactions.append((u, v, k))
 
     # read information from the file
@@ -489,23 +485,22 @@ def read_transcription_units(filename, sep="\t", comment="#", encoding=None,
         raise NotImplementedError
 
     def parse_xhtml(file_handle):
-        soup = BeautifulSoup(file_handle, PARSER)
-        for row in soup.rowset.find_all(name="row", recursive=False):
-            tu_id = misc.convert(row.transcription_unit_id.string, unicode)
-            prom = misc.convert(row.promoter_id.string, unicode)
-            op = misc.convert(row.operon_id.string, unicode)
+        for row in iter_rowset(file_handle):
+            tu_id = row["transcription_unit_id"]
+            prom_id = row["promoter_id"]
+            op_id = row["operon_id"]
             try:
-                if prom is not None:
-                    prom = elem.Promoter[prom]
-                if op is not None:
-                    op = elem.Operon[op]
+                if prom_id:
+                    prom = elem.Promoter[prom_id]
+                if op_id:
+                    op = elem.Operon[op_id]
             except KeyError:
                 LOGGER.error("unknown promoter %s or operon %s", prom, op)
                 LOGGER.error("Please parse operon and promoter information before\
                         parsing transcription units.")
                 continue
             tu = elem.TranscriptionUnit(unique_id=tu_id,
-                    name=misc.convert(row.transcription_unit_id.string, unicode),
+                    name=row["transcription_unit_id"],
                     promoter=prom, operon=op)
             units.append(tu)
 
@@ -540,15 +535,14 @@ def link_tu_genes(filename, sep="\t", comment="#", encoding=None,
         raise NotImplementedError
 
     def parse_xhtml(file_handle):
-        soup = BeautifulSoup(file_handle, PARSER)
-        for row in soup.rowset.find_all(name="row", recursive=False):
-            tu_id = misc.convert(row.transcription_unit_id.string, unicode)
+        for row in iter_rowset(file_handle):
+            tu_id = row["transcription_unit_id"]
             try:
                 t_unit = elem.TranscriptionUnit[tu_id]
             except KeyError:
                 LOGGER.error("unknown transcription unit '%s', please parse"\
                         " those first.", tu_id)
-            gene_id = misc.convert(row.gene_id.string, unicode)
+            gene_id = row["gene_id"]
             try:
                 gene = elem.Gene[gene_id]
             except KeyError:
@@ -595,11 +589,10 @@ def read_tu_objects(filename, sep="\t", comment="#", encoding=None,
         raise NotImplementedError
 
     def parse_xhtml(file_handle):
-        soup = BeautifulSoup(file_handle, PARSER)
-        for row in soup.rowset.find_all(name="row", recursive=False):
-            if misc.convert(row.tu_object_class.string, unicode) == "GN":
-                tu = misc.convert(row.transcription_unit_id.string, unicode)
-                gene = misc.convert(row.tu_object_id.string, unicode)
+        for row in iter_rowset(file_handle):
+            if row["tu_object_class"] == "GN":
+                tu = row["transcription_unit_id"]
+                gene = row["tu_object_id"]
                 units[tu].append(gene)
 
     # read information from the file
@@ -631,19 +624,19 @@ def read_promoters(filename, sep="\t", comment="#", encoding=None,
         raise NotImplementedError
 
     def parse_xhtml(file_handle):
-        soup = BeautifulSoup(file_handle, PARSER)
-        for row in soup.rowset.find_all(name="row", recursive=False):
-            strand = misc.convert(row.promoter_strand.string, unicode)
+        for row in iter_rowset(file_handle):
+            strand = row["promoter_strand"]
             if not strand:
                 strand = None
-            prom = elem.Promoter(unique_id=misc.convert(row.promoter_id.string, unicode),
-                    name=misc.convert(row.promoter_name.string, unicode),
+            prom = elem.Promoter(
+                    unique_id=row["promoter_id"],
+                    name=row["promoter_name"],
                     strand=strand,
-                    pos_1=misc.convert(row.pos_1.string, int),
-                    sequence=misc.convert(row.promoter_sequence.string, unicode),
-                    sigma_factor=misc.convert(row.sigma_factor.string,
-                            unicode, unicode()).split(","),
-                    note=misc.convert(row.promoter_note.string, unicode))
+                    pos_1=misc.convert2numeral(row["pos_1"]),
+                    sequence=row["promoter_sequence"],
+                    sigma_factor=row["sigma_factor"].split(","),
+                    note=row["promoter_note"]
+            )
             promoters.append(prom)
 
     # read information from the file
@@ -675,30 +668,31 @@ def read_operons(filename, sep="\t", comment="#", encoding=None,
         raise NotImplementedError
 
     def parse_xhtml(file_handle):
-        soup = BeautifulSoup(file_handle, PARSER)
-        for row in soup.rowset.find_all(name="row", recursive=False):
-            gene_left = misc.convert(row.firstgeneposleft.string, int)
+        for row in iter_rowset(file_handle):
+            gene_left = misc.convert2numeral(row["firstgeneposleft"], int)
             if not gene_left:
                 gene_left = None
-            gene_right = misc.convert(row.lastgeneposright.string, int)
+            gene_right = misc.convert2numeral(row["lastgeneposright"], int)
             if not gene_right:
                 gene_right = None
-            reg_left = misc.convert(row.regulationposleft.string, int)
+            reg_left = misc.convert2numeral(row["regulationposleft"], int)
             if not reg_left:
                 reg_left = None
-            reg_right = misc.convert(row.regulationposright.string, int)
+            reg_right = misc.convert2numeral(row["regulationposright"], int)
             if not reg_right:
                 reg_right = None
-            strand = misc.convert(row.operon_strand.string, unicode)
+            strand = row["operon_strand"]
             if not strand:
                 strand = None
-            op = elem.Operon(unique_id=misc.convert(row.operon_id.string, unicode),
-                    name=misc.convert(row.operon_name.string, unicode),
+            op = elem.Operon(
+                    unique_id=row["operon_id"],
+                    name=row["operon_name"],
                     strand=strand,
                     gene_position_start=gene_left,
                     gene_position_end=gene_right,
                     regulation_position_start=reg_left,
-                    regulation_position_end=reg_right)
+                    regulation_position_end=reg_right
+            )
             operons.append(op)
 
     # read information from the file
@@ -765,9 +759,8 @@ def read_conformations(filename, sep="\t", comment="#", encoding=None,
         raise NotImplementedError
 
     def parse_xhtml(file_handle):
-        soup = BeautifulSoup(file_handle, PARSER)
-        for row in soup.rowset.find_all(name="row", recursive=False):
-            tf_id = misc.convert(row.transcription_factor_id.string, unicode)
+        for row in iter_rowset(file_handle):
+            tf_id = row["transcription_factor_id"]
             try:
                 t_factor = elem.TranscriptionFactor[tf_id]
             except KeyError:
@@ -776,12 +769,12 @@ def read_conformations(filename, sep="\t", comment="#", encoding=None,
                         " parsing conformations.")
                 continue
             conf = elem.Conformation(
-                    unique_id=misc.convert(row.conformation_id.string, unicode),
+                    unique_id=row["conformation_id"],
                     tf=t_factor,
-                    state=misc.convert(row.final_state.string, unicode),
-                    interaction=misc.convert(row.interaction_type.string, unicode),
-                    conformation_type=misc.convert(row.conformation_type.string, unicode),
-                    apo_holo=misc.convert(row.apo_holo_conformation.string, unicode)
+                    state=row["final_state"],
+                    interaction=row["interaction_type"],
+                    conformation_type=row.get("conformation_type", None), # version dependent
+                    apo_holo=row.get("apo_holo_conformation", None) # version dependent
             )
             t_factor.conformations.add(conf)
             conformations.append(conf)

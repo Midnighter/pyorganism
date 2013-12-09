@@ -25,7 +25,7 @@ import multiprocessing
 import cPickle as pickle
 
 from glob import glob
-from bs4 import BeautifulSoup
+from lxml import etree
 
 
 LOGGER = logging.getLogger(__name__)
@@ -33,12 +33,28 @@ LOGGER.setLevel(logging.INFO)
 LOGGER.addHandler(logging.StreamHandler())
 
 
+#def xml_reader(filename):
+#    name = os.path.basename(filename)
+#    attrs = []
+#    with open(filename, "r") as file_h:
+#        for (event, element) in etree.iterparse(file_h, tag="row", html=True,
+#                encoding="utf-8"):
+#            if element.tag == "row" and event == "end":
+#                attrs = [unicode(child.tag) for child in element.iterchildren()]
+#                break
+#    return (name, attrs)
+
 def xml_reader(filename):
-    with open(filename, "r") as file_h:
-        soup = BeautifulSoup(file_h, "lxml", from_encoding="utf-8")
+    """
+    A method using iterparse as above would be preferable, since we just want to
+    collect the first few tags. Unfortunately, so far iterparse does not work
+    with html (aka broken xml).
+    """
     name = os.path.basename(filename)
-    attrs = [unicode(child.name)\
-            for child in soup.row.findChildren(recursive=False)]
+    parser = etree.HTMLParser()
+    tree = etree.parse(filename, parser)
+    for el in tree.iter(tag="row"):
+        attrs = [unicode(child.tag) for child in el.iterchildren()]
     return (name, attrs)
 
 def main(db_path, out_dir):

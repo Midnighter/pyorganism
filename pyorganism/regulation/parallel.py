@@ -31,8 +31,9 @@ from IPython.parallel import interactive, LoadBalancedView
 
 from . import elements as elem
 from .. import miscellaneous as misc
-from . import control as cntrl
+from . import measures as cntrl
 from ..statistics import compute_zscore
+from ..parallel.utils import multi_apply
 
 
 LOGGER = logging.getLogger(__name__)
@@ -84,22 +85,17 @@ def digital_ctc(d_view, trn, active, random_num=1E04, return_sample=False,
     # separate numbers
     tf_num = sum(int(isinstance(item, elem.TranscriptionFactor)) for item in original)
     gene_num = len(original) - tf_num
+    d_view.push(dict(gene_num=gene_num, tf_num=tf_num), block=True)
     LOGGER.info("picked %d transcription factors", tf_num)
     if isinstance(lb_view, LoadBalancedView):
         num_krnl = len(lb_view)
         chunk = random_num // num_krnl // 2
-        results = lb_view.map(_trn_sample,
-                [tf_num for i in xrange(random_num)],
-                [gene_num for i in xrange(random_num)],
-                block=False, ordered=False, chunksize=chunk)
+        results = multi_apply(lb_view, _trn_sample, random_num, chunksize=chunk)
     else:
-        results = d_view.map(_trn_sample,
-                [tf_num for i in xrange(random_num)],
-                [gene_num for i in xrange(random_num)],
-                block=False)
+        results = multi_apply(lb_view, _trn_sample, random_num)
     samples = list(results)
-    LOGGER.info("parallel speed-up was %.3g",
-            results.serial_time / results.wall_time)
+#    LOGGER.info("parallel speed-up was %.3g",
+#            results.serial_time / results.wall_time)
     orig_ratio = cntrl.discrete_total_ratio(original)
     z_score = compute_zscore(orig_ratio, samples)
     if return_sample:

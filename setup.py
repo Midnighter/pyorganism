@@ -35,6 +35,7 @@ setup(
             "pyorganism.metabolism",
             "pyorganism.metabolism.tests",
             "pyorganism.regulation",
+            "pyorganism.parallel",
             "pyorganism.tests"],
 #    package_data = {"pyorganism": ["data/*.xml", "data/*.txt", "data/*.tsv"]},
     )

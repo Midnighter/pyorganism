@@ -192,10 +192,19 @@ def load_module(module, name=False, url=False):
         raise ImportError(" ".join(msg))
     return mod
 
-
 def convert(item, cls, default=None):
     """
     Convert an argument to a new type unless it is `None`.
     """
     return default if item is None else cls(item)
+
+def convert2numeral(item, cls=int, default=None):
+    """
+    Convert an argument to a new type unless it is `None`.
+    """
+    try:
+        num = cls(item)
+    except (ValueError, TypeError):
+        num = default
+    return num
 
