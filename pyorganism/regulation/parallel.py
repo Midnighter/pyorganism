@@ -31,7 +31,8 @@ from IPython.parallel import interactive, LoadBalancedView
 
 from . import elements as elem
 from .. import miscellaneous as misc
-from . import measures as cntrl
+from . import control as cntrl
+from . import measures as msr
 from ..statistics import compute_zscore
 from ..parallel.utils import multi_apply
 
@@ -77,7 +78,7 @@ def digital_ctc(d_view, trn, active, random_num=1E04, return_sample=False,
     if original is numpy.nan:
         return original
     d_view.execute("import random", block=True)
-    d_view.push(dict(network=trn, total_ratio=cntrl.discrete_total_ratio), block=True)
+    d_view.push(dict(network=trn, ratio=msr.discrete_total_ratio), block=True)
     # new null model separates TFs and genes
     t_factors = set(node for node in trn if isinstance(node, elem.TranscriptionFactor))
     genes = set(node for node in trn if isinstance(node, elem.Gene))
@@ -92,11 +93,11 @@ def digital_ctc(d_view, trn, active, random_num=1E04, return_sample=False,
         chunk = random_num // num_krnl // 2
         results = multi_apply(lb_view, _trn_sample, random_num, chunksize=chunk)
     else:
-        results = multi_apply(lb_view, _trn_sample, random_num)
+        results = multi_apply(d_view, _trn_sample, random_num)
     samples = list(results)
 #    LOGGER.info("parallel speed-up was %.3g",
 #            results.serial_time / results.wall_time)
-    orig_ratio = cntrl.discrete_total_ratio(original)
+    orig_ratio = msr.discrete_total_ratio(original)
     z_score = compute_zscore(orig_ratio, samples)
     if return_sample:
         return (z_score, samples)
@@ -106,7 +107,7 @@ def digital_ctc(d_view, trn, active, random_num=1E04, return_sample=False,
 #TODO: adjust to operon based
 def continuous_digital_ctc(d_view, trn, active, expr_levels, random_num=1E04,
         return_sample=False, lb_view=None,
-        evaluater=cntrl.continuous_functional_coherence, **kw_args):
+        evaluater=msr.continuous_functional_coherence, **kw_args):
     """
     Compute a continuous digital control type confidence of given gene
     expression levels in the effective TRN.
@@ -153,7 +154,7 @@ def continuous_digital_ctc(d_view, trn, active, expr_levels, random_num=1E04,
         else:
             orig_levels[i] = gene2level[node]
     orig2level = dict(izip(active, orig_levels))
-    (op_net, op2level) = cntrl._setup_continuous_operon_based(original, orig2level)
+    (op_net, op2level) = msr._setup_continuous_operon_based(original, orig2level)
     # in TRN structure the out-hubs and spokes differentiation matters
 #    out_ops = set(node for (node, deg) in op_net.out_degree_iter() if deg > 0)
 #    in_ops = set(op_net.nodes_iter()).difference(out_ops)
@@ -213,7 +214,7 @@ def analog_ctc(d_view, gpn, active, random_num=1E04, return_sample=False,
     if original is numpy.nan:
         return original
     d_view.execute("import random", block=True)
-    d_view.push(dict(network=gpn, total_ratio=cntrl.discrete_total_ratio), block=True)
+    d_view.push(dict(network=gpn, total_ratio=msr.discrete_total_ratio), block=True)
     size = len(original)
     sizes = [size for i in xrange(random_num)]
     if isinstance(lb_view, LoadBalancedView):
@@ -226,7 +227,7 @@ def analog_ctc(d_view, gpn, active, random_num=1E04, return_sample=False,
     samples = list(results)
     LOGGER.info("parallel speed-up was %.3g",
             results.serial_time / results.wall_time)
-    z_score = compute_zscore(cntrl.discrete_total_ratio(original), samples)
+    z_score = compute_zscore(msr.discrete_total_ratio(original), samples)
     if return_sample:
         return (z_score, samples)
     else:
@@ -235,7 +236,7 @@ def analog_ctc(d_view, gpn, active, random_num=1E04, return_sample=False,
 #TODO: adjust to operon based
 def continuous_analog_ctc(d_view, organism, active, expr_levels, random_num=1E04,
         return_sample=False, lb_view=None,
-        evaluater=cntrl.continuous_abs_coherence, **kw_args):
+        evaluater=msr.continuous_abs_coherence, **kw_args):
     """
     Compute the analog control from an effective GPN.
 
@@ -261,7 +262,7 @@ def continuous_analog_ctc(d_view, organism, active, expr_levels, random_num=1E04
     if organism.gpn is None or organism.gpn.size() == 0:
         LOGGER.warn("empty gene proximity network")
         return numpy.nan
-    original = cntrl.effective_network(organism.gpn, active)
+    original = msr.effective_network(organism.gpn, active)
     size = len(original)
     if size == 0:
         LOGGER.warn("empty effective network")
@@ -337,13 +338,13 @@ def metabolic_coherence(d_view, organism, active, bnumber2gene, rxn_centric=None
             activity = eval(info)
             if activity:
                 active_reactions.append(rxn)
-    original = cntrl.effective_network(rxn_centric, active_reactions)
+    original = msr.effective_network(rxn_centric, active_reactions)
     size = len(original)
     if size == 0:
         LOGGER.warn("empty effective network")
         return numpy.nan
     d_view.execute("import random", block=True)
-    d_view.push(dict(network=rxn_centric, total_ratio=cntrl.discrete_total_ratio), block=True)
+    d_view.push(dict(network=rxn_centric, total_ratio=msr.discrete_total_ratio), block=True)
     sizes = [size for i in xrange(int(random_num))]
     if isinstance(lb_view, LoadBalancedView):
         num_krnl = len(lb_view)
@@ -355,7 +356,7 @@ def metabolic_coherence(d_view, organism, active, bnumber2gene, rxn_centric=None
     samples = list(results)
     LOGGER.info("parallel speed-up was %.3g",
             results.serial_time / results.wall_time)
-    z_score = compute_zscore(cntrl.discrete_total_ratio(original), samples)
+    z_score = compute_zscore(msr.discrete_total_ratio(original), samples)
     if return_sample:
         return (z_score, samples)
     else:
@@ -366,24 +367,24 @@ def _active_sample(size):
     """
     Sample from affected genes as null model.
     """
-    # make use of global variable `network`
+    # make use of global variable `network`, `ratio`
     local_net = network
     sample = random.sample(local_net.nodes(), size)
     subnet = local_net.subgraph(sample)
-    result = cntrl.discrete_total_ratio(subnet)
+    result = ratio(subnet)
     return result
 
 @interactive
-def _trn_sample(tf_num, gene_num):
+def _trn_sample():
     """
     Sample from affected genes and transcription factors as null model.
     """
-    # make use of global variables `network`, `tfs`, `genes`
+    # make use of global variables `network`, `ratio`, `tfs`, `genes`, `tf_num`, `gene_num`
     trn = network
     local_tfs = random.sample(tfs, tf_num)
     local_genes = random.sample(genes, gene_num)
     subnet = trn.subgraph(local_tfs + local_genes)
-    result = cntrl.discrete_total_ratio(subnet)
+    result = ratio(subnet)
     return result
 
 #def robustness(self, control_type, active, fraction=0.1,

@@ -40,6 +40,6 @@ def iter_async_results(async_results, timeout=1E-03):
             yield ar.get()
 
 def multi_apply(view, function, num, *args, **kw_args):
-    results = [view.apply(function, *args, block=False, ordered=False, **kw_args) for i in xrange(num)]
+    results = [view.apply_async(function, *args, **kw_args) for i in xrange(num)]
     return iter_async_results(results)
 
