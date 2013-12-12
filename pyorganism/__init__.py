@@ -22,4 +22,5 @@ from .miscellaneous import *
 from .errors import *
 from .organism import *
 from .io.generic import *
+from .search import *
 

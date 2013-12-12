@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 
@@ -18,13 +17,11 @@ Library Miscellanea
 """
 
 
-__all__ = ["OptionsManager", "ProgressHandler", "FindOne", "FindAll"]
+__all__ = ["OptionsManager", "ProgressHandler"]
 
 
 import sys
 import logging
-
-import numpy
 
 from .singletonmixin import Singleton
 
@@ -131,48 +128,6 @@ class OptionsManager(Singleton):
         self.upper_bound = 1000.0
         self.numeric_threshold = 1E-09
         self.num_cpu = 1
-
-
-class FindOne(object):
-    def __init__(self, collection, attr, default="", **kw_args):
-        """
-        Sets up an instance that makes one attribute of a collection of objects
-        searcheable.
-
-        These attributes can have any value that is comparable. In none string
-        cases, a different default value should be passed.
-        """
-        super(FindOne, self).__init__(**kw_args)
-        self.collection = list(collection)
-        self.targets = numpy.array([getattr(item, attr, default)\
-                for item in self.collection])
-        self.sorted_ind = self.targets.argsort()
-        self.targets = self.targets[self.sorted_ind]
-
-    def __call__(self, value):
-        index = numpy.searchsorted(self.targets, value)
-        if index == len(self.targets) or self.targets[index] != value:
-            raise IndexError("not found '%s'" % value)
-        return self.collection[self.sorted_ind[index]]
-
-
-class FindAll(object):
-    def __init__(self, collection, attr, default="", **kw_args):
-        """
-        Sets up an instance that makes one attribute of a collection of objects
-        searcheable.
-
-        These attributes can have any value that is comparable. In none string
-        cases, a different default value should be passed.
-        """
-        super(FindAll, self).__init__(**kw_args)
-        self.collection = list(collection)
-        self.targets = numpy.array([getattr(item, attr, default)\
-                for item in self.collection])
-        self.indeces = numpy.arange(len(self.targets), dtype=int)
-
-    def __call__(self, value):
-        return (self.collection[i] for i in self.indeces[self.targets == value])
 
 
 def load_module(module, name=False, url=False):
