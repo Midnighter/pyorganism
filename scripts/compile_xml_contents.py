@@ -51,10 +51,17 @@ def xml_reader(filename):
     with html (aka broken xml).
     """
     name = os.path.basename(filename)
-    parser = etree.HTMLParser()
-    tree = etree.parse(filename, parser)
-    for el in tree.iter(tag="row"):
-        attrs = [unicode(child.tag) for child in el.iterchildren()]
+    with open(filename, "r") as file_h:
+        if etree.LXML_VERSION < (3, 3):
+            parser = etree.HTMLParser()
+            tree = etree.parse(file_h, parser)
+            row_it = tree.iter(tag="row")
+            element = next(row_it)
+            attrs = [unicode(child.tag) for child in element.iterchildren()]
+        else:
+            row_it = etree.iterparse(file_h, tag="row", html=True)
+            (event, element) = next(row_it)
+            attrs = [unicode(child.tag) for child in element.iterchildren()]
     return (name, attrs)
 
 def main(db_path, out_dir):
