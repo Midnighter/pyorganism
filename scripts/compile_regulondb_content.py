@@ -60,6 +60,9 @@ def compile_genes(base_dir):
     genes = regdb.read_genes(os.path.join(base_dir, "gene.xml"))
     norm = len(genes)
     LOGGER.info("Found {0:d}".format(len(genes)))
+    if norm == 0:
+        LOGGER.error("Failed to compile genes.")
+        return genes
     LOGGER.info("Compiling additional information...")
     regdb.update_gene_synonyms(os.path.join(base_dir, "object_synonym.xml"))
     regdb.update_gene_external(os.path.join(base_dir, "object_external_db_link.xml"))
@@ -77,6 +80,9 @@ def compile_products(base_dir):
     products = regdb.read_products(os.path.join(base_dir, "product.xml"))
     norm = len(products)
     LOGGER.info("Found {0:d}".format(norm))
+    if norm == 0:
+        LOGGER.error("Failed to compile products.")
+        return products
     LOGGER.info("Compiling additional information...")
     regdb.update_synonyms(os.path.join(base_dir, "object_synonym.xml"),
             pyreg.Product)
@@ -101,6 +107,9 @@ def compile_transcription_factors(base_dir, version):
             "transcription_factor.xml"))
     norm = len(t_factors)
     LOGGER.info("Found {0:d}".format(norm))
+    if norm == 0:
+        LOGGER.error("Failed to compile transcription factors.")
+        return t_factors
     regdb.update_synonyms(os.path.join(base_dir, "object_synonym.xml"),
             pyreg.TranscriptionFactor)
     regdb.update_external(os.path.join(base_dir, "object_external_db_link.xml"),
@@ -119,6 +128,9 @@ def compile_sigma_factors(base_dir):
     sigma_factors = regdb.read_sigma_factors(os.path.join(base_dir, "sigma_tmp.xml"))
     norm = len(sigma_factors)
     LOGGER.info("Found {0:d}".format(norm))
+    if norm == 0:
+        LOGGER.error("Failed to compile sigma factors.")
+        return sigma_factors
     return sigma_factors
 
 def compile_conformations(base_dir):
@@ -126,6 +138,9 @@ def compile_conformations(base_dir):
     conformations = regdb.read_conformations(os.path.join(base_dir, "conformation.xml"))
     norm = len(conformations)
     LOGGER.info("Found {0:d}".format(norm))
+    if norm == 0:
+        LOGGER.error("Failed to compile conformations.")
+        return conformations
     norm = float(norm)
     num = sum(1 for conf in conformations if conf.final_state)
     LOGGER.info("Found {0:d} conformations with final state ({1:.2%})".format(num, num / norm))
@@ -142,6 +157,9 @@ def compile_promoters(base_dir):
     promoters = regdb.read_promoters(os.path.join(base_dir, "promoter.xml"))
     norm = len(promoters)
     LOGGER.info("Found {0:d}".format(norm))
+    if norm == 0:
+        LOGGER.error("Failed to compile promoters.")
+        return promoters
     return promoters
 
 def compile_operons(base_dir):
@@ -149,6 +167,9 @@ def compile_operons(base_dir):
     operons = regdb.read_operons(os.path.join(base_dir, "operon.xml"))
     norm = len(operons)
     LOGGER.info("Found {0:d}".format(norm))
+    if norm == 0:
+        LOGGER.error("Failed to compile operons.")
+        return operons
     return operons
 
 def compile_transcription_units(base_dir):
@@ -157,10 +178,15 @@ def compile_transcription_units(base_dir):
             "transcription_unit.xml"))
     norm = len(t_units)
     LOGGER.info("Found {0:d}".format(norm))
+    if norm == 0:
+        LOGGER.error("Failed to compile transcription units.")
+        return t_units
     regdb.link_tu_genes(os.path.join(base_dir, "tu_gene_link.xml"))
     norm = float(norm)
     num = sum(1 for tu in t_units if tu.genes)
     LOGGER.info("Found {0:d} transcription units that contain genes ({1:.2%})".format(num, num / norm))
+    num = sum(1 for tu in t_units if tu.promoter)
+    LOGGER.info("Found {0:d} transcription units with associated promoters ({1:.2%})".format(num, num / norm))
     return t_units
 
 def compile_regulation(base_dir):
@@ -168,6 +194,9 @@ def compile_regulation(base_dir):
     interactions = regdb.read_regulatory_interactions(os.path.join(base_dir, "regulatory_interaction.xml"))
     norm = len(interactions)
     LOGGER.info("Found {0:d}".format(norm))
+    if norm == 0:
+        LOGGER.error("Failed to compile regulatory interactions.")
+        return interactions
     return interactions
 
 

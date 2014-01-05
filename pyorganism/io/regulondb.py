@@ -224,22 +224,30 @@ def link_gene_product(filename, sep="\t", comment="#", encoding=None,
     with open_file(filename, **kw_args) as (file_h, ext):
         iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
         for row in iter_rowset(file_h):
+            gene_id = row["gene_id"]
             try:
-                eck12 = row["gene_id"]
-                gene = elem.Gene[eck12]
+                gene = elem.Gene[gene_id]
             except KeyError:
-                LOGGER.warn("unknown gene: {0}".format(eck12))
+                LOGGER.warn("unknown gene: {0}".format(gene_id))
+                continue
+            prod_id = row["product_id"]
+            # RegulonDB version 6.4 contains duplicate entries
+            if gene.product:
+                if gene.product.unique_id != prod_id:
+                    LOGGER.warn("gene '{0}' and product '{1}' already exist in"\
+                            " different context".format(gene_id, prod_id))
                 continue
             try:
-                eck12 = row["product_id"]
-                gene.product = elem.Product[eck12]
+                gene.product = elem.Product[prod_id]
             except KeyError:
-                LOGGER.warn("unknown product: {0}".format(eck12))
+                LOGGER.warn("unknown product: {0}".format(prod_id))
                 continue
             if gene.product.coded_from:
-                LOGGER.warn("product '{0}' already has coding gene '{1}'".format(
-                        gene.product.unique_id,
-                        gene.product.coded_from.unique_id))
+                if gene.product.coded_from.unique_id != gene_id:
+                    LOGGER.warn("product '{0}' already has coding gene '{1}'".format(
+                            gene.product.unique_id,
+                            gene.product.coded_from.unique_id))
+                continue
             gene.product.coded_from = gene
 
 def read_gene_regulation(filename, sep="\t", comment="#", encoding=None,
@@ -370,14 +378,15 @@ def read_transcription_units(filename, sep="\t", comment="#", encoding=None,
             tu_id = row["transcription_unit_id"]
             prom_id = row["promoter_id"]
             op_id = row["operon_id"]
+            # RegulonDB 7.2 has some promoter ECK12 IDs that are not in
+            # promoter.xml
             if prom_id:
                 try:
                     prom = elem.Promoter[prom_id]
                 except KeyError:
                     prom = None
-                    LOGGER.warn("unknown promoter %s", prom_id)
-                    LOGGER.warn("Please parse operon and promoter information before\
-                            parsing transcription units.")
+                    LOGGER.warn("unknown promoter '%s' in transcription unit '%s'",
+                            prom_id, tu_id)
             else:
                 prom = None
             if op_id:
@@ -385,9 +394,8 @@ def read_transcription_units(filename, sep="\t", comment="#", encoding=None,
                     op = elem.Operon[op_id]
                 except KeyError:
                     op = None
-                    LOGGER.warn("unknown operon %s", op_id)
-                    LOGGER.warn("Please parse operon and promoter information before\
-                            parsing transcription units.")
+                    LOGGER.warn("unknown operon '%s' in transcription unit '%s'",
+                            op_id, tu_id)
             else:
                 op = None
             tu = elem.TranscriptionUnit(unique_id=tu_id,
