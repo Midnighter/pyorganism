@@ -25,7 +25,6 @@ import itertools
 import numpy
 
 from operator import attrgetter
-from collections import defaultdict
 from bs4 import BeautifulSoup
 from lxml import etree
 from .. import miscellaneous as misc
@@ -46,17 +45,25 @@ NAPs = frozenset(["ECK120011186", "ECK120011224", "ECK120011229", "ECK120011235"
         "ECK120011294", "ECK120011345", "ECK120011383"])
 
 
-def iter_soup_rowset(file_handle):
+def iter_rowset_soup(file_handle):
     soup = BeautifulSoup(file_handle, PARSER)
     for row in soup.rowset.find_all(name="row", recursive=False):
         yield dict()
 
-def iter_rowset(filename):
+def iter_rowset_lxml(filename):
     parser = etree.HTMLParser()
     tree = etree.parse(filename, parser)
     for el in tree.iter(tag="row"):
         yield dict((child.tag, etree.tostring(child, method="text",
                 encoding="utf-8")) for child in el.iterchildren())
+
+def iter_rowset_flat_file(filename, header, sep="\t", comment="#"):
+    for row in read_tabular(filename, sep=sep, comment=comment):
+        yield dict((name, row[i]) for (i, name) in enumerate(header))
+
+FILE_PARSERS = {
+        ".xml": iter_rowset_lxml
+}
 
 def read_genes(filename, sep="\t", comment="#", encoding=None, mode="rb",
         **kw_args):
@@ -82,21 +89,13 @@ def read_genes(filename, sep="\t", comment="#", encoding=None, mode="rb",
     mode: str (optional)
         The mode used to open a file, should always be read binary.
     """
-
-    def parse_flat_file(file_handle):
-        raise NotImplementedError
-        for row in read_tabular(file_handle, sep=sep, comment=comment):
-            try:
-                gene = elem.Gene(unique_id=row[0], name=row[1], position_start=row[2],
-                        position_end=row[3], strand=row[4], gc_content=row[6])
-            except StandardError as err:
-                LOGGER.warn(err)
-                LOGGER.warn(row)
-            else:
-                genes.append(gene)
-
-    def parse_xhtml(file_handle):
-        for row in iter_rowset(file_handle):
+    genes = list()
+    bpattern = BPATTERN
+    kw_args["mode"] = mode
+    kw_args["encoding"] = encoding
+    with open_file(filename, **kw_args) as (file_h, ext):
+        iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
+        for row in iter_rowset(file_h):
             start = row["gene_posleft"]
             if not start:
                 start = None
@@ -120,27 +119,16 @@ def read_genes(filename, sep="\t", comment="#", encoding=None, mode="rb",
                 strand=row["gene_strand"],
                 gc_content=gc)
             genes.append(gene)
-
-    genes = list()
-    bpattern = BPATTERN
-    # read information from the file
-    kw_args["mode"] = mode
-    kw_args["encoding"] = encoding
-    with open_file(filename, **kw_args) as (file_h, ext):
-        if ext == ".xml":
-            parse_xhtml(file_h)
-        else:
-            parse_flat_file(file_h)
     return genes
 
 def update_gene_synonyms(filename, sep="\t", comment="#", encoding=None,
         mode="rb", **kw_args):
-
-    def parse_flat_file(file_handle):
-        raise NotImplementedError
-
-    def parse_xhtml(file_handle):
-        for row in iter_rowset(file_handle):
+    bpattern = BPATTERN
+    kw_args["mode"] = mode
+    kw_args["encoding"] = encoding
+    with open_file(filename, **kw_args) as (file_h, ext):
+        iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
+        for row in iter_rowset(file_h):
             obj_id = row["object_id"]
             if obj_id not in elem.Gene:
                 continue
@@ -155,24 +143,14 @@ def update_gene_synonyms(filename, sep="\t", comment="#", encoding=None,
                 else:
                     gene.synonyms.add(synonym)
 
+def update_gene_external(filename, sep="\t", comment="#", encoding=None,
+        mode="rb", **kw_args):
     bpattern = BPATTERN
-    # read information from the file
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
     with open_file(filename, **kw_args) as (file_h, ext):
-        if ext == ".xml":
-            parse_xhtml(file_h)
-        else:
-            parse_flat_file(file_h)
-
-def update_gene_external(filename, sep="\t", comment="#", encoding=None,
-        mode="rb", **kw_args):
-
-    def parse_flat_file(file_handle):
-        raise NotImplementedError
-
-    def parse_xhtml(file_handle):
-        for row in iter_rowset(file_handle):
+        iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
+        for row in iter_rowset(file_h):
             obj_id = row["object_id"]
             if obj_id not in elem.Gene:
                 continue
@@ -187,24 +165,14 @@ def update_gene_external(filename, sep="\t", comment="#", encoding=None,
                 else:
                     gene.synonyms.add(synonym)
 
-    bpattern = BPATTERN
-    # read information from the file
+def read_products(filename, sep="\t", comment="#", encoding=None,
+        mode="rb", **kw_args):
+    products = list()
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
     with open_file(filename, **kw_args) as (file_h, ext):
-        if ext == ".xml":
-            parse_xhtml(file_h)
-        else:
-            parse_flat_file(file_h)
-
-def read_products(filename, sep="\t", comment="#", encoding=None,
-        mode="rb", **kw_args):
-
-    def parse_flat_file(file_handle):
-        raise NotImplementedError
-
-    def parse_xhtml(file_handle):
-        for row in iter_rowset(file_handle):
+        iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
+        for row in iter_rowset(file_h):
             # typo in RegulonDB files for molecular weight
             mw = row["molecular_weigth"]
             if not mw:
@@ -217,26 +185,15 @@ def read_products(filename, sep="\t", comment="#", encoding=None,
                 molecular_weight=mw,
                 isoelectric_point=ip)
             products.append(product)
-
-    products = list()
-    # read information from the file
-    kw_args["mode"] = mode
-    kw_args["encoding"] = encoding
-    with open_file(filename, **kw_args) as (file_h, ext):
-        if ext == ".xml":
-            parse_xhtml(file_h)
-        else:
-            parse_flat_file(file_h)
     return products
 
 def update_synonyms(filename, cls, sep="\t", comment="#", encoding=None,
         mode="rb", **kw_args):
-
-    def parse_flat_file(file_handle):
-        raise NotImplementedError
-
-    def parse_xhtml(file_handle):
-        for row in iter_rowset(file_handle):
+    kw_args["mode"] = mode
+    kw_args["encoding"] = encoding
+    with open_file(filename, **kw_args) as (file_h, ext):
+        iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
+        for row in iter_rowset(file_h):
             obj_id = row["object_id"]
             if obj_id not in cls:
                 continue
@@ -245,23 +202,13 @@ def update_synonyms(filename, cls, sep="\t", comment="#", encoding=None,
             if synonym:
                 inst.synonyms.add(synonym)
 
-    # read information from the file
+def update_external(filename, cls, sep="\t", comment="#", encoding=None,
+        mode="rb", **kw_args):
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
     with open_file(filename, **kw_args) as (file_h, ext):
-        if ext == ".xml":
-            parse_xhtml(file_h)
-        else:
-            parse_flat_file(file_h)
-
-def update_external(filename, cls, sep="\t", comment="#", encoding=None,
-        mode="rb", **kw_args):
-
-    def parse_flat_file(file_handle):
-        raise NotImplementedError
-
-    def parse_xhtml(file_handle):
-        for row in iter_rowset(file_handle):
+        iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
+        for row in iter_rowset(file_h):
             obj_id = row["object_id"]
             if obj_id not in cls:
                 continue
@@ -270,23 +217,13 @@ def update_external(filename, cls, sep="\t", comment="#", encoding=None,
             if synonym:
                 inst.synonyms.add(synonym)
 
-    # read information from the file
+def link_gene_product(filename, sep="\t", comment="#", encoding=None,
+        mode="rb", **kw_args):
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
     with open_file(filename, **kw_args) as (file_h, ext):
-        if ext == ".xml":
-            parse_xhtml(file_h)
-        else:
-            parse_flat_file(file_h)
-
-def link_gene_product(filename, sep="\t", comment="#", encoding=None,
-        mode="rb", **kw_args):
-
-    def parse_flat_file(file_handle):
-        raise NotImplementedError
-
-    def parse_xhtml(file_handle):
-        for row in iter_rowset(file_handle):
+        iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
+        for row in iter_rowset(file_h):
             try:
                 eck12 = row["gene_id"]
                 gene = elem.Gene[eck12]
@@ -305,23 +242,14 @@ def link_gene_product(filename, sep="\t", comment="#", encoding=None,
                         gene.product.coded_from.unique_id))
             gene.product.coded_from = gene
 
-    # read information from the file
+def read_gene_regulation(filename, sep="\t", comment="#", encoding=None,
+        mode="rb", **kw_args):
+    grn = GRN(name="Gene Regulatory Network")
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
     with open_file(filename, **kw_args) as (file_h, ext):
-        if ext == ".xml":
-            parse_xhtml(file_h)
-        else:
-            parse_flat_file(file_h)
-
-def read_gene_regulation(filename, sep="\t", comment="#", encoding=None,
-        mode="rb", **kw_args):
-
-    def parse_flat_file(file_handle):
-        raise NotImplementedError
-
-    def parse_xhtml(file_handle):
-        for row in iter_rowset(file_handle):
+        iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
+        for row in iter_rowset(file_h):
             try:
                 eck12 = row["gene_id_regulator"]
                 gene_u = elem.Gene[eck12]
@@ -336,26 +264,16 @@ def read_gene_regulation(filename, sep="\t", comment="#", encoding=None,
                 continue
             interaction = row["generegulation_function"]
             grn.add_edge(gene_u, gene_v, key=FUNCTIONS[interaction])
-
-    grn = GRN(name="Gene Regulatory Network")
-    # read information from the file
-    kw_args["mode"] = mode
-    kw_args["encoding"] = encoding
-    with open_file(filename, **kw_args) as (file_h, ext):
-        if ext == ".xml":
-            parse_xhtml(file_h)
-        else:
-            parse_flat_file(file_h)
     return grn
 
 def read_sigma_factors(filename, sep="\t", comment="#", encoding=None,
         mode="rb", **kw_args):
-
-    def parse_flat_file(file_handle):
-        raise NotImplementedError
-
-    def parse_xhtml(file_handle):
-        for row in iter_rowset(file_handle):
+    s_factors = list()
+    kw_args["mode"] = mode
+    kw_args["encoding"] = encoding
+    with open_file(filename, **kw_args) as (file_h, ext):
+        iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
+        for row in iter_rowset(file_h):
             sigma_factor = elem.SigmaFactor(unique_id=row["sigma_id"],
                     name=row["sigma_name"])
             sigma_factor.synonyms.add(row["sigma_synonyms"])
@@ -364,21 +282,12 @@ def read_sigma_factors(filename, sep="\t", comment="#", encoding=None,
                 gene = elem.Gene[eck12]
             except KeyError:
                 LOGGER.warn("unknown gene: {0}".format(eck12))
+                s_factors.append(sigma_factor)
                 continue
             sigma_factor.made_from.add(gene.product)
             gene.regulatory_product = sigma_factor
             sigma_factor.coded_from.add(gene)
             s_factors.append(sigma_factor)
-
-    s_factors = list()
-    # read information from the file
-    kw_args["mode"] = mode
-    kw_args["encoding"] = encoding
-    with open_file(filename, **kw_args) as (file_h, ext):
-        if ext == ".xml":
-            parse_xhtml(file_h)
-        else:
-            parse_flat_file(file_h)
     return s_factors
 
 def read_transcription_factors(filename, sep="\t", comment="#", encoding=None,
@@ -388,58 +297,40 @@ def read_transcription_factors(filename, sep="\t", comment="#", encoding=None,
     on version we need to update various bits of information on the class
     instances.
     """
-
-    def parse_flat_file(file_handle):
-        raise NotImplementedError
-
-    def parse_xhtml(file_handle):
-        for row in iter_rowset(file_handle):
-            t_factor = elem.TranscriptionFactor(
-                    unique_id=row["transcription_factor_id"],
-                    name=row["transcription_factor_name"])
-            t_factors.append(t_factor)
-
-    # read information from the file
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
     t_factors = list()
     with open_file(filename, **kw_args) as (file_h, ext):
-        if ext == ".xml":
-            parse_xhtml(file_h)
-        else:
-            parse_flat_file(file_h)
+        iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
+        for row in iter_rowset(file_h):
+            t_factor = elem.TranscriptionFactor(
+                    unique_id=row["transcription_factor_id"],
+                    name=row["transcription_factor_name"])
+            t_factors.append(t_factor)
     return t_factors
 
 def update_product_transcription_factor_link(filename, sep="\t", comment="#",
         encoding=None, mode="rb", **kw_args):
-
-    def parse_flat_file(file_handle):
-        raise NotImplementedError
-
-    def parse_xhtml(file_handle):
-        for row in iter_rowset(file_handle):
-            prod_id = row["product_id"]
-            if prod_id not in elem.Product:
-                LOGGER.warn("unknown product: {0}".format(prod_id))
-                continue
-            tf_id = row["transcription_factor_id"]
-            if prod_id not in elem.Product:
-                LOGGER.warn("unknown transcription factor: {0}".format(prod_id))
-                continue
-            product = elem.Product[prod_id]
-            t_factor = elem.TranscriptionFactor[tf_id]
-            t_factor.made_from.add(product)
-            t_factor.coded_from.add(product.coded_from)
-            product.coded_from.regulatory_product = t_factor
-
-    # read information from the file
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
     with open_file(filename, **kw_args) as (file_h, ext):
-        if ext == ".xml":
-            parse_xhtml(file_h)
-        else:
-            parse_flat_file(file_h)
+        iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
+        for row in iter_rowset(file_h):
+            prod_id = row["product_id"]
+            try:
+                product = elem.Product[prod_id]
+            except KeyError:
+                LOGGER.warn("unknown product: {0}".format(prod_id))
+                continue
+            tf_id = row["transcription_factor_id"]
+            try:
+                t_factor = elem.TranscriptionFactor[tf_id]
+            except KeyError:
+                LOGGER.warn("unknown transcription factor: {0}".format(prod_id))
+                continue
+            t_factor.made_from.add(product)
+            t_factor.coded_from.add(product.coded_from)
+            product.coded_from.regulatory_product = t_factor
 
 def read_regulatory_interactions(filename, sep="\t", comment="#",
         encoding=None, mode="rb", **kw_args):
@@ -448,26 +339,16 @@ def read_regulatory_interactions(filename, sep="\t", comment="#",
     interaction is given by a conformation ID and a promoter ID and the type of
     interaction.
     """
-
-    def parse_flat_file(file_handle):
-        raise NotImplementedError
-
-    def parse_xhtml(file_handle):
-        for row in iter_rowset(file_handle):
-            u = row["conformation_id"]
-            v = row["promoter_id"]
-            k = FUNCTIONS[row["ri_function"]]
-            interactions.append((u, v, k))
-
-    # read information from the file
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
     interactions = list()
     with open_file(filename, **kw_args) as (file_h, ext):
-        if ext == ".xml":
-            parse_xhtml(file_h)
-        else:
-            parse_flat_file(file_h)
+        iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
+        for row in iter_rowset(file_h):
+            u = row["conformation_id"]
+            v = row["promoter_id"]
+            k = FUNCTIONS[row["ri_function"]]
+            interactions.append((u, v, k))
     return interactions
 
 def read_transcription_units(filename, sep="\t", comment="#", encoding=None,
@@ -480,39 +361,39 @@ def read_transcription_units(filename, sep="\t", comment="#", encoding=None,
     A map between promoter IDs and the various transcription units they occur
     in.
     """
-
-    def parse_flat_file(file_handle):
-        raise NotImplementedError
-
-    def parse_xhtml(file_handle):
-        for row in iter_rowset(file_handle):
-            tu_id = row["transcription_unit_id"]
-            prom_id = row["promoter_id"]
-            op_id = row["operon_id"]
-            try:
-                if prom_id:
-                    prom = elem.Promoter[prom_id]
-                if op_id:
-                    op = elem.Operon[op_id]
-            except KeyError:
-                LOGGER.error("unknown promoter %s or operon %s", prom, op)
-                LOGGER.error("Please parse operon and promoter information before\
-                        parsing transcription units.")
-                continue
-            tu = elem.TranscriptionUnit(unique_id=tu_id,
-                    name=row["transcription_unit_id"],
-                    promoter=prom, operon=op)
-            units.append(tu)
-
-    # read information from the file
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
     units = list()
     with open_file(filename, **kw_args) as (file_h, ext):
-        if ext == ".xml":
-            parse_xhtml(file_h)
-        else:
-            parse_flat_file(file_h)
+        iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
+        for row in iter_rowset(file_h):
+            tu_id = row["transcription_unit_id"]
+            prom_id = row["promoter_id"]
+            op_id = row["operon_id"]
+            if prom_id:
+                try:
+                    prom = elem.Promoter[prom_id]
+                except KeyError:
+                    prom = None
+                    LOGGER.warn("unknown promoter %s", prom_id)
+                    LOGGER.warn("Please parse operon and promoter information before\
+                            parsing transcription units.")
+            else:
+                prom = None
+            if op_id:
+                try:
+                    op = elem.Operon[op_id]
+                except KeyError:
+                    op = None
+                    LOGGER.warn("unknown operon %s", op_id)
+                    LOGGER.warn("Please parse operon and promoter information before\
+                            parsing transcription units.")
+            else:
+                op = None
+            tu = elem.TranscriptionUnit(unique_id=tu_id,
+                    name=row["transcription_unit_name"],
+                    promoter=prom, operon=op)
+            units.append(tu)
     return units
 
 def link_tu_genes(filename, sep="\t", comment="#", encoding=None,
@@ -530,35 +411,27 @@ def link_tu_genes(filename, sep="\t", comment="#", encoding=None,
     A dict with keys that are TU IDs and values that are gene IDs contained
     within that TU.
     """
-
-    def parse_flat_file(file_handle):
-        raise NotImplementedError
-
-    def parse_xhtml(file_handle):
-        for row in iter_rowset(file_handle):
+    kw_args["mode"] = mode
+    kw_args["encoding"] = encoding
+    t_units = list()
+    with open_file(filename, **kw_args) as (file_h, ext):
+        iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
+        for row in iter_rowset(file_h):
             tu_id = row["transcription_unit_id"]
             try:
                 t_unit = elem.TranscriptionUnit[tu_id]
             except KeyError:
                 LOGGER.error("unknown transcription unit '%s', please parse"\
                         " those first.", tu_id)
+                continue
             gene_id = row["gene_id"]
             try:
                 gene = elem.Gene[gene_id]
             except KeyError:
                 LOGGER.error("unknown gene '%s', please parse those first.", gene_id)
+                continue
             t_unit.genes.append(gene)
             t_units.append(t_unit)
-
-    # read information from the file
-    kw_args["mode"] = mode
-    kw_args["encoding"] = encoding
-    t_units = list()
-    with open_file(filename, **kw_args) as (file_h, ext):
-        if ext == ".xml":
-            parse_xhtml(file_h)
-        else:
-            parse_flat_file(file_h)
     begin = attrgetter("position")
     for tu in t_units:
         if all(gene.strand == "reverse" for gene in tu.genes):
@@ -569,42 +442,32 @@ def link_tu_genes(filename, sep="\t", comment="#", encoding=None,
             LOGGER.error("conflicting strand information in transcription unit"\
                     " '%s'", tu.unique_id)
 
-def read_tu_objects(filename, sep="\t", comment="#", encoding=None,
-        mode="rb", **kw_args):
-    """
-    Extract transcription unit (TU) information.
-
-    Parameters
-    ----------
-    filename: str
-        Relative or absolute path to file that contains the  RegulonDB information.
-
-    Returns
-    -------
-    A dict with keys that are TU IDs and values that are gene IDs contained
-    within that TU.
-    """
-
-    def parse_flat_file(file_handle):
-        raise NotImplementedError
-
-    def parse_xhtml(file_handle):
-        for row in iter_rowset(file_handle):
-            if row["tu_object_class"] == "GN":
-                tu = row["transcription_unit_id"]
-                gene = row["tu_object_id"]
-                units[tu].append(gene)
-
-    # read information from the file
-    kw_args["mode"] = mode
-    kw_args["encoding"] = encoding
-    units = defaultdict(list)
-    with open_file(filename, **kw_args) as (file_h, ext):
-        if ext == ".xml":
-            parse_xhtml(file_h)
-        else:
-            parse_flat_file(file_h)
-    return dict(units)
+#def read_tu_objects(filename, sep="\t", comment="#", encoding=None,
+#        mode="rb", **kw_args):
+#    """
+#    Extract transcription unit (TU) information.
+#
+#    Parameters
+#    ----------
+#    filename: str
+#        Relative or absolute path to file that contains the  RegulonDB information.
+#
+#    Returns
+#    -------
+#    A dict with keys that are TU IDs and values that are gene IDs contained
+#    within that TU.
+#    """
+#    kw_args["mode"] = mode
+#    kw_args["encoding"] = encoding
+#    units = defaultdict(list)
+#    with open_file(filename, **kw_args) as (file_h, ext):
+#        iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
+#        for row in iter_rowset(file_h):
+#            if row["tu_object_class"] == "GN":
+#                tu = row["transcription_unit_id"]
+#                gene = row["tu_object_id"]
+#                units[tu].append(gene)
+#    return dict(units)
 
 def read_promoters(filename, sep="\t", comment="#", encoding=None,
         mode="rb", **kw_args):
@@ -619,12 +482,12 @@ def read_promoters(filename, sep="\t", comment="#", encoding=None,
     Returns
     -------
     """
-
-    def parse_flat_file(file_handle):
-        raise NotImplementedError
-
-    def parse_xhtml(file_handle):
-        for row in iter_rowset(file_handle):
+    kw_args["mode"] = mode
+    kw_args["encoding"] = encoding
+    promoters = list()
+    with open_file(filename, **kw_args) as (file_h, ext):
+        iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
+        for row in iter_rowset(file_h):
             strand = row["promoter_strand"]
             if not strand:
                 strand = None
@@ -638,16 +501,6 @@ def read_promoters(filename, sep="\t", comment="#", encoding=None,
                     note=row["promoter_note"]
             )
             promoters.append(prom)
-
-    # read information from the file
-    kw_args["mode"] = mode
-    kw_args["encoding"] = encoding
-    promoters = list()
-    with open_file(filename, **kw_args) as (file_h, ext):
-        if ext == ".xml":
-            parse_xhtml(file_h)
-        else:
-            parse_flat_file(file_h)
     return promoters
 
 def read_operons(filename, sep="\t", comment="#", encoding=None,
@@ -663,12 +516,12 @@ def read_operons(filename, sep="\t", comment="#", encoding=None,
     Returns
     -------
     """
-
-    def parse_flat_file(file_handle):
-        raise NotImplementedError
-
-    def parse_xhtml(file_handle):
-        for row in iter_rowset(file_handle):
+    kw_args["mode"] = mode
+    kw_args["encoding"] = encoding
+    operons = list()
+    with open_file(filename, **kw_args) as (file_h, ext):
+        iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
+        for row in iter_rowset(file_h):
             gene_left = misc.convert2numeral(row["firstgeneposleft"], int)
             if not gene_left:
                 gene_left = None
@@ -694,16 +547,6 @@ def read_operons(filename, sep="\t", comment="#", encoding=None,
                     regulation_position_end=reg_right
             )
             operons.append(op)
-
-    # read information from the file
-    kw_args["mode"] = mode
-    kw_args["encoding"] = encoding
-    operons = list()
-    with open_file(filename, **kw_args) as (file_h, ext):
-        if ext == ".xml":
-            parse_xhtml(file_h)
-        else:
-            parse_flat_file(file_h)
     return operons
 
 def update_operons(operons, promoters, genes, **kw_args):
@@ -754,18 +597,18 @@ def read_conformations(filename, sep="\t", comment="#", encoding=None,
     Returns
     -------
     """
-
-    def parse_flat_file(file_handle):
-        raise NotImplementedError
-
-    def parse_xhtml(file_handle):
-        for row in iter_rowset(file_handle):
+    kw_args["mode"] = mode
+    kw_args["encoding"] = encoding
+    conformations = list()
+    with open_file(filename, **kw_args) as (file_h, ext):
+        iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
+        for row in iter_rowset(file_h):
             tf_id = row["transcription_factor_id"]
             try:
                 t_factor = elem.TranscriptionFactor[tf_id]
             except KeyError:
-                LOGGER.error("unknown transcription factor %s", tf_id)
-                LOGGER.error("Please parse transcription factor information before"\
+                LOGGER.warn("unknown transcription factor %s", tf_id)
+                LOGGER.warn("Please parse transcription factor information before"\
                         " parsing conformations.")
                 continue
             conf = elem.Conformation(
@@ -778,16 +621,6 @@ def read_conformations(filename, sep="\t", comment="#", encoding=None,
             )
             t_factor.conformations.add(conf)
             conformations.append(conf)
-
-    # read information from the file
-    kw_args["mode"] = mode
-    kw_args["encoding"] = encoding
-    conformations = list()
-    with open_file(filename, **kw_args) as (file_h, ext):
-        if ext == ".xml":
-            parse_xhtml(file_h)
-        else:
-            parse_flat_file(file_h)
     return conformations
 
 def read_tf_gene_network(filename, name2tf, name2gene, sep="\t",
@@ -816,10 +649,13 @@ def read_tf_gene_network(filename, name2tf, name2gene, sep="\t",
     kw_args["encoding"] = encoding
     kw_args["mode"] = mode
     with open_file(filename, **kw_args) as (file_h, ext):
-        for row in read_tabular(file_h, sep=sep, comment=comment):
-            first = name2tf[row[0]]
-            second = name2gene[row[1]]
-            trn.add_edge(first, second, key=FUNCTIONS[row[2]], evidence=row[3])
+        iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
+        for row in iter_rowset(file_h, header=["tf", "gene", "effect",
+                "evidence"]):
+            first = name2tf[row["tf"]]
+            second = name2gene[row["gene"]]
+            trn.add_edge(first, second, key=FUNCTIONS[row["effect"]],
+                    evidence=row["evidence"])
     return trn
 
 #def read_sigma_gene_network(genes, filename, sep="\t", comment="#",

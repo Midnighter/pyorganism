@@ -17,7 +17,7 @@ Input/Output of HDF5 Files
 """
 
 
-__all__ = ["ExpressionData", "SimpleData", "ControlSimulation"]
+__all__ = ["ExpressionData", "SimpleData", "ControlData"]
 
 
 import os
@@ -49,7 +49,7 @@ class SimpleData(tables.IsDescription):
     value = tables.Float64Col() # either random sample or jackknife result
 
 
-class ControlSimulation(tables.IsDescription):
+class ControlData(tables.IsDescription):
     """
     Other things to record (as attributes or in data structure):
         * link to TRN (version)
@@ -119,12 +119,12 @@ class ResultManager(object):
 
     def _setup(self, filename):
         self.h5_file = tables.open_file(filename, mode="w",
-                title="Control Simulation Data")
+                title="Control Analysis Data")
         self.samples = self.h5_file.create_group("/", "samples", title="Null Model Samples")
         self.robustness = self.h5_file.create_group("/", "robustness",
                 title="Robustness Analysis Results")
-        self.control = self.h5_file.create_table(self.h5_file.root, "control", ControlSimulation,
-                title="Summary table for all control analysis results.")
+        self.control = self.h5_file.create_table(self.h5_file.root, "control",
+                ControlData, title="Summary table for all control analysis results.")
 
     def finalize(self):
         self.h5_file.close()
