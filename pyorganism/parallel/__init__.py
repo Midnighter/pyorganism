@@ -17,6 +17,3 @@ PyOrganism Parallel Applications
 """
 
 
-from .utils import multi_apply
-from ..regulation.parallel import *
-

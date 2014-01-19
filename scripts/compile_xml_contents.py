@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 
@@ -33,17 +32,6 @@ LOGGER.setLevel(logging.INFO)
 LOGGER.addHandler(logging.StreamHandler())
 
 
-#def xml_reader(filename):
-#    name = os.path.basename(filename)
-#    attrs = []
-#    with open(filename, "r") as file_h:
-#        for (event, element) in etree.iterparse(file_h, tag="row", html=True,
-#                encoding="utf-8"):
-#            if element.tag == "row" and event == "end":
-#                attrs = [unicode(child.tag) for child in element.iterchildren()]
-#                break
-#    return (name, attrs)
-
 def xml_reader(filename):
     """
     A method using iterparse as above would be preferable, since we just want to
@@ -51,9 +39,9 @@ def xml_reader(filename):
     with html (aka broken xml).
     """
     name = os.path.basename(filename)
-    with open(filename, "r") as file_h:
+    with open(filename, "rb") as file_h:
         if etree.LXML_VERSION < (3, 3):
-            parser = etree.HTMLParser()
+            parser = etree.HTMLParser(encoding="latin1")
             tree = etree.parse(file_h, parser)
             row_it = tree.iter(tag="row")
             element = next(row_it)

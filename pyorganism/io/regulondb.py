@@ -25,7 +25,6 @@ import itertools
 import numpy
 
 from operator import attrgetter
-from bs4 import BeautifulSoup
 from lxml import etree
 from .. import miscellaneous as misc
 from ..errors import PyOrganismError
@@ -38,7 +37,6 @@ LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(misc.NullHandler())
 
 BPATTERN = re.compile(r"b|B\d{4}")
-PARSER = "lxml"
 FUNCTIONS = {"repressor": -1, "activator": 1, "unknown": 0, "dual": 2,
         "-": -1, "+": 1, "?": 0, "+-": 2}
 NAPs = frozenset(["ECK120011186", "ECK120011224", "ECK120011229", "ECK120011235",
@@ -46,16 +44,18 @@ NAPs = frozenset(["ECK120011186", "ECK120011224", "ECK120011229", "ECK120011235"
 
 
 def iter_rowset_soup(file_handle):
-    soup = BeautifulSoup(file_handle, PARSER)
+    raise NotImplementedError()
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(file_handle, "lxml")
     for row in soup.rowset.find_all(name="row", recursive=False):
         yield dict()
 
 def iter_rowset_lxml(filename):
-    parser = etree.HTMLParser()
+    parser = etree.HTMLParser(encoding="latin1")
     tree = etree.parse(filename, parser)
     for el in tree.iter(tag="row"):
         yield dict((child.tag, etree.tostring(child, method="text",
-                encoding="utf-8")) for child in el.iterchildren())
+                encoding=unicode)) for child in el.iterchildren())
 
 def iter_rowset_flat_file(filename, header, sep="\t", comment="#"):
     for row in read_tabular(filename, sep=sep, comment=comment):

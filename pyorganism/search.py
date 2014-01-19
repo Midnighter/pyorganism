@@ -87,7 +87,7 @@ class FindObject(object):
         match = process.extractOne(value, self.targets, scorer=scorer, score_cutoff=threshold)
         if match is None:
             raise IndexError("'%s' not found" % value)
-        LOGGER.info("'%s' matched '%s' with a score of %d.", value, match[0],
+        LOGGER.debug("'%s' matches '%s' (%d%%)", value, match[0],
                 match[1])
         return (self.binary_search(match[0]), match[0], match[1])
 

@@ -42,7 +42,7 @@ LOGGER.addHandler(misc.NullHandler())
 
 
 def digital_ctc(d_view, trn, active, random_num=1E04, return_sample=False,
-        lb_view=None, **kw_args):
+        lb_view=None):
     """
     Compute the digital control type confidence of an effective TRN using a list of
     differentially expressed genes.
@@ -107,7 +107,7 @@ def digital_ctc(d_view, trn, active, random_num=1E04, return_sample=False,
 #TODO: adjust to operon based
 def continuous_digital_ctc(d_view, trn, active, expr_levels, random_num=1E04,
         return_sample=False, lb_view=None,
-        evaluater=msr.continuous_functional_coherence, **kw_args):
+        evaluater=msr.continuous_functional_coherence):
     """
     Compute a continuous digital control type confidence of given gene
     expression levels in the effective TRN.
@@ -185,7 +185,7 @@ def continuous_digital_ctc(d_view, trn, active, expr_levels, random_num=1E04,
 #        return z_score
 
 def analog_ctc(d_view, gpn, active, random_num=1E04, return_sample=False,
-        lb_view=None, **kw_args):
+        lb_view=None):
     """
     Compute the analog control from an effective GPN.
 
@@ -236,7 +236,7 @@ def analog_ctc(d_view, gpn, active, random_num=1E04, return_sample=False,
 #TODO: adjust to operon based
 def continuous_analog_ctc(d_view, organism, active, expr_levels, random_num=1E04,
         return_sample=False, lb_view=None,
-        evaluater=msr.continuous_abs_coherence, **kw_args):
+        evaluater=msr.continuous_abs_coherence):
     """
     Compute the analog control from an effective GPN.
 
@@ -290,7 +290,7 @@ def continuous_analog_ctc(d_view, organism, active, expr_levels, random_num=1E04
 
 
 def metabolic_coherence(d_view, organism, active, bnumber2gene, rxn_centric=None,
-        random_num=1E04, return_sample=False, lb_view=None, **kw_args):
+        random_num=1E04, return_sample=False, lb_view=None):
     """
     Compute the metabolic coherence (MC) from an effective metabolic
     network.

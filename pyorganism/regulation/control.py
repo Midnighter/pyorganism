@@ -73,7 +73,7 @@ def setup_trn(trn, active):
         return numpy.nan
     return original
 
-def digital_control(trn, active, **kw_args):
+def digital_control(trn, active):
     """
     Compute the digital control of an effective TRN using a list of
     differentially expressed genes.
@@ -100,7 +100,7 @@ def digital_control(trn, active, **kw_args):
         return original
     return ms.discrete_total_ratio(original)
 
-def digital_ctc(trn, active, random_num=1E04, return_sample=False, **kw_args):
+def digital_ctc(trn, active, random_num=1E04, return_sample=False):
     """
     Compute the digital control type confidence of an effective TRN using a list
     of differentially expressed genes.
@@ -147,7 +147,7 @@ def digital_ctc(trn, active, random_num=1E04, return_sample=False, **kw_args):
         return z_score
 
 def continuous_digital_ctc(trn, active, expr_levels, random_num=1E04,
-        return_sample=False, evaluater=ms.continuous_functional_coherence, **kw_args):
+        return_sample=False, evaluater=ms.continuous_functional_coherence):
     """
     Compute a continuous digital control type confidence of given gene
     expression levels in the effective TRN.
@@ -226,7 +226,7 @@ def setup_trn_levels(nodes, gene2level):
 
 def delayed_continuous_digital_ctc(trn, active, expr_levels,
         delayed_expr_levels, random_num=1E04, return_sample=False,
-        delayed_evaluater=ms.continuous_functional_coherence, **kw_args):
+        delayed_evaluater=ms.continuous_functional_coherence):
     """
     Compute a continuous digital control type confidence of given gene
     expression levels in the effective TRN.
@@ -302,7 +302,7 @@ def setup_gpn(gpn, active):
         return numpy.nan
     return original
 
-def analog_control(gpn, active, **kw_args):
+def analog_control(gpn, active):
     """
     Compute the analog control from an effective GPN.
 
@@ -327,7 +327,7 @@ def analog_control(gpn, active, **kw_args):
         return original
     return ms.discrete_total_ratio(gpn)
 
-def analog_ctc(gpn, active, random_num=1E04, return_sample=False, **kw_args):
+def analog_ctc(gpn, active, random_num=1E04, return_sample=False):
     """
     Compute the analog control from an effective GPN.
 
@@ -361,7 +361,7 @@ def analog_ctc(gpn, active, random_num=1E04, return_sample=False, **kw_args):
         return z_score
 
 def continuous_analog_ctc(gpn, active, expr_levels, random_num=1E04,
-        return_sample=False, evaluater=ms.continuous_abs_coherence, **kw_args):
+        return_sample=False, evaluater=ms.continuous_abs_coherence):
     """
     Compute the analog control from an effective GPN.
 
@@ -400,8 +400,7 @@ def continuous_analog_ctc(gpn, active, expr_levels, random_num=1E04,
     else:
         return z_score
 
-def metabolic_coherence_ratio(metabolic_network, active, bnumber2gene, rxn_centric=None,
-        **kw_args):
+def metabolic_coherence_ratio(metabolic_network, active, bnumber2gene, rxn_centric=None):
     """
     Compute the metabolic coherence ratio (MCR) from an effective metabolic
     network.
@@ -452,7 +451,7 @@ def metabolic_coherence_ratio(metabolic_network, active, bnumber2gene, rxn_centr
     return ms.discrete_total_ratio(subnet)
 
 def metabolic_coherence(self, active, bnumber2gene, rxn_centric=None,
-        random_num=1E04, return_sample=False, **kw_args):
+        random_num=1E04, return_sample=False):
     """
     Compute the metabolic coherence (MC) from an effective metabolic
     network.
