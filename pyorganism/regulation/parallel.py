@@ -34,7 +34,6 @@ from .. import miscellaneous as misc
 from . import control as cntrl
 from . import measures as msr
 from ..statistics import compute_zscore
-from ..parallel.utils import multi_apply
 
 
 LOGGER = logging.getLogger(__name__)
@@ -86,14 +85,15 @@ def digital_ctc(d_view, trn, active, random_num=1E04, return_sample=False,
     # separate numbers
     tf_num = sum(int(isinstance(item, elem.TranscriptionFactor)) for item in original)
     gene_num = len(original) - tf_num
-    d_view.push(dict(gene_num=gene_num, tf_num=tf_num), block=True)
     LOGGER.info("picked %d transcription factors", tf_num)
     if isinstance(lb_view, LoadBalancedView):
         num_krnl = len(lb_view)
         chunk = random_num // num_krnl // 2
-        results = multi_apply(lb_view, _trn_sample, random_num, chunksize=chunk)
+        results = lb_view.map(_trn_sample, [tf_num] * random_num, [gene_num] * random_num,
+                chunksize=chunk, block=False)
     else:
-        results = multi_apply(d_view, _trn_sample, random_num)
+        results = d_view.map(_trn_sample, [tf_num] * random_num, [gene_num] * random_num,
+                block=False)
     samples = list(results)
 #    LOGGER.info("parallel speed-up was %.3g",
 #            results.serial_time / results.wall_time)
@@ -375,11 +375,11 @@ def _active_sample(size):
     return result
 
 @interactive
-def _trn_sample():
+def _trn_sample(tf_num, gene_num):
     """
     Sample from affected genes and transcription factors as null model.
     """
-    # make use of global variables `network`, `ratio`, `tfs`, `genes`, `tf_num`, `gene_num`
+    # make use of global variables `network`, `ratio`, `tfs`, `genes`
     trn = network
     local_tfs = random.sample(tfs, tf_num)
     local_genes = random.sample(genes, gene_num)
