@@ -7,7 +7,6 @@ numexpr==2.2.2
 numpy==1.8.0
 pandas==0.12.0
 Pygments==1.6
-pyorganism==0.1
 python-dateutil==2.2
 pytz==2013.9
 pyzmq==14.0.1
