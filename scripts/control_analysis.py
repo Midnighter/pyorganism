@@ -88,7 +88,7 @@ CONFIG = dict(
 )
 ################################################################################
 
-def prepare_digital(db_path, organism):
+def prepare_digital(db_path, organism, d_view):
     LOGGER.info("Loading TRN")
     organism.trn = pyorganism.read_pickle(os.path.join(db_path, "trn.pkl"))
     num = sum(1 for node in organism.trn.nodes_iter() if isinstance(node,
@@ -99,12 +99,14 @@ def prepare_digital(db_path, organism):
     LOGGER.info("%d regulated genes (%3.2f%%)", num, 100.0 * num /
             len(organism.trn))
     LOGGER.info("%d regulatory links", organism.trn.size())
+    pp.prepare_digital(d_view, organism.trn)
 
-def prepare_analog(db_path, organism):
+def prepare_analog(db_path, organism, d_view):
     LOGGER.info("Loading GPN")
     organism.gpn = pyorganism.read_pickle(os.path.join(db_path, "gpn_5000.pkl"))
     LOGGER.info("%d genes", len(organism.gpn))
     LOGGER.info("%d links", organism.gpn.size())
+    pp.prepare_analog(d_view, organism.gpn)
 
 def digital_analysis(version, data_name, trn, active, random_num, jackknife_fraction,
         jackknife_num, results, dv, lv=None):
@@ -239,7 +241,7 @@ def main(db_path):
     lv = rc.load_balanced_view()
     dv.execute("import pyorganism;import pyorganism.regulation as pyreg", block=True)
     for analysis in CONFIG["analyses"]:
-        ANAL_PREP.get(analysis, StandardError("unknown name"))(db_path, ecoli)
+        ANAL_PREP.get(analysis, StandardError("unknown name"))(db_path, ecoli, dv)
     for (analysis, data, random_num, jackknife_fraction, jackknife_num) in izip(
             CONFIG["analyses"], CONFIG["data_sets"], CONFIG["random_num"], CONFIG["jackknife_fraction"], CONFIG["jackknife_num"]):
         analysis_function = ANAL_RESOLVE.get(analysis, StandardError("unknown name"))

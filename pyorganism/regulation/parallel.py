@@ -17,8 +17,9 @@ PyOrganism Regulation Parallel Applications
 """
 
 
-__all__ = ["digital_ctc", "continuous_digital_ctc", "analog_ctc",
-        "continuous_analog_ctc","metabolic_coherence"]
+__all__ = ["prepare_digital", "digital_ctc", "continuous_digital_ctc",
+        "analog_ctc", "continuous_analog_ctc",
+        "metabolic_coherence"]
 
 
 import logging
@@ -39,6 +40,11 @@ from ..statistics import compute_zscore
 LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(misc.NullHandler())
 
+
+def prepare_digital(d_view, trn):
+    """Perform parallel setup that only has to be done once."""
+    d_view.execute("import random", block=True)
+    d_view.push(dict(network=trn, ratio=msr.discrete_total_ratio), block=True)
 
 def digital_ctc(d_view, trn, active, random_num=1E04, return_sample=False,
         lb_view=None):
@@ -76,8 +82,6 @@ def digital_ctc(d_view, trn, active, random_num=1E04, return_sample=False,
     original = cntrl.setup_trn(trn, active)
     if original is numpy.nan:
         return original
-    d_view.execute("import random", block=True)
-    d_view.push(dict(network=trn, ratio=msr.discrete_total_ratio), block=True)
     # new null model separates TFs and genes
     t_factors = set(node for node in trn if isinstance(node, elem.TranscriptionFactor))
     genes = set(node for node in trn if isinstance(node, elem.Gene))
@@ -95,8 +99,8 @@ def digital_ctc(d_view, trn, active, random_num=1E04, return_sample=False,
         results = d_view.map(_trn_sample, [tf_num] * random_num, [gene_num] * random_num,
                 block=False)
     samples = list(results)
-#    LOGGER.info("parallel speed-up was %.3g",
-#            results.serial_time / results.wall_time)
+    LOGGER.info("parallel speed-up was %.3g",
+            results.serial_time / results.wall_time)
     orig_ratio = msr.discrete_total_ratio(original)
     z_score = compute_zscore(orig_ratio, samples)
     if return_sample:
@@ -184,6 +188,11 @@ def continuous_digital_ctc(d_view, trn, active, expr_levels, random_num=1E04,
 #    else:
 #        return z_score
 
+def prepare_analog(d_view, gpn):
+    """Perform parallel setup that only has to be done once."""
+    d_view.execute("import random", block=True)
+    d_view.push(dict(network=gpn, total_ratio=msr.discrete_total_ratio), block=True)
+
 def analog_ctc(d_view, gpn, active, random_num=1E04, return_sample=False,
         lb_view=None):
     """
@@ -213,8 +222,6 @@ def analog_ctc(d_view, gpn, active, random_num=1E04, return_sample=False,
     original = cntrl.setup_gpn(gpn, active)
     if original is numpy.nan:
         return original
-    d_view.execute("import random", block=True)
-    d_view.push(dict(network=gpn, total_ratio=msr.discrete_total_ratio), block=True)
     size = len(original)
     sizes = [size for i in xrange(random_num)]
     if isinstance(lb_view, LoadBalancedView):
