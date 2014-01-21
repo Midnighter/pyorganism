@@ -117,8 +117,8 @@ CONFIG = dict(
         ],
 # other parameters, per analysis
         random_num=[
-                1E3,
-                1E3
+                1E6,
+                1E6
         ],
         jackknife_num=[
                 0,
@@ -169,7 +169,7 @@ def anonymous_discrete(name, version, data_name, network, active, random_num, ja
     LOGGER.info("Computing %s control", name)
     strength = CONTROL_FUNCS[name](network, active)
     LOGGER.info("Computing %s ctc", name)
-    ctc = pp.digital_ctc(dv, network, active, random_num, lb_view=lv)
+    ctc = CTC_FUNCS[name](dv, network, active, random_num, lb_view=lv)
     if jackknife_num > 0:
         LOGGER.info("Computing %s ctc robustness", name)
         LOGGER.setLevel(logging.WARN)
@@ -179,7 +179,7 @@ def anonymous_discrete(name, version, data_name, network, active, random_num, ja
             jacked = copy(active)
             jacked = [jacked.pop(numpy.random.randint(len(jacked))) for j in
                 range(jack_num)]
-            z_score = pp.digital_ctc(dv, network, active, random_num, lb_view=lv)
+            z_score = CTC_FUNCS[name](dv, network, active, random_num, lb_view=lv)
             robust.append(z_score)
         LOGGER.setLevel(logging.INFO)
         robust = numpy.array(robust, dtype=float)
