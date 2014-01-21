@@ -42,6 +42,45 @@ LOGGER.setLevel(logging.INFO)
 
 
 ################################################################################
+# functions known at configuration time
+
+def simple_discrete(df, name2gene, blattner2gene):
+    active = list()
+    for (name, blattner) in df[["name", "blattner"]].itertuples(index=False):
+        name_gene = name2gene.get(name)
+        if name_gene:
+            active.append(name_gene)
+            continue
+        blattner_gene = blattner2gene.get(blattner)
+        if blattner_gene:
+            active.append(blattner_gene)
+            continue
+    LOGGER.info("        %d DEGs", len(active))
+    return active
+
+def high_low_ratio(df, name2gene, blattner2gene):
+    pos = list()
+    neg = list()
+    for (name, blattner, ratio) in df[["name", "blattner", "ratio (A/B)"]].itertuples(index=False):
+        name_gene = name2gene.get(name)
+        if name_gene:
+            if ratio > 1.0:
+                pos.append(name_gene)
+            if ratio < 1.0:
+                neg.append(name_gene)
+            continue
+        blattner_gene = blattner2gene.get(blattner)
+        if blattner_gene:
+            if ratio > 1.0:
+                pos.append(blattner_gene)
+            if ratio < 1.0:
+                neg.append(blattner_gene)
+            continue
+    LOGGER.info("        %d over-expressed genes", len(pos))
+    LOGGER.info("        %d under-expressed genes", len(neg))
+    return (pos, neg)
+
+################################################################################
 # this should be moved to JSON
 base_data = "Expression/LZ41-LZ54_single_knockouts"
 CONFIG = dict(
@@ -72,18 +111,22 @@ CONFIG = dict(
                         'wt-hns-high'],
                 ['wt-fis-low', 'wt-fis-high', 'wt-hns-low', 'wt-hns-high']
         ],
+        significance=[
+                simple_discrete,
+                high_low_ratio
+        ],
 # other parameters, per analysis
         random_num=[
-                1E4,
-                1E4
+                1E3,
+                1E3
+        ],
+        jackknife_num=[
+                0,
+                0
         ],
         jackknife_fraction=[
                 0.1,
                 0.1
-        ],
-        jackknife_num=[
-                4,
-                4
         ]
 )
 ################################################################################
@@ -108,63 +151,56 @@ def prepare_analog(db_path, organism, d_view):
     LOGGER.info("%d links", organism.gpn.size())
     pp.prepare_analog(d_view, organism.gpn)
 
-def digital_analysis(version, data_name, trn, active, random_num, jackknife_fraction,
-        jackknife_num, results, dv, lv=None):
-    LOGGER.info("*" * 79)
-    LOGGER.info(data_name)
-    LOGGER.info("*" * 79)
-    LOGGER.info("Computing digital control")
-    dig = pyreg.digital_control(trn, active)
-    LOGGER.info("Computing digital ctc")
-#    (dig_ctc, sample) = pyreg.digital_ctc(trn, active, random_num, return_sample=True)
-    (dig_ctc, sample) = pp.digital_ctc(dv, trn,
-        active, random_num, return_sample=True)
-#        active, random_num, return_sample=True, lb_view=lv)
-    LOGGER.info("Computing digital ctc robustness")
-    LOGGER.setLevel(logging.WARN)
-    jack_num = int(numpy.floor(len(active) * jackknife_fraction))
-    robust = list()
-    for i in range(jackknife_num):
-        jacked = copy(active)
-        jacked = [jacked.pop(numpy.random.randint(len(jacked))) for j in
-            range(jack_num)]
-#        z_score = pyreg.digital_ctc(trn, active, random_num)
-        z_score = pp.digital_ctc(dv, trn, active, random_num)
-#        z_score = pp.digital_ctc(dv, trn, active, random_num, lb_view=lv)
-        robust.append(z_score)
-    LOGGER.setLevel(logging.INFO)
-    robust = numpy.array(robust, dtype=float)
-    results.append(version, "digital", False, dig, dig_ctc, data_name,
-            sample, robust)
+CONTROL_FUNCS = dict(
+        digital=pyreg.digital_control,
+        analog=pyreg.analog_control
+)
 
-def analog_analysis(version, data_name, gpn, active, random_num, jackknife_fraction,
-        jackknife_num, results, dv, lv=None):
+CTC_FUNCS = dict(
+        digital=pp.digital_ctc,
+        analog=pp.analog_ctc
+)
+
+def anonymous_discrete(name, version, data_name, network, active, random_num, jackknife_fraction,
+        jackknife_num, results, dv, lv=None, note=""):
     LOGGER.info("*" * 79)
     LOGGER.info(data_name)
     LOGGER.info("*" * 79)
-    LOGGER.info("Computing digital control")
-    dig = pyreg.analog_control(gpn, active)
-    LOGGER.info("Computing digital ctc")
-#    (dig_ctc, sample) = pyreg.analog_ctc(gpn, active, random_num, return_sample=True)
-    (dig_ctc, sample) = pp.analog_ctc(dv, gpn,
-        active, random_num, return_sample=True)
-#        active, random_num, return_sample=True, lb_view=lv)
-    LOGGER.info("Computing digital ctc robustness")
-    LOGGER.setLevel(logging.WARN)
-    jack_num = int(numpy.floor(len(active) * jackknife_fraction))
-    robust = list()
-    for i in range(jackknife_num):
-        jacked = copy(active)
-        jacked = [jacked.pop(numpy.random.randint(len(jacked))) for j in
-            range(jack_num)]
-#        z_score = pyreg.analog_ctc(gpn, active, random_num)
-        z_score = pp.analog_ctc(dv, gpn, active, random_num)
-#        z_score = pp.analog_ctc(dv, trn, active, random_num, lb_view=lv)
-        robust.append(z_score)
-    LOGGER.setLevel(logging.INFO)
-    robust = numpy.array(robust, dtype=float)
-    results.append(version, "analog", False, dig, dig_ctc, data_name,
-            sample, robust)
+    LOGGER.info("Computing %s control", name)
+    strength = CONTROL_FUNCS[name](network, active)
+    LOGGER.info("Computing %s ctc", name)
+    ctc = pp.digital_ctc(dv, network, active, random_num, lb_view=lv)
+    if jackknife_num > 0:
+        LOGGER.info("Computing %s ctc robustness", name)
+        LOGGER.setLevel(logging.WARN)
+        jack_num = int(numpy.floor(len(active) * jackknife_fraction))
+        robust = list()
+        for i in range(jackknife_num):
+            jacked = copy(active)
+            jacked = [jacked.pop(numpy.random.randint(len(jacked))) for j in
+                range(jack_num)]
+            z_score = pp.digital_ctc(dv, network, active, random_num, lb_view=lv)
+            robust.append(z_score)
+        LOGGER.setLevel(logging.INFO)
+        robust = numpy.array(robust, dtype=float)
+        results.append(version, name, False, data_name, strength, ctc,
+                robustness=robust, note=note)
+    else:
+        results.append(version, name, False, data_name, strength, ctc, note=note)
+
+def digital_discrete(name, version, data_name, organism, random_num, jackknife_fraction,
+        jackknife_num, results, dv, lv=None, note=""):
+    anonymous_discrete(name, version, data_name, organism.trn,
+            organism.significant[name][data_name], random_num, jackknife_fraction,
+            jackknife_num, results, dv, lv, note="")
+
+def analog_discrete(name, version, data_name, organism, random_num, jackknife_fraction,
+        jackknife_num, results, dv, lv=None, note=""):
+    (pos, neg) = organism.significant[name][data_name]
+    anonymous_discrete(name, version, data_name, organism.gpn, pos, random_num,
+            jackknife_fraction, jackknife_num, results, dv, lv, note="over")
+    anonymous_discrete(name, version, data_name, organism.gpn, neg, random_num,
+            jackknife_fraction, jackknife_num, results, dv, lv, note="under")
 
 ANAL_PREP = dict(
         digital=prepare_digital,
@@ -173,34 +209,20 @@ ANAL_PREP = dict(
 )
 
 ANAL_RESOLVE = dict(
-        digital=digital_analysis,
-        analog=analog_analysis,
-#        metabolic=metabolic_analysis
+        digital=digital_discrete,
+        analog=analog_discrete,
+#        metabolic=prepare_metabolic
 )
-
 def load_time_resolved(db_path, organism, experiment_paths):
     pass
 
 def load_discrete(db_path, organism, experiment_paths, loading_funcs):
-    LOGGER.info("Loading discrete expression data")
+    LOGGER.info("Loading discrete expression data:")
     for ((path, name), load_data) in izip(experiment_paths, loading_funcs):
-        LOGGER.info("%s: '%s'", name, path)
+        LOGGER.info("    %s: '%s'", name, path)
         organism.activity[name] = load_data(path)
 
-def simple_discrete(df, name2gene, blattner2gene):
-    active = list()
-    for (name, blattner) in df[["name", "blattner"]].itertuples(index=False):
-        name_gene = name2gene.get(name)
-        if name_gene:
-            active.append(name_gene)
-            continue
-        blattner_gene = blattner2gene.get(blattner)
-        if blattner_gene:
-            active.append(blattner_gene)
-            continue
-    return active
-
-def prepare_discrete(db_path, organism, analyses):
+def prepare_discrete(db_path, organism, analyses, analysis_sets, significance_functions):
     LOGGER.info("Loading genes")
     organism.genes = pyorganism.read_pickle(os.path.join(db_path, "genes.pkl"))
     LOGGER.info("Found %d", len(organism.genes))
@@ -214,12 +236,13 @@ def prepare_discrete(db_path, organism, analyses):
     num = sum(1 for gene in blattner2gene.itervalues() if gene)
     LOGGER.info("Map contains %d blattner numbers and %d genes (%3.2f%%)", len(blattner2gene),
             num, 100.0 * num / len(blattner2gene))
-    for data_sets in analyses:
+    for (analysis, data_sets, sig_func) in izip(analyses, analysis_sets, significance_functions):
+        LOGGER.info("Analysis '%s':", analysis)
+        organism.significant[analysis] = dict()
         for name in data_sets:
+            LOGGER.info("    Experiment '%s':", name)
             df = organism.activity[name]
-            organism.significant[name] = simple_discrete(df, name2gene,
-                    blattner2gene)
-            LOGGER.info("Experiment '%s': %d DEGs", name, len(organism.significant[name]))
+            organism.significant[analysis][name] = sig_func(df, name2gene, blattner2gene)
 
 def main(db_path):
     (base_dir, version) = os.path.split(db_path)
@@ -232,23 +255,26 @@ def main(db_path):
                 "/Continuous")
     else:
         load_discrete(db_path, ecoli, CONFIG["data_paths"], CONFIG["data_load"])
-        prepare_discrete(db_path, ecoli, CONFIG["data_sets"])
+        prepare_discrete(db_path, ecoli, CONFIG["analyses"], CONFIG["data_sets"],
+                CONFIG["significance"])
         results = ResultManager(os.path.join(base_dir, "control_results.h5"),
                 "/Discrete")
     # general parallel setup using IPython.parallel
     rc = Client()
     dv = rc.direct_view()
-    lv = rc.load_balanced_view()
+#    lv = rc.load_balanced_view()
+    lv = None
     dv.execute("import pyorganism;import pyorganism.regulation as pyreg", block=True)
-    for analysis in CONFIG["analyses"]:
-        ANAL_PREP.get(analysis, StandardError("unknown name"))(db_path, ecoli, dv)
     for (analysis, data, random_num, jackknife_fraction, jackknife_num) in izip(
             CONFIG["analyses"], CONFIG["data_sets"], CONFIG["random_num"], CONFIG["jackknife_fraction"], CONFIG["jackknife_num"]):
+        LOGGER.info("*" * 79)
+        LOGGER.info(analysis.upper())
+        LOGGER.info("*" * 79)
         analysis_function = ANAL_RESOLVE.get(analysis, StandardError("unknown name"))
+        ANAL_PREP.get(analysis, StandardError("unknown name"))(db_path, ecoli, dv)
         for name in data:
-            analysis_function(version, name, ecoli.trn, ecoli.significant[name], random_num,
+            analysis_function(analysis, version, name, ecoli, random_num,
                     jackknife_fraction, jackknife_num, results, dv, lv)
-        break
     results.finalize()
 
 
