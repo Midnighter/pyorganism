@@ -108,7 +108,10 @@ def digital_ctc(d_view, trn, active, random_num=1E04, return_sample=False,
     else:
         return z_score
 
-#TODO: adjust to operon based
+def prepare_continuous_digital(d_view):
+    """Perform parallel setup that only has to be done once."""
+    d_view.execute("import random;from itertools import izip;import numpy", block=True)
+
 def continuous_digital_ctc(d_view, trn, active, expr_levels, random_num=1E04,
         return_sample=False, lb_view=None,
         evaluater=msr.continuous_functional_coherence):
@@ -158,35 +161,42 @@ def continuous_digital_ctc(d_view, trn, active, expr_levels, random_num=1E04,
         else:
             orig_levels[i] = gene2level[node]
     orig2level = dict(izip(active, orig_levels))
-    (op_net, op2level) = msr._setup_continuous_operon_based(original, orig2level)
+    (op_net, op2level) = cntrl.setup_continuous_operon_based(original, orig2level)
     # in TRN structure the out-hubs and spokes differentiation matters
-#    out_ops = set(node for (node, deg) in op_net.out_degree_iter() if deg > 0)
-#    in_ops = set(op_net.nodes_iter()).difference(out_ops)
-#    out_levels = [op2level[op] for op in out_ops]
-#    in_levels = [op2level[op] for op in in_ops]
-#    d_view.execute("import numpy", block=True)
-#    d_view.push(dict(network=op_net, , izip=izip,
-#            continuous_coherence=evaluater), block=True) # TODO
-#    # TODO pushed active, call remote without parameters
-#    if isinstance(lb_view, LoadBalancedView):
-#        num_krnl = len(lb_view)
-#        chunk = random_num // num_krnl // 2
-#        results = lb_view.map(_trn_sample_expression_levels,
-#                [active for i in xrange(random_num)],
-#                block=False, ordered=False, chunksize=chunk)
-#    else:
-#        results = d_view.map(_trn_sample_expression_levels,
-#                [active for i in xrange(random_num)],
-#                block=False)
-#    sample = list(results)
-#    LOGGER.info("parallel speed-up was %.3g",
-#            results.serial_time / results.wall_time)
-#    orig_ratio = evaluater(op_net, op2level)
-#    z_score = compute_zscore(orig_ratio, sample)
-#    if return_sample:
-#        return (z_score, sample)
-#    else:
-#        return z_score
+    out_ops = set(node for (node, deg) in op_net.out_degree_iter() if deg > 0)
+    if len(out_ops) == 0:
+        LOGGER.error("no out-hubs in operon-based TRN")
+    in_ops = set(op_net.nodes_iter()).difference(out_ops)
+    if len(in_ops) == 0:
+        LOGGER.error("no targets in operon-based TRN")
+    out_levels = [op2level[op] for op in out_ops]
+    if len(out_levels) == 0:
+        LOGGER.error("no out-hub expression levels")
+    in_levels = [op2level[op] for op in in_ops]
+    if len(in_ops) == 0:
+        LOGGER.error("no target expression levels")
+    d_view.push(dict(network=op_net, continuous_coherence=evaluater), block=True) # TODO
+    if isinstance(lb_view, LoadBalancedView):
+        num_krnl = len(lb_view)
+        chunk = random_num // num_krnl // 2
+        results = lb_view.map(_continuous_trn_operon_sampling,
+                [out_ops] * random_num, [out_levels] * random_num,
+                [in_ops] * random_num, [in_levels] * random_num,
+                block=False, ordered=False, chunksize=chunk)
+    else:
+        results = d_view.map(_continuous_trn_operon_sampling,
+                [out_ops] * random_num, [out_levels] * random_num,
+                [in_ops] * random_num, [in_levels] * random_num,
+                block=False)
+    sample = list(results)
+    LOGGER.info("parallel speed-up was %.3g",
+            results.serial_time / results.wall_time)
+    orig_ratio = evaluater(op_net, op2level)
+    z_score = compute_zscore(orig_ratio, sample)
+    if return_sample:
+        return (z_score, sample)
+    else:
+        return z_score
 
 def prepare_analog(d_view, gpn):
     """Perform parallel setup that only has to be done once."""
@@ -240,8 +250,11 @@ def analog_ctc(d_view, gpn, active, random_num=1E04, return_sample=False,
     else:
         return z_score
 
-#TODO: adjust to operon based
-def continuous_analog_ctc(d_view, organism, active, expr_levels, random_num=1E04,
+def prepare_continuous_analog(d_view):
+    """Perform parallel setup that only has to be done once."""
+    d_view.execute("import random;from itertools import izip;import numpy", block=True)
+
+def continuous_analog_ctc(d_view, gpn, active, expr_levels, random_num=1E04,
         return_sample=False, lb_view=None,
         evaluater=msr.continuous_abs_coherence):
     """
@@ -266,29 +279,26 @@ def continuous_analog_ctc(d_view, organism, active, expr_levels, random_num=1E04
         BMC Systems Biology 2, 18.
     """
     random_num = int(random_num)
-    if organism.gpn is None or organism.gpn.size() == 0:
-        LOGGER.warn("empty gene proximity network")
-        return numpy.nan
-    original = msr.effective_network(organism.gpn, active)
-    size = len(original)
-    if size == 0:
-        LOGGER.warn("empty effective network")
-        return numpy.nan
-    d_view.execute("import numpy", block=True)
-    rnd_levels = numpy.array(expr_levels, dtype=float, copy=True)
-    d_view.push(dict(network=original, expr_levels=rnd_levels, izip=izip,
-            continuous_coherence=evaluater), block=True)
-    active_genes = [active for i in xrange(random_num)]
+    original = cntrl.setup_gpn(gpn, active)
+    if original is numpy.nan:
+        return original
+    gene2level = dict(izip(active, expr_levels))
+    (op_net, op2level) = cntrl.setup_continuous_operon_based(original, gene2level)
+    active = op_net.nodes()
+    levels = [op2level[op] for op in active]
+    d_view.push(dict(network=op_net, continuous_coherence=evaluater), block=True)
+    arg_genes = [active] * random_num
+    arg_levels = [levels] * random_num
     if isinstance(lb_view, LoadBalancedView):
         num_krnl = len(lb_view)
         chunk = random_num // num_krnl // 2
-        results = lb_view.map(_gpn_operon_based_sampling, active_genes, block=False,
-                ordered=False, chunksize=chunk)
+        results = lb_view.map(_gpn_operon_based_sampling, arg_genes, arg_levels,
+                block=False, ordered=False, chunksize=chunk)
     else:
-        results = d_view.map(_gpn_operon_based_sampling, active_genes, block=False)
+        results = d_view.map(_gpn_operon_based_sampling, arg_genes, arg_levels,
+                block=False)
     sample = list(results)
-    gene2level = dict(izip(active, expr_levels))
-    orig_ratio = evaluater(original, gene2level)
+    orig_ratio = evaluater(op_net, op2level)
     z_score = compute_zscore(orig_ratio, sample)
     if return_sample:
         return (z_score, sample)
@@ -433,51 +443,22 @@ def _trn_sample_expression_levels(active):
     gene2level = dict(izip(active, local_levels))
     return continuous_coherence(local_trn, gene2level)
 
-def continuous_trn_operon_sampling(op_net, out_ops, out_levels, in_ops,
+@interactive
+def _continuous_trn_operon_sampling(out_ops, out_levels, in_ops,
         in_levels):
     # select out- and in-ops and then compute similarity based on different
     # null-models
-    op2level = dict(izip(out_ops, numpy.random.shuffle(out_levels)))
-    op2level.update(izip(in_ops, numpy.random.shuffle(in_levels)))
-    return continuous_coherence(op_net, op2level)
+    numpy.random.shuffle(out_levels)
+    numpy.random.shuffle(in_levels)
+    op2level = dict(izip(out_ops, out_levels))
+    op2level.update(izip(in_ops, in_levels))
+    return continuous_coherence(network, op2level)
 
 @interactive
-def _gpn_operon_based_sampling(active):
+def _gpn_operon_based_sampling(active, levels):
     # make use of global variables `network`, `expr_levels`,
     # `continuous_coherence`
-    local_gpn = network
-    local_levels = expr_levels
-    all_ops = set(op for gene in active for op in gene.operons)
-    orig_gene2level = dict(izip(active, local_levels))
-    gene2level = dict()
-    no_op = list()
-    count = 0
-    for gene in active:
-        if gene in gene2level:
-            continue
-        if not gene.operons:
-            no_op.append(gene)
-            continue
-        # multiple operons per gene exist in older versions of RegulonDB
-        # we pick shortest of those operons
-        ops = list(gene.operons)
-        lengths = [len(op.genes) for op in ops]
-        op = ops[numpy.argsort(lengths)[0]]
-        targets = list(all_ops.difference(set([op])))
-        rnd_op = targets[numpy.random.randint(len(targets))]
-#        all_ops.difference_update(set([rnd_op]))
-        base_level = numpy.nan
-        for gn in rnd_op.genes:
-            if gn in orig_gene2level:
-                base_level = orig_gene2level[gn]
-                break
-        if numpy.isnan(base_level) and count < 10:
-            count += 1
-            LOGGER.warn("no change in base level")
-        for (i, gn) in enumerate(op.genes):
-            gene2level[gn] = base_level
-    no_op_levels = [orig_gene2level[gene] for gene in no_op]
-    numpy.random.shuffle(no_op_levels)
-    gene2level.update(izip(no_op, no_op_levels))
-    return continuous_coherence(local_gpn, gene2level)
+    numpy.random.shuffle(levels)
+    op2level = dict(izip(active, levels))
+    return continuous_coherence(network, op2level)
 

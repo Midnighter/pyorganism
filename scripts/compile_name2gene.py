@@ -83,28 +83,28 @@ def extend_feature_map(feature2gene, gap, gene_finder):
         except IndexError:
             continue
     gap = set(gap).difference(set(found))
-    LOGGER.info("Found %d additional genes", len(feature2gene))
+    LOGGER.info("Found %d additional genes", len(found))
     return gap
 
 def fuzzy_extension(feature2gene, gap, gene_finder, thresh=80):
-    found = 0
+    found = list()
     for name in gap:
         try:
             (gene, match, score) = gene_finder.fuzzy_search(name,
                     threshold=thresh, scorer=fuzz.QRatio)
             feature2gene[name] = gene
-            found += 1
+            found.append(name)
         except IndexError:
             LOGGER.debug("'%s' not found", name)
             feature2gene[name] = None
-    return found
+    gap = set(gap).difference(set(found))
+    LOGGER.info("Found %d additional genes", len(found))
+    return gap
 
 def synonym_finder(genes):
     targets = list()
     indeces = list()
     for (i, gene) in enumerate(genes):
-        targets.append(gene.name)
-        indeces.append(i)
         if gene.bnumber:
             targets.append(gene.bnumber)
             indeces.append(i)
@@ -230,11 +230,9 @@ def compile_name2gene(objects_path):
     name_gap = extend_feature_map(name2gene, name_gap, synonyms)
     LOGGER.info("Missing %d gene names", len(name_gap))
     LOGGER.info("Fuzzy search of gene names (threshold %d%%)", CONFIG["threshold"])
-    found = fuzzy_extension(name2gene, name_gap, finder, CONFIG["threshold"])
-    LOGGER.info("Added %d genes", found)
+    name_gap = fuzzy_extension(name2gene, name_gap, finder, CONFIG["threshold"])
 #    LOGGER.info("Fuzzy search of gene names by synonyms (threshold %d%%)", CONFIG["threshold"])
-#    found = fuzzy_extension(name2gene, name_gap, synonyms, CONFIG["threshold"])
-#    LOGGER.info("Added %d genes", found)
+#    name_gap = fuzzy_extension(name2gene, name_gap, synonyms, CONFIG["threshold"])
     manual_name_updates(name2gene)
     num = sum(1 for gene in name2gene.itervalues() if gene)
     LOGGER.info("Final map contains %d names and %d genes (%3.2f%%)", len(name2gene),
@@ -250,11 +248,9 @@ def compile_name2gene(objects_path):
     blattner_gap = extend_feature_map(blattner2gene, blattner_gap, synonyms)
     LOGGER.info("Missing %d gene blattner numbers", len(blattner_gap))
     LOGGER.info("Fuzzy search of gene blattner numbers (threshold %d%%)", CONFIG["threshold"])
-    found = fuzzy_extension(blattner2gene, blattner_gap, finder, CONFIG["threshold"])
-    LOGGER.info("Added %d genes", found)
+    blattner_gap = fuzzy_extension(blattner2gene, blattner_gap, finder, CONFIG["threshold"])
 #    LOGGER.info("Fuzzy search of gene blattner numbers by synonyms (threshold %d%%)", CONFIG["threshold"])
-#    found = fuzzy_extension(blattner2gene, blattner_gap, synonyms, CONFIG["threshold"])
-#    LOGGER.info("Added %d genes", found)
+#    blattner_gap = fuzzy_extension(blattner2gene, blattner_gap, synonyms, CONFIG["threshold"])
     num = sum(1 for gene in blattner2gene.itervalues() if gene)
     LOGGER.info("Final map contains %d blattner numbers and %d genes (%3.2f%%)",
             len(blattner2gene), num, 100.0 * num / len(blattner2gene))

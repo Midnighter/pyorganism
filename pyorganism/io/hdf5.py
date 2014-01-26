@@ -33,7 +33,7 @@ from .. import miscellaneous as misc
 LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(misc.NullHandler())
 
-UUID_LENGTH = 35
+UUID_LENGTH = 35 # stripped dashes plus 'sim' prefix
 
 
 class ExpressionData(tables.IsDescription):
@@ -67,7 +67,8 @@ class ControlData(tables.IsDescription):
     ctc = tables.Float64Col()
     robustness_mean = tables.Float64Col()
     robustness_std = tables.Float64Col()
-    note = tables.StringCol(30)
+    time = tables.UInt32Col()
+    note = tables.StringCol(60)
 
 
 class ResultManager(object):
@@ -85,7 +86,7 @@ class ResultManager(object):
             self.control = self.root.control
 
     def append(self, version, control_type, continuous, description, control_strength, ctc,
-            samples=None, robustness=None, note=""):
+            samples=None, robustness=None, time=None, note=""):
         unique_id = "sim" + str(uuid.uuid4()).replace("-", "")
         unique_id = unique_id[:UUID_LENGTH]
         if samples is not None:
@@ -112,6 +113,8 @@ class ResultManager(object):
         row["description"] = description
         row["control"] = control_strength
         row["ctc"] = ctc
+        if time is not None:
+            row["time"] = int(time)
         if note:
             row["note"] = note
         if robustness is not None:

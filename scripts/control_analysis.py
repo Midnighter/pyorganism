@@ -213,8 +213,6 @@ ANAL_RESOLVE = dict(
         analog=analog_discrete,
 #        metabolic=prepare_metabolic
 )
-def load_time_resolved(db_path, organism, experiment_paths):
-    pass
 
 def load_discrete(db_path, organism, experiment_paths, loading_funcs):
     LOGGER.info("Loading discrete expression data:")
@@ -250,9 +248,7 @@ def main(db_path):
         (base_dir, version) = os.path.split(os.path.dirname(db_path))
     ecoli = pyorganism.Organism(name="E. coli K12")
     if CONFIG["continuous"]:
-        load_time_resolved(db_path, ecoli, CONFIG["data_paths"])
-        results = ResultManager(os.path.join(base_dir, "control_results.h5"),
-                "/Continuous")
+        pass
     else:
         load_discrete(db_path, ecoli, CONFIG["data_paths"], CONFIG["data_load"])
         prepare_discrete(db_path, ecoli, CONFIG["analyses"], CONFIG["data_sets"],

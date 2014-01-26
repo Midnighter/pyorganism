@@ -17,9 +17,10 @@ Regulatory Control Measures
 """
 
 
-__all__ = ["digital_control", "digital_ctc", "continuous_digital_ctc",
-        "delayed_continuous_digital_ctc",
-        "analog_control", "analog_ctc", "continuous_analog_ctc",
+__all__ = ["digital_control", "digital_ctc", "continuous_digital_control",
+        "continuous_digital_ctc", "delayed_continuous_digital_ctc",
+        "analog_control", "analog_ctc", "continuous_analog_control",
+        "continuous_analog_ctc",
         "metabolic_coherence_ratio", "metabolic_coherence"]
 
 
@@ -47,9 +48,9 @@ OPTIONS = misc.OptionsManager.get_instance()
 
 def setup_continuous_operon_based(network, elem2level):
     op2level = defaultdict(list)
-    for (obj, level) in elem2level.iteritems():
-        for op in obj.get_operons():
-            op2level[op].append(level)
+    for node in network.nodes_iter():
+        for op in node.get_operons():
+            op2level[op].append(elem2level[node])
     ops = op2level.keys()
     levels = [numpy.mean(op2level[op]) for op in ops]
     op2level = dict(izip(ops, levels))
@@ -145,6 +146,45 @@ def digital_ctc(trn, active, random_num=1E04, return_sample=False):
         return (z_score, samples)
     else:
         return z_score
+
+def continuous_digital_control(trn, active, expr_levels,
+        evaluater=ms.continuous_functional_coherence):
+    """
+    Compute the digital control of an effective TRN using a list of
+    differentially expressed genes.
+
+    Parameters
+    ----------
+    trn: nx.(Multi)DiGraph
+        Static transcriptional regulatory network.
+    active: iterable
+        An iterable with gene instances that are differentially expressed.
+
+    Warning
+    -------
+    Gene instances not in the TRN are silently ignored.
+
+    References
+    ----------
+    [1] Marr, C., Geertz, M., Hütt, M.-T., Muskhelishvili, G., 2008.
+        Dissecting the logical types of network control in gene expression profiles.
+        BMC Systems Biology 2, 18.
+    """
+    original = setup_trn(trn, active)
+    if original is numpy.nan:
+        return original
+    gene2level = dict(izip(active, expr_levels))
+    active = original.nodes()
+    orig_levels = numpy.zeros(len(active), dtype=float)
+    for (i, node) in enumerate(active):
+        if isinstance(node, elem.TranscriptionFactor):
+            orig_levels[i] = numpy.mean([gene2level[gene] for gene in\
+                    node.coded_from if gene in gene2level])
+        else:
+            orig_levels[i] = gene2level[node]
+    orig2level = dict(izip(active, orig_levels))
+    (op_net, op2level) = setup_continuous_operon_based(original, orig2level)
+    return evaluater(op_net, op2level)
 
 def continuous_digital_ctc(trn, active, expr_levels, random_num=1E04,
         return_sample=False, evaluater=ms.continuous_functional_coherence):
@@ -360,6 +400,36 @@ def analog_ctc(gpn, active, random_num=1E04, return_sample=False):
     else:
         return z_score
 
+def continuous_analog_control(gpn, active, expr_levels,
+        evaluater=ms.continuous_abs_coherence):
+    """
+    Compute the analog control from an effective GPN.
+
+    Parameters
+    ----------
+    active: iterable
+        An iterable with names of genes.
+    expr_levels: iterable
+        An iterable in the same order as `active` with expression levels
+        (floats).
+
+    Warning
+    -------
+    Unknown gene names are silently ignored.
+
+    References
+    ----------
+    [1] Marr, C., Geertz, M., Hütt, M.-T., Muskhelishvili, G., 2008.
+        Dissecting the logical types of network control in gene expression profiles.
+        BMC Systems Biology 2, 18.
+    """
+    original = setup_gpn(gpn, active)
+    if original is numpy.nan:
+        return original
+    gene2level = dict(izip(active, expr_levels))
+    (op_net, op2level) = setup_continuous_operon_based(original, gene2level)
+    return evaluater(op_net, op2level)
+
 def continuous_analog_ctc(gpn, active, expr_levels, random_num=1E04,
         return_sample=False, evaluater=ms.continuous_abs_coherence):
     """
@@ -387,9 +457,9 @@ def continuous_analog_ctc(gpn, active, expr_levels, random_num=1E04,
     original = setup_gpn(gpn, active)
     if original is numpy.nan:
         return original
-    orig2level = dict(izip(active, expr_levels))
-    (op_net, op2level) = setup_continuous_operon_based(original, orig2level)
-    active = op2level.keys()
+    gene2level = dict(izip(active, expr_levels))
+    (op_net, op2level) = setup_continuous_operon_based(original, gene2level)
+    active = op_net.nodes()
     levels = [op2level[op] for op in active]
     sample = [ms.continuous_gpn_operon_sampling(op_net, active, levels,
         evaluater) for i in xrange(random_num)]

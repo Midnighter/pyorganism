@@ -69,7 +69,10 @@ def norm_zero_unity(vec):
     -------
     Beware of infinity values.
     """
-    min_v = vec.min(skipna=True)
-    max_v = vec.max(skipna=True)
-    return (vec - min_v) / (max_v - min_v)
+    mask = numpy.isfinite(vec)
+    if len(vec[mask]) == 0:
+        return vec
+    min_num = vec[mask].min()
+    max_num = vec[mask].max()
+    return (vec - min_num) / (max_num - min_num)
 
