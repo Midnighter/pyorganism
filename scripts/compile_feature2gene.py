@@ -141,6 +141,7 @@ def compile_feature2gene(objects_path):
     gap = fuzzy_extension(feature2gene, gap, finder, CONFIG["threshold"])
     LOGGER.info("Fuzzy search of gene names by synonyms (threshold %d%%)", CONFIG["threshold"])
     gap = fuzzy_extension(feature2gene, gap, synonyms, CONFIG["threshold"])
+    manual_name_updates(feature2gene)
     num = sum(1 for gene in feature2gene.itervalues() if gene)
     LOGGER.info("Final map contains %d names and %d genes (%3.2f%%)", len(feature2gene),
             num, 100.0 * num / len(feature2gene))
