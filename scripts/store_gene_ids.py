@@ -35,7 +35,7 @@ LOGGER.setLevel(logging.INFO)
 
 def create_dataframe(feature2gene, version):
     features = feature2gene.keys()
-    unique_ids = [feature2gene[item].unique_id if feature2gene[item] else ""\
+    unique_ids = [str(feature2gene[item].unique_id) if feature2gene[item] else ""\
             for item in features]
     df = pandas.DataFrame(data=unique_ids, index=features, columns=(version,))
     df.sort(inplace=True)

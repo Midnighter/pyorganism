@@ -63,6 +63,20 @@ def simple_continuous(df, feature2gene):
         results["levels"].append(levels)
     return results
 
+def shuffle(df, axis=0):
+    df = df.copy()
+    df.apply(numpy.random.shuffle, axis=axis, raw=True)
+    return df
+
+def randomised_continuous(df, feature2gene):
+    df = shuffle(df)
+    return simple_continuous(df, feature2gene)
+
+def fully_randomised_continuous(df, feature2gene):
+    df = shuffle(df)
+    df = shuffle(df, axis=1)
+    return simple_continuous(df, feature2gene)
+
 ################################################################################
 # this should be moved to JSON
 base_dir = "Expression/intra_strain"
@@ -185,7 +199,7 @@ def digital_continuous(name, version, data_name, organism, random_num, jackknife
         LOGGER.info("Evaluater: %s", eval_func.__name__)
         for i in range(len(active_genes)):
             LOGGER.info("*" * 79)
-            LOGGER.info("Time: %d", times[i])
+            LOGGER.info("Version: %s Time: %d", version, times[i])
             LOGGER.info("*" * 79)
             anonymous_continuous(name, version, data_name, organism.trn,
                 active_genes[i], levels[i], random_num, jackknife_fraction,
@@ -204,7 +218,7 @@ def analog_continuous(name, version, data_name, organism, random_num, jackknife_
         LOGGER.info("Evaluater: %s", eval_func.__name__)
         for i in range(len(active_genes)):
             LOGGER.info("*" * 79)
-            LOGGER.info("Time: %d", times[i])
+            LOGGER.info("Version: %s Time: %d", version, times[i])
             LOGGER.info("*" * 79)
             anonymous_continuous(name, version, data_name, organism.gpn,
                 active_genes[i], levels[i], random_num, jackknife_fraction,
@@ -248,7 +262,7 @@ def prepare_continuous(db_path, organism, analyses, analysis_sets, significance_
             df = organism.activity[name]
             organism.significant[analysis][name] = sig_func(df, feature2gene)
 
-def main(db_path):
+def main(db_path, output):
     (base_dir, version) = os.path.split(db_path)
     if not version:
         (base_dir, version) = os.path.split(os.path.dirname(db_path))
@@ -258,8 +272,7 @@ def main(db_path):
                 CONFIG["data_load"], CONFIG["data_args"])
         prepare_continuous(db_path, ecoli, CONFIG["analyses"], CONFIG["data_sets"],
                 CONFIG["significance"])
-        results = ResultManager(os.path.join(base_dir, "control_results.h5"),
-                "/Continuous")
+        results = ResultManager(output, "/Continuous")
     else:
         pass
     # general parallel setup using IPython.parallel
@@ -284,10 +297,10 @@ def main(db_path):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        LOGGER.critical("%s <RegulonDB objects path>", sys.argv[0])
+    if len(sys.argv) != 3:
+        LOGGER.critical("%s <RegulonDB objects: path> <results output: path>", sys.argv[0])
         sys.exit(2)
     else:
-        main(sys.argv[1])
+        main(sys.argv[1], sys.argv[2])
 
 
