@@ -27,7 +27,6 @@ import pyorganism
 import pyorganism.regulation as pyreg
 import pyorganism.regulation.parallel as pp
 
-from copy import copy
 from itertools import izip
 
 from IPython.parallel import Client
@@ -65,7 +64,7 @@ def simple_continuous(df, feature2gene):
 
 def shuffle(df, axis=0):
     df = df.copy()
-    df.apply(numpy.random.shuffle, axis=axis, raw=True)
+    df.apply(numpy.random.shuffle, axis=axis, raw=False)
     return df
 
 def randomised_continuous(df, feature2gene):
@@ -175,10 +174,11 @@ def anonymous_continuous(name, version, data_name, network, active, levels,
         jack_num = int(numpy.floor(len(active) * jackknife_fraction))
         robust = list()
         for i in range(jackknife_num):
-            jacked = copy(active)
-            jacked = [jacked.pop(numpy.random.randint(len(jacked))) for j in
-                range(jack_num)]
-            z_score = CTC_FUNCS[name](dv, network, active, levels, random_num, lb_view=lv)
+            jacked_ind = range(len(active))
+            jacked_ind = [jacked_ind.pop(numpy.random.randint(len(jacked_ind))) for j in range(jack_num)]
+            jacked = [active[j] for j in jacked_ind]
+            jacked_levels = [levels[j] for j in jacked_ind]
+            z_score = CTC_FUNCS[name](dv, network, jacked, jacked_levels, random_num, lb_view=lv)
             robust.append(z_score)
         LOGGER.setLevel(logging.INFO)
         robust = numpy.array(robust, dtype=float)
