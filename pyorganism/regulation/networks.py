@@ -69,22 +69,19 @@ class GRN(nx.MultiDiGraph):
     def __init__(self, data=None, name="", **kw_args):
         super(GRN, self).__init__(data=data, name=name, **kw_args)
 
-    def from_link_list(self, links):
-        for (u, v, inter) in links:
-            self.add_edge(elem.Gene[u], elem.Gene[v], key=inter)
-
     def to_trn(self):
-        trn = TRN(name="Transcriptinal Regulatory Network (TRN)")
-        for (gene_u, gene_v, k) in self.edges_iter(keys=True):
+        trn = TRN(name=self.name)
+        trn.graph.update(self.graph)
+        # do not add nodes since the procedure is ambiguous and 
+        # trn is defined by regulatory interactions
+        for (gene_u, gene_v, k, data) in self.edges_iter(keys=True, data=True):
             if isinstance(gene_u.regulatory_product, elem.TranscriptionFactor):
                 u = gene_u.regulatory_product
             else:
                 u = gene_u
-            if isinstance(gene_v.regulatory_product, elem.TranscriptionFactor):
-                v = gene_v.regulatory_product
-            else:
-                v = gene_v
-            trn.add_edge(u, v, key=k)
+            trn.add_edge(u, gene_v, key=k, **data)
+            trn.node[u].update(self.node[gene_u])
+            trn.node[gene_v].update(self.node[gene_v])
         return trn
 
 
@@ -113,14 +110,17 @@ class TRN(nx.MultiDiGraph):
     def __init__(self, data=None, name="", **kw_args):
         super(TRN, self).__init__(data=data, name=name, **kw_args)
 
-    def from_link_list(self, links):
-        for (u, v, inter) in links:
-            first = elem.TranscriptionFactor[u] if u in elem.TranscriptionFactor else elem.Gene[u]
-            if u == v:
-                self.add_edge(first, first, key=inter)
-                continue
-            second = elem.TranscriptionFactor[v] if v in elem.TranscriptionFactor else elem.Gene[v]
-            self.add_edge(first, second, key=inter)
+    def to_grn(self):
+        grn = GRN(name=self.name)
+        grn.graph.update(self.graph)
+        # do not add nodes since the procedure is ambiguous and 
+        # trn is defined by regulatory interactions
+        for (tf, gene, k, data) in self.edges_iter(keys=True, data=True):
+            for src_gene in tf.coded_from:
+                grn.add_edge(src_gene, gene, key=k, **data)
+                grn.node[src_gene].update(self.node[tf])
+                grn.node[gene].update(self.node[gene])
+        return grn
 
     def to_couplons(self, sf_links):
         couplon_gen = CouplonGenerator(self)

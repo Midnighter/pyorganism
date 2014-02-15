@@ -62,9 +62,12 @@ def simple_continuous(df, feature2gene):
         results["levels"].append(levels)
     return results
 
-def shuffle(df, axis=0):
+def shuffle(df, n_times=1, axis=0):
     df = df.copy()
-    df.apply(numpy.random.shuffle, axis=axis, raw=False)
+    axis = int(not axis)
+    for _ in range(n_times):
+        for view in numpy.rollaxis(df.values, axis):
+            numpy.random.shuffle(view)
     return df
 
 def randomised_continuous(df, feature2gene):
