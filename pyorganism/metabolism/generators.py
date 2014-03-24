@@ -24,7 +24,6 @@ __all__ = ["random_p_mn", "random_scale_free_mn", "random_normal_scale_free"]
 import logging
 import numpy
 import numpy.random
-import scipy
 
 from . import elements as pymet
 from . import networks as pynets
@@ -367,8 +366,8 @@ def random_normal_scale_free(num_compounds, num_reactions, num_reversible,
         network.add_node(new_react)
         b_stubs.extend([new_react] * rxn_distr[i])
     # shuffle lists
-    scipy.random.shuffle(a_stubs)
-    scipy.random.shuffle(b_stubs)
+    numpy.random.shuffle(a_stubs)
+    numpy.random.shuffle(b_stubs)
     # add edges
     for i in range(sum(cmpd_distr)):
         u = a_stubs[i]
