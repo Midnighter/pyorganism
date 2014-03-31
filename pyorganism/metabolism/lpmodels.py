@@ -100,11 +100,13 @@ def _grb_populate(attrs):
     attrs["_add_compound"] = _grb__add_compound
     attrs["_change_participation"] = _grb__change_participation
     attrs["_add_reaction"] = _grb__add_reaction
+    attrs["_del_reaction"] = _grb__del_reaction
     attrs["_change_coefficients"] = _grb__change_coefficients
     attrs["_adjust_bounds"] = _grb__adjust_bounds
     attrs["_bounds"] = _grb__bounds
     attrs["_fixed"] = _grb__fixed
     attrs["_add_transport"] = _grb__add_transport
+    attrs["_adjust_transport_bounds"] = _grb__adjust_transport_bounds
     attrs["_add_source"] = _grb__add_source
     attrs["_add_drain"] = _grb__add_drain
     attrs["_var2reaction"] = _grb__var2reaction
@@ -290,19 +292,31 @@ def _grb_make_integer(self, reaction):
 def _grb__add_reaction(self, reaction, lb, ub):
     if self._rxn2var.has_key(reaction):
         return False
+    lb = lb if not lb is None else OPTIONS.lower_bound
+    ub = ub if not ub is None else OPTIONS.upper_bound
+    if ub < lb:
+        raise PyOrganismError("Trying to set an upper bound that is smaller"\
+        " than the lower bound for '%s'.", str(reaction))
     if reaction.reversible:
         # we rely on lb being numeric here due to default options
-        if lb < 0:
+        if lb < 0.0 and ub < 0.0:
+            var_rev = self._model.addVar(abs(ub), abs(lb), name=str(reaction) +
+                    OPTIONS.reversible_suffix)
+            var = self._model.addVar(0.0, 0.0, name=str(reaction))
+        elif lb < 0.0:
             var_rev = self._model.addVar(0.0, abs(lb), name=str(reaction) +
                     OPTIONS.reversible_suffix)
             var = self._model.addVar(0.0, ub, name=str(reaction))
         else:
-            var_rev = self._model.addVar(lb, ub, name=str(reaction) +
+            var_rev = self._model.addVar(0.0, 0.0, name=str(reaction) +
                     OPTIONS.reversible_suffix)
             var = self._model.addVar(lb, ub, name=str(reaction))
         self._rev2var[reaction] = var_rev
         self._var2rev[var_rev] = reaction
     else:
+        if ub < 0.0 or lb < 0.0:
+            raise PyOrganismError("trying to set a negative bound for an\
+                    irreversible reaction '%s'.", str(reaction))
         var = self._model.addVar(lb, ub, name=str(reaction))
     self._rxn2var[reaction] = var
     self._var2rxn[var] = reaction
@@ -377,7 +391,7 @@ def _grb_iter_reactions(self, compound=None, coefficients=False):
 def _grb_modify_reaction_coefficients(self, reaction, coefficients):
     # we allow for lazy updating of the model here (better not be a bug)
     if hasattr(reaction, "__iter__"):
-        if hasattr(coefficients, "__iter__"):
+        if not hasattr(coefficients, "__iter__"):
             coefficients = itertools.repeat(coefficients)
         for (rxn, coeff_iter) in itertools.izip(reaction, coefficients):
             self._change_coefficients(rxn, coeff_iter)
@@ -400,16 +414,21 @@ def _grb__adjust_bounds(self, reaction, lb, ub):
     if reaction.reversible:
         var_rev = self._rev2var[reaction]
         if numeric_ub:
-            var.ub = ub
-            var_rev.ub = ub
+            # upper bound negative:
+            # only reverse reaction is active
+            if ub < 0.0:
+                var.ub = 0.0
+                var_rev.lb = abs(ub)
+            else:
+                var.ub = ub
+                var_rev.lb = 0.0
         if numeric_lb:
             if lb < 0.0:
-                var_rev.lb = 0.0
-                var_rev.ub = abs(lb)
                 var.lb = 0.0
+                var_rev.ub = abs(lb)
             else:
-                var_rev.lb = lb
                 var.lb = lb
+                var_rev.ub = 0.0
     else:
         if numeric_ub:
             var.ub = ub
@@ -420,14 +439,8 @@ def _grb_modify_reaction_bounds(self, reaction, lb=None, ub=None):
     # we allow for lazy updating of the model here (better not be a bug)
     if hasattr(reaction, "__iter__"):
         # we really modify multiple reactions
-        if hasattr(lb, "__iter__"):
-            lb_iter = lb
-        else:
-            lb_iter = itertools.repeat(lb)
-        if hasattr(ub, "__iter__"):
-            ub_iter = ub
-        else:
-            ub_iter = itertools.repeat(ub)
+        lb_iter = lb if hasattr(lb, "__iter__") else itertools.repeat(lb)
+        ub_iter = ub if hasattr(ub, "__iter__") else itertools.repeat(ub)
         for (rxn, lb, ub) in itertools.izip(reaction, lb_iter, ub_iter):
             self._adjust_bounds(rxn, lb, ub)
     else:
@@ -510,7 +523,7 @@ def _grb__add_source(self, compound, lb, ub):
             name=str(compound) + "_Source")
     return True
 
-def _grb_add_compound_source(self, compound, lb=None, ub=None):
+def _grb_add_source(self, compound, lb=None, ub=None):
     if lb is None:
         lb = OPTIONS.lower_bound
     if ub is None:
@@ -542,6 +555,32 @@ def _grb_add_compound_source(self, compound, lb=None, ub=None):
 def _grb_iter_sources(self):
     return self._sources.iterkeys()
 
+def _grb__adjust_transport_bounds(self, compound, var, lb, ub):
+    numeric_ub = not ub is None
+    numeric_lb = not lb is None
+    if numeric_ub and numeric_lb and ub < lb:
+        raise PyOrganismError("Trying to set an upper bound that is smaller"\
+        " than the lower bound for transport of '%s'.", str(compound))
+    if numeric_lb:
+        var.lb = lb
+    if numeric_ub:
+        var.ub = ub
+
+def _grb_modify_source_bounds(self, source, lb=None, ub=None):
+    # we allow for lazy updating of the model here (better not be a bug)
+    if hasattr(source, "__iter__"):
+        # we really modify multiple reactions
+        if not hasattr(lb, "__iter__"):
+            lb_iter = itertools.repeat(lb)
+        if not hasattr(ub, "__iter__"):
+            ub_iter = itertools.repeat(ub)
+        for (src, lb, ub) in itertools.izip(source, lb_iter, ub_iter):
+            self._adjust_transport_bounds(self._sources[src], lb, ub)
+    else:
+        self._adjust_transport_bounds(self._sources[source], lb, ub)
+    # for some reasons lazy updating of bounds does not work
+    self._model.update()
+
 def _grb_delete_source(self, compound):
     if hasattr(compound, "__iter__"):
         for cmpd in compound:
@@ -559,7 +598,7 @@ def _grb__add_drain(self, compound, lb, ub):
             name=str(compound) + "_Drain")
     return True
 
-def _grb_add_compound_drain(self, compound, lb=None, ub=None):
+def _grb_add_drain(self, compound, lb=None, ub=None):
     if lb is None:
         lb = OPTIONS.lower_bound
     if ub is None:
@@ -590,6 +629,21 @@ def _grb_add_compound_drain(self, compound, lb=None, ub=None):
 
 def _grb_iter_drains(self):
     return self._drains.iterkeys()
+
+def _grb_modify_drain_bounds(self, drain, lb=None, ub=None):
+    # we allow for lazy updating of the model here (better not be a bug)
+    if hasattr(drain, "__iter__"):
+        # we really modify multiple reactions
+        if not hasattr(lb, "__iter__"):
+            lb_iter = itertools.repeat(lb)
+        if not hasattr(ub, "__iter__"):
+            ub_iter = itertools.repeat(ub)
+        for (drn, lb, ub) in itertools.izip(drain, lb_iter, ub_iter):
+            self._adjust_transport_bounds(self._drains[drn], lb, ub)
+    else:
+        self._adjust_transport_bounds(self._drains[drain], lb, ub)
+    # for some reasons lazy updating of bounds does not work
+    self._model.update()
 
 def _grb_delete_drain(self, compound):
     if hasattr(compound, "__iter__"):
@@ -712,6 +766,8 @@ def _grb_parsimonious_fba(self):
         self._model.setObjective(self._grb.LinExpr(minimize))
     self._model.modelSense = self._grb.GRB.MINIMIZE
     self._model.optimize()
+    self._reset_objective()
+
 
 def _grb__status(self):
     """

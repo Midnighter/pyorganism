@@ -21,32 +21,32 @@ Flux Balance Analysis Model
 """
 
 
-__all__ = ["iAF1260_minimal_medium", "FBAModel"]
+__all__ = ["FBAModel"]
 
 
 from .lpmodels import MetaLPModelFacade
 
 
-iAF1260_minimal_medium = ["ca2_b",
-        "cl_b",
-        "co2_b",
-        "cobalt2_b",
-        "cu2_b",
-        "fe2_b",
-        "fe3_b",
-        "h_b",
-        "h2o_b",
-        "k_b",
-        "mg2_b",
-        "mn2_b",
-        "mobd_b",
-        "na1_b",
-        "nh4_b",
-        "pi_b",
-        "so4_b",
-        "tungs_b",
-        "zn2_b",
-        "cbl1_b"]
+#iAF1260_minimal_medium = ["ca2_b",
+#        "cl_b",
+#        "co2_b",
+#        "cobalt2_b",
+#        "cu2_b",
+#        "fe2_b",
+#        "fe3_b",
+#        "h_b",
+#        "h2o_b",
+#        "k_b",
+#        "mg2_b",
+#        "mn2_b",
+#        "mobd_b",
+#        "na1_b",
+#        "nh4_b",
+#        "pi_b",
+#        "so4_b",
+#        "tungs_b",
+#        "zn2_b",
+#        "cbl1_b"]
 
 
 class FBAModel(object):
@@ -65,13 +65,13 @@ class FBAModel(object):
     def copy(self):
         raise self._error
 
-    def add_compound(self, compound, coefficients):
+    def add_compound(self, compound, coefficients=None):
         """
-        Add a new reaction to the model.
+        Add a new compound to the model.
 
-        The method can also be used to add multiple reactions at the same time.
+        The method can also be used to add multiple compounds at the same time.
         In that case each argument must be an iterable of equal length and
-        matching positions corresponding to the same reaction.
+        matching positions corresponding to the same compound.
 
         Parameters
         ----------
@@ -315,7 +315,7 @@ class FBAModel(object):
         """
         raise self._error
 
-    def add_compound_source(self, compound, lb=None, ub=None):
+    def add_source(self, compound, lb=None, ub=None):
         """
         Adds a source for a certain compound or compounds to the model.
 
@@ -352,7 +352,7 @@ class FBAModel(object):
         """
         raise self._error
 
-    def add_compound_drain(self, compound, lb=None, ub=None):
+    def add_drain(self, compound, lb=None, ub=None):
         """
         Adds a drain for a certain compound or compounds to the model.
 

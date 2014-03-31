@@ -20,7 +20,6 @@ PyOrganism Base Classes
 __all__ = ["UniqueBase"]
 
 
-import weakref
 import logging
 
 from . import miscellaneous as misc
@@ -49,7 +48,7 @@ class MetaBase(type):
         """
         Adds a unique `dict` to each class.
         """
-        cls_dct["_memory"] = weakref.WeakValueDictionary()
+        cls_dct["_memory"] = dict()
         return super(MetaBase, mcls).__new__(mcls, cls_name, cls_bases, cls_dct)
 
     def __call__(cls, unique_id="", **kw_args):
@@ -64,8 +63,18 @@ class MetaBase(type):
         else:
             return memory
 
+    def __contains__(cls, unique_id):
+        return unique_id in cls._memory
+
     def __getitem__(cls, unique_id):
         return cls._memory[unique_id]
+
+    def __len__(cls):
+        return len(cls._memory)
+
+    def get(cls, unique_id, default=None):
+        return cls._memory.get(unique_id, default)
+
 
 class UniqueBase(object):
     """
@@ -104,10 +113,6 @@ class UniqueBase(object):
     __metaclass__ = MetaBase
     # immutable class attribute is subclass-specific automatically
     _counter = 0
-
-#    @classmethod
-#    def __getitem__(cls, unique_id):
-#        return cls._memory[unique_id]
 
     def __init__(self, unique_id="", **kw_args):
         """

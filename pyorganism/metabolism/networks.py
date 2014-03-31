@@ -469,13 +469,13 @@ class MetabolicNetwork(nx.DiGraph):
         # add compound nodes
         indeces = dict(itertools.izip(self.compounds, itertools.count()))
         for (cmpd, i) in indeces.iteritems():
-            net.add_node(i, label=cmpd.name, shape="circle", **node_attr)
+            net.add_node(i, label=str(cmpd), shape="ellipse", **node_attr)
         # add reactions
         indeces.update(itertools.izip(self.reactions,
                 itertools.count(len(self.compounds))))
         i = len(self.compounds) + len(self.reactions)
         for rxn in self.reactions:
-            net.add_node(indeces[rxn], label=rxn.name, shape="box", **node_attr)
+            net.add_node(indeces[rxn], label=str(rxn), shape="box", **node_attr)
             # add forward reaction links
             for cmpd in self.predecessors(rxn):
                 net.add_edge(indeces[cmpd], indeces[rxn], **link_attr)
@@ -483,9 +483,9 @@ class MetabolicNetwork(nx.DiGraph):
                 net.add_edge(indeces[rxn], indeces[cmpd], **link_attr)
             if rxn.reversible:
                 if distinct:
-                    rev = pymet.BasicReaction(rxn.name + OPTIONS.reversible_suffix)
+                    rev = pymet.BasicReaction(str(rxn) + OPTIONS.reversible_suffix)
                     indeces[rev] = i
-                    net.add_node(i, label=rev.name, shape="box", **node_attr)
+                    net.add_node(i, label=str(rev), shape="box", **node_attr)
                     # add backward reaction links
                     for cmpd in self.predecessors(rxn):
                         net.add_edge(indeces[rev], indeces[cmpd], **link_attr)
@@ -540,7 +540,7 @@ class CompoundCentricNetwork(nx.DiGraph):
         # add compound nodes
         for (i, cmpd) in enumerate(self.nodes_iter()):
             indeces[cmpd] = i
-            net.add_node(i, label=cmpd.name, shape="circle", **node_attr)
+            net.add_node(i, label=str(cmpd), shape="ellipse", **node_attr)
         # add links
         for (u, v) in self.edges_iter():
             net.add_edge(indeces[u], indeces[v], **link_attr)
@@ -579,7 +579,7 @@ class CompoundCentricMultiNetwork(nx.MultiDiGraph):
         # add compound nodes
         for (i, cmpd) in enumerate(self.nodes_iter()):
             indeces[cmpd] = i
-            net.add_node(i, label=cmpd.name, shape="circle", **node_attr)
+            net.add_node(i, label=str(cmpd), shape="ellipse", **node_attr)
         # add links
         for (u, v) in self.edges_iter():
             net.add_edge(indeces[u], indeces[v], **link_attr)
@@ -608,7 +608,7 @@ class ReactionCentricNetwork(nx.DiGraph):
         # add reaction nodes
         for (i, rxn) in enumerate(self.nodes_iter()):
             indeces[rxn] = i
-            net.add_node(i, label=rxn.name, shape="box", **node_attr)
+            net.add_node(i, label=str(rxn), shape="box", **node_attr)
         # add links
         for (u, v) in self.edges_iter():
             net.add_edge(indeces[u], indeces[v], **link_attr)
@@ -647,7 +647,7 @@ class ReactionCentricMultiNetwork(nx.MultiDiGraph):
         # add reaction nodes
         for (i, rxn) in enumerate(self.nodes_iter()):
             indeces[rxn] = i
-            net.add_node(i, label=rxn.name, shape="box", **node_attr)
+            net.add_node(i, label=str(rxn), shape="box", **node_attr)
         # add links
         for (u, v) in self.edges_iter():
             net.add_edge(indeces[u], indeces[v], **link_attr)

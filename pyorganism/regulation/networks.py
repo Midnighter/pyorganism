@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 
@@ -23,11 +22,13 @@ __all__ = ["GRN", "TRN", "CouplonGenerator", "GPNGenerator"]
 
 import logging
 import itertools
+
 import numpy
 import networkx as nx
 
 from datetime import date
 from operator import itemgetter, attrgetter
+
 from .. import miscellaneous as misc
 from ..io.generic import open_file, parser_warning
 from ..errors import PyOrganismError
@@ -60,29 +61,26 @@ class GRN(nx.MultiDiGraph):
 
     Examples
     --------
-    >>> trn = GRN(name="simple")
-    >>> trn.add_edge("lacZ", "ada", interaction=0)
+    >>> grn = GRN(name="simple")
+    >>> grn.add_edge("lacZ", "ada", key=0)
     """
 
     def __init__(self, data=None, name="", **kw_args):
         super(GRN, self).__init__(data=data, name=name, **kw_args)
 
-    def from_link_list(self, links):
-        for (u, v, inter) in links:
-            self.add_edge(elem.Gene[u], elem.Gene[v], key=inter)
-
     def to_trn(self):
-        trn = TRN(name="Transcriptinal Regulatory Network (TRN)")
-        for (gene_u, gene_v, k) in self.edges_iter(keys=True):
-            if type(gene_u.regulatory_product) == elem.TranscriptionFactor:
+        trn = TRN(name=self.name)
+        trn.graph.update(self.graph)
+        # do not add nodes since the procedure is ambiguous and 
+        # trn is defined by regulatory interactions
+        for (gene_u, gene_v, k, data) in self.edges_iter(keys=True, data=True):
+            if isinstance(gene_u.regulatory_product, elem.TranscriptionFactor):
                 u = gene_u.regulatory_product
             else:
                 u = gene_u
-            if type(gene_v.regulatory_product) == elem.TranscriptionFactor:
-                v = gene_v.regulatory_product
-            else:
-                v = gene_v
-            trn.add_edge(u, v, key=k)
+            trn.add_edge(u, gene_v, key=k, **data)
+            trn.node[u].update(self.node[gene_u])
+            trn.node[gene_v].update(self.node[gene_v])
         return trn
 
 
@@ -105,30 +103,23 @@ class TRN(nx.MultiDiGraph):
     Examples
     --------
     >>> trn = TRN(name="simple")
-    >>> trn.add_edge("Ada", "ada", interaction=0)
+    >>> trn.add_edge("Ada", "ada", key=0)
     """
 
     def __init__(self, data=None, name="", **kw_args):
         super(TRN, self).__init__(data=data, name=name, **kw_args)
 
-    def from_link_list(self, links):
-        for (u, v, inter) in links:
-            if u == v:
-                try:
-                    element = elem.TranscriptionFactor[u]
-                except KeyError:
-                    element = elem.Gene[u]
-                self.add_edge(element, element, key=inter)
-            else:
-                try:
-                    elem_u = elem.TranscriptionFactor[u]
-                except KeyError:
-                    elem_u = elem.Gene[u]
-                try:
-                    elem_v = elem.TranscriptionFactor[v]
-                except KeyError:
-                    elem_v = elem.Gene[v]
-                self.add_edge(elem_u, elem_v, key=inter)
+    def to_grn(self):
+        grn = GRN(name=self.name)
+        grn.graph.update(self.graph)
+        # do not add nodes since the procedure is ambiguous and 
+        # trn is defined by regulatory interactions
+        for (tf, gene, k, data) in self.edges_iter(keys=True, data=True):
+            for src_gene in tf.coded_from:
+                grn.add_edge(src_gene, gene, key=k, **data)
+                grn.node[src_gene].update(self.node[tf])
+                grn.node[gene].update(self.node[gene])
+        return grn
 
     def to_couplons(self, sf_links):
         couplon_gen = CouplonGenerator(self)
@@ -199,72 +190,6 @@ class TRN(nx.MultiDiGraph):
 #                elif partners[2] == "unknown":
 #                    add_link(regulator, partners[1], 0, partners[3])
 #                elif partners[2] == "dual":
-#                    add_link(regulator, partners[1], 2, partners[3])
-#                else:
-#                    warnings(line)
-#                    warnings = LOGGER.warn
-#
-#    def read_regulondb(self, filename, tf2gene, name2gene=None, sep="\t",
-#            encoding="utf-8", mode="rb", **kw_args):
-#        """
-#        Retrieve the TRN from a RegulonDB flat file.
-#
-#        Transcription factors in these interactions are replaced by the genes
-#        that produce them.
-#
-#        Parameters
-#        ----------
-#        filename: str
-#            The path to the file containing the interaction information.
-#        tf2gene: dict
-#            An association between transcription factors and their genes. Parsed
-#            from a gene product file.
-#        name2gene: dict (optional)
-#            The genes in the interactions between transcription factors and genes parsed
-#            from RegulonDB are given by their name. If instead the desired
-#            identifier is their Blattner number or RegulonDB identifier, a
-#            mapping is required.
-#        sep: str (optional)
-#            The column separator; not likely to change.
-#        encoding: str (optional)
-#            The file encoding.
-#        mode: str (optional)
-#            The mode used to open a file, should always be read binary.
-#        """
-#        def use_mapping(rgltr, gene, effct, evdnc):
-#            self.add_edge(name2gene[rgltr], name2gene[gene], interaction=effct,
-#                    evidence=evdnc)
-#
-#        def no_mapping(rgltr, gene, effct, evdnc):
-#            self.add_edge(rgltr, gene, interaction=effct, evidence=evdnc)
-#
-#        if not self.name:
-#            self.name = filename
-#        kw_args["encoding"] = encoding
-#        kw_args["mode"] = mode
-#        with open_file(filename, **kw_args) as (file_h, ext):
-#            interactions = file_h.readlines()
-#        if name2gene:
-#            add_link = use_mapping
-#        else:
-#            add_link = no_mapping
-#        warnings = parser_warning
-#        for line in interactions:
-#            line = line.strip()
-#            if line == "" or line.startswith("#"):
-#                continue
-#            partners = line.split(sep)
-#            regulators = tf2gene[partners[0]]
-#            if not isinstance(regulators, list):
-#                regulators = list(regulators)
-#            for regulator in regulators:
-#                if partners[2] == "-":
-#                    add_link(regulator, partners[1], -1, partners[3])
-#                elif partners[2] == "+":
-#                    add_link(regulator, partners[1], 1, partners[3])
-#                elif partners[2] == "?":
-#                    add_link(regulator, partners[1], 0, partners[3])
-#                elif partners[2] == "+-":
 #                    add_link(regulator, partners[1], 2, partners[3])
 #                else:
 #                    warnings(line)
@@ -467,6 +392,7 @@ class GPNGenerator(object):
         proximity_threshold = int(proximity_threshold)
         length = self.distances.shape[0]
         gpn = nx.Graph(name=name, window=proximity_threshold, **kw_args)
+        gpn.add_nodes_from(self.i2name.itervalues())
         valid = self.distances > -1
         for i in xrange(length - 1):
             for j in xrange(i + 1, length):
@@ -504,7 +430,7 @@ class GPNGenerator(object):
                 # we only use the UR triangle of the distances matrix
                 self.distances[i, j] = diffs.min()
         for gene in no_position:
-            LOGGER.info("no position information for gene '{0}'".format(gene))
+            LOGGER.warn("no position information for gene '{0}'".format(gene))
 
     def read_regulondb(self, filename, gene_identifier="name", sep="\t",
             comment="#", encoding="utf-8", mode="rb", **kw_args):
@@ -597,4 +523,21 @@ class GPNGenerator(object):
                 diff_4 = min(diff_4, genome_length - diff_4)
                 # we only use the UR triangle of the distances matrix
                 self.distances[i, j] = min(diff_1, diff_2, diff_3, diff_4)
+
+
+def to_operon_based(network):
+    orn = type(network)()
+    for node in network:
+        orn.add_nodes_from(node.get_operons())
+    if orn.is_multigraph():
+        for (u, v, inter) in network.edges_iter(keys=True):
+            for (op_1, op_2) in itertools.product(u.get_operons(),
+                    v.get_operons()):
+                orn.add_edge(op_1, op_2, key=inter)
+    else:
+        for (u, v) in network.edges_iter():
+            for (op_1, op_2) in itertools.product(u.get_operons(),
+                    v.get_operons()):
+                orn.add_edge(op_1, op_2)
+    return orn
 

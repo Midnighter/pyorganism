@@ -20,5 +20,6 @@ PyOrganism Regulation
 
 from .elements import *
 from .networks import *
+from .measures import *
 from .control import *
 

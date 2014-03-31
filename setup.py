@@ -19,6 +19,7 @@ PyOrganism Package
 
 
 from distutils.core import setup
+#from setuptools import setup
 
 
 setup(
@@ -30,8 +31,11 @@ setup(
     url = "http://github.com/Midnighter/pyorganism",
     packages = ["pyorganism",
             "pyorganism.io",
+            "pyorganism.io.tests",
             "pyorganism.metabolism",
+            "pyorganism.metabolism.tests",
             "pyorganism.regulation",
+            "pyorganism.parallel",
             "pyorganism.tests"],
 #    package_data = {"pyorganism": ["data/*.xml", "data/*.txt", "data/*.tsv"]},
     )

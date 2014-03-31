@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 
@@ -122,13 +121,14 @@ class OptionsManager(Singleton):
         self.compound_prefix = "M_"
         self.reaction_prefix = "R_"
         self.reversible_suffix = "_Rev"
-        self.compartments = {"_c": "Cytosol", "_e": "Extra_organism",
-                "_b": "Exchange", "_p": "Periplasm"}
+        self.compartment_suffixes = {}
+        self.exchange_suffix = "_b"
         self.lp_solver = "gurobi"
         self.lower_bound = 0.0
         self.upper_bound = 1000.0
         self.numeric_threshold = 1E-09
         self.num_cpu = 1
+
 
 def load_module(module, name=False, url=False):
     try:
@@ -147,10 +147,19 @@ def load_module(module, name=False, url=False):
         raise ImportError(" ".join(msg))
     return mod
 
-
 def convert(item, cls, default=None):
     """
     Convert an argument to a new type unless it is `None`.
     """
     return default if item is None else cls(item)
+
+def convert2numeral(item, cls=int, default=None):
+    """
+    Convert an argument to a new type unless it is `None`.
+    """
+    try:
+        num = cls(item)
+    except (ValueError, TypeError):
+        num = default
+    return num
 
