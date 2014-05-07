@@ -47,16 +47,6 @@ LOGGER.addHandler(misc.NullHandler())
 OPTIONS = misc.OptionsManager.get_instance()
 
 
-def effective_network(network, active):
-    """
-    Return the effective network imposed by a subset of nodes.
-    """
-    subnet = network.subgraph(active)
-    size = len(subnet)
-    LOGGER.info("{0:d}/{1:d} node(s) effective network - {2:d} entities ignored"\
-            .format(size, len(network), len(active) - size))
-    return subnet
-
 def discrete_marr_ratio(network):
     control = sum(1 for (node, deg) in network.degree_iter() if deg > 0)
     if control == len(network):
@@ -68,23 +58,23 @@ def discrete_total_ratio(network):
     control = sum(1 for (node, deg) in network.degree_iter() if deg > 0)
     return control / float(len(network))
 
-def active_sample(network, size):
+def active_sample(network, size, evaluate=discrete_total_ratio):
     """
     Sample from affected genes as null model.
     """
     sample = random.sample(network.nodes(), size)
     subnet = network.subgraph(sample)
-    result = discrete_total_ratio(subnet)
+    result = evaluate(subnet)
     return result
 
-def trn_sample(trn, tfs, tf_num, genes, gene_num):
+def trn_sample(trn, tfs, tf_num, genes, gene_num, evaluate=discrete_total_ratio):
     """
     Sample from affected genes and transcription factors as null model.
     """
     local_tfs = random.sample(tfs, tf_num)
     local_genes = random.sample(genes, gene_num)
     subnet = trn.subgraph(local_tfs + local_genes)
-    result = discrete_total_ratio(subnet)
+    result = evaluate(subnet)
     return result
 
 def jack_replace(active, replacement, replace_num):
@@ -130,27 +120,27 @@ def robustness_with_replacement(control_type, active, replacement, fraction=0.1,
     return distribution
 
 def continuous_trn_operon_sampling(op_net, out_ops, out_levels, in_ops,
-        in_levels, evaluater):
+        in_levels, evaluate):
     # select out- and in-ops and then compute similarity based on different
     # null-models
     numpy.random.shuffle(out_levels)
     numpy.random.shuffle(in_levels)
     op2level = dict(izip(out_ops, out_levels))
     op2level.update(izip(in_ops, in_levels))
-    return evaluater(op_net, op2level)
+    return evaluate(op_net, op2level)
 
 def delayed_continuous_trn_operon_sampling(op_net, active, levels,
-        delayed_levels, evaluater):
+        delayed_levels, evaluate):
     numpy.random.shuffle(levels)
     numpy.random.shuffle(delayed_levels)
     op2level = dict(izip(active, levels))
     delayed_op2level = dict(izip(active, delayed_levels))
-    return evaluater(op_net, op2level, delayed_op2level)
+    return evaluate(op_net, op2level, delayed_op2level)
 
-def continuous_gpn_operon_sampling(op_net, active, levels, evaluater):
+def continuous_gpn_operon_sampling(op_net, active, levels, evaluate):
     numpy.random.shuffle(levels)
     op2level = dict(izip(op_net, levels))
-    return evaluater(op_net, op2level)
+    return evaluate(op_net, op2level)
 
 def continuous_difference_coherence(network, elem2level):
     return sum([elem2level[u] - elem2level[v] for (u, v) in\

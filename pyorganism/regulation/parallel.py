@@ -40,6 +40,7 @@ from ..statistics import compute_zscore
 LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(misc.NullHandler())
 
+# TODO: phase-out parallel, rather run individual simulations in parallel
 
 def prepare_digital(d_view, trn):
     """Perform parallel setup that only has to be done once."""
@@ -80,7 +81,7 @@ def digital_ctc(d_view, trn, active, random_num=1E04, return_sample=False,
     """
     random_num = int(random_num)
     original = cntrl.setup_trn(trn, active)
-    if original is numpy.nan:
+    if numpy.isnan(original):
         return original
     # new null model separates TFs and genes
     t_factors = set(node for node in trn if isinstance(node, elem.TranscriptionFactor))
@@ -149,7 +150,7 @@ def continuous_digital_ctc(d_view, trn, active, expr_levels, random_num=1E04,
     """
     random_num = int(random_num)
     original = cntrl.setup_trn(trn, active)
-    if original is numpy.nan:
+    if numpy.isnan(original):
         return original
     gene2level = dict(izip(active, expr_levels))
     active = original.nodes()
@@ -230,7 +231,7 @@ def analog_ctc(d_view, gpn, active, random_num=1E04, return_sample=False,
     """
     random_num = int(random_num)
     original = cntrl.setup_gpn(gpn, active)
-    if original is numpy.nan:
+    if numpy.isnan(original):
         return original
     size = len(original)
     sizes = [size for i in xrange(random_num)]
@@ -280,7 +281,7 @@ def continuous_analog_ctc(d_view, gpn, active, expr_levels, random_num=1E04,
     """
     random_num = int(random_num)
     original = cntrl.setup_gpn(gpn, active)
-    if original is numpy.nan:
+    if numpy.isnan(original):
         return original
     gene2level = dict(izip(active, expr_levels))
     (op_net, op2level) = cntrl.setup_continuous_operon_based(original, gene2level)

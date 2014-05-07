@@ -18,7 +18,7 @@ PyOrganism Statistics
 """
 
 
-__all__ = ["compute_zscore"]
+__all__ = ["compute_zscore", "norm_zero2unity"]
 
 
 import logging
@@ -61,7 +61,7 @@ def compute_zscore(obs, random_stats):
     else:
         return (nominator / std)
 
-def norm_zero_unity(vec):
+def norm_zero2unity(vec):
     """
     Normalise a numpy.array to values between zero and unity.
 

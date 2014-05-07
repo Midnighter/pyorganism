@@ -21,18 +21,19 @@ __all__ = ["GRN", "TRN", "CouplonGenerator", "GPNGenerator"]
 
 
 import logging
-import itertools
 
 import numpy
 import networkx as nx
 
-from datetime import date
+from itertools import (product, izip)
 from operator import itemgetter, attrgetter
+from collections import defaultdict
+from datetime import date
 
-from .. import miscellaneous as misc
+from .elements import TranscriptionFactor
 from ..io.generic import open_file, parser_warning
+from .. import miscellaneous as misc
 from ..errors import PyOrganismError
-from . import elements as elem
 
 
 LOGGER = logging.getLogger(__name__)
@@ -71,10 +72,10 @@ class GRN(nx.MultiDiGraph):
     def to_trn(self):
         trn = TRN(name=self.name)
         trn.graph.update(self.graph)
-        # do not add nodes since the procedure is ambiguous and 
+        # do not add nodes since the procedure is ambiguous and
         # trn is defined by regulatory interactions
         for (gene_u, gene_v, k, data) in self.edges_iter(keys=True, data=True):
-            if isinstance(gene_u.regulatory_product, elem.TranscriptionFactor):
+            if isinstance(gene_u.regulatory_product, TranscriptionFactor):
                 u = gene_u.regulatory_product
             else:
                 u = gene_u
@@ -112,7 +113,7 @@ class TRN(nx.MultiDiGraph):
     def to_grn(self):
         grn = GRN(name=self.name)
         grn.graph.update(self.graph)
-        # do not add nodes since the procedure is ambiguous and 
+        # do not add nodes since the procedure is ambiguous and
         # trn is defined by regulatory interactions
         for (tf, gene, k, data) in self.edges_iter(keys=True, data=True):
             for src_gene in tf.coded_from:
@@ -405,7 +406,7 @@ class GPNGenerator(object):
         # assume the maximal end position of the genes is the total length
         genome_length = end(max(genes, key=end))
         length = len(genes)
-        self.i2name = dict(itertools.izip(xrange(length), genes))
+        self.i2name = dict(izip(xrange(length), genes))
         self.distances = numpy.zeros((length, length), dtype=int)
         self.distances.fill(-1)
         diffs = numpy.zeros(4, dtype=int)
@@ -423,7 +424,7 @@ class GPNGenerator(object):
                 # assuming a circular genome here,
                 # since RegulonDB is only for E. coli
                 # compute difference between start and end points (with overlap)
-                for (k, pair) in enumerate(itertools.product(gene_u.position,
+                for (k, pair) in enumerate(product(gene_u.position,
                         gene_v.position)):
                     diff = abs(pair[0] - pair[1])
                     diffs[k] = min(diff, genome_length - diff)
@@ -499,7 +500,7 @@ class GPNGenerator(object):
         # assume the maximal end position of the genes is the total length
         genome_length = end(max(genes, key=end))
         length = len(genes)
-        self.i2name = dict(itertools.izip(xrange(length),
+        self.i2name = dict(izip(xrange(length),
             (name(gene) for gene in genes)))
         self.distances = numpy.zeros((length, length), dtype=int)
         for i in xrange(length - 1):
@@ -525,19 +526,91 @@ class GPNGenerator(object):
                 self.distances[i, j] = min(diff_1, diff_2, diff_3, diff_4)
 
 
+def effective_network(network, active):
+    """
+    Return the effective network imposed by a subset of nodes.
+    """
+    subnet = network.subgraph(active)
+    size = len(subnet)
+    LOGGER.info("{0:d}/{1:d} node(s) effective network - {2:d} entities ignored"\
+            .format(size, len(network), len(active) - size))
+    return subnet
+
+def setup_trn(trn, active):
+    if trn is None or trn.size() == 0:
+        LOGGER.error("empty transcriptional regulatory network")
+        return numpy.nan
+    tf_genes = set([gene for gene in active if isinstance(gene.regulatory_product,
+            TranscriptionFactor)])
+    t_factors = [gene.regulatory_product for gene in tf_genes]
+    regulated = set(active) - tf_genes
+    regulated = list(regulated)
+    original = effective_network(trn, regulated + t_factors)
+    if original.size() == 0:
+        LOGGER.warn("empty effective network")
+        return numpy.nan
+    return (original, t_factors, regulated)
+
+def setup_trn_levels(t_factors, regulated, gene2level):
+    joint = t_factors + regulated
+    orig_levels = numpy.zeros(len(joint), dtype=float)
+    for (i, tf) in enumerate(t_factors):
+        orig_levels[i] = numpy.mean([gene2level[gene] for gene in\
+                tf.coded_from if gene in gene2level])
+    for (i, gene) in enumerate(regulated, start=len(t_factors)):
+        orig_levels[i] = gene2level[gene]
+    orig2level = dict(izip(t_factors + regulated, orig_levels))
+    return orig2level
+
+def setup_gpn(gpn, active):
+    if gpn is None or gpn.size() == 0:
+        LOGGER.error("empty gene proximity network")
+        return numpy.nan
+    original = effective_network(gpn, active)
+    if original.size() == 0:
+        LOGGER.warn("empty effective network")
+        return numpy.nan
+    return original
+
 def to_operon_based(network):
     orn = type(network)()
     for node in network:
         orn.add_nodes_from(node.get_operons())
     if orn.is_multigraph():
         for (u, v, inter) in network.edges_iter(keys=True):
-            for (op_1, op_2) in itertools.product(u.get_operons(),
+            for (op_1, op_2) in product(u.get_operons(),
                     v.get_operons()):
                 orn.add_edge(op_1, op_2, key=inter)
     else:
         for (u, v) in network.edges_iter():
-            for (op_1, op_2) in itertools.product(u.get_operons(),
+            for (op_1, op_2) in product(u.get_operons(),
                     v.get_operons()):
                 orn.add_edge(op_1, op_2)
     return orn
+
+def setup_continuous_operon_based(network, elem2level):
+    op2level = defaultdict(list)
+    for node in network.nodes_iter():
+        for op in node.get_operons():
+            op2level[op].append(elem2level[node])
+    ops = op2level.keys()
+    levels = [numpy.mean(op2level[op]) for op in ops]
+    op2level = dict(izip(ops, levels))
+    op_net = to_operon_based(network)
+    active_net = op_net.subgraph(ops)
+    if len(active_net) == 0 or active_net.size() == 0:
+        LOGGER.error("empty operon network")
+        return numpy.nan
+    return (active_net, op2level)
+
+def setup_metabolic(metabolic, rxn_centric):
+    if rxn_centric is None:
+        if metabolic is None:
+            LOGGER.error("no metabolic network")
+            return numpy.nan
+        else:
+            rxn_centric = metabolic.to_reaction_centric()
+    if rxn_centric.size() == 0:
+        LOGGER.error("empty metabolic network")
+        return numpy.nan
 

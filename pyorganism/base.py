@@ -75,6 +75,9 @@ class MetaBase(type):
     def get(cls, unique_id, default=None):
         return cls._memory.get(unique_id, default)
 
+    def clear(cls):
+        cls._memory.clear()
+
 
 class UniqueBase(object):
     """
@@ -180,6 +183,7 @@ class UniqueBase(object):
 
     def __repr__(self):
         return u"<{0}.{1} {2:d}>".format(self.__module__, self.__class__.__name__, id(self))
+
 
 def _unpickle_call(cls, unique_id):
     """
