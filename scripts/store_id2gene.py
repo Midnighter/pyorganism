@@ -13,7 +13,7 @@ Unified Storage of Gene ID Maps
 :Copyright:
     Copyright(c) 2014 Jacobs University of Bremen. All rights reserved.
 :File:
-    store_gene_ids.py
+    store_id2gene.py
 """
 
 
@@ -61,18 +61,26 @@ def inconsistencies(df):
     return faulty_indeces
 
 def store_joint_ids(map_path, frame_path, version=""):
-    LOGGER.info("Loading feature map")
-    feature2gene = pyorganism.read_pickle(map_path)
+    base_path = os.path.dirname(map_path)
     if not version:
-        version = os.path.basename(os.path.dirname(map_path))
+        version = os.path.basename(base_path)
+    LOGGER.info("{0:*^78s}".format(version))
+    # load into memory
+    LOGGER.info("Loading genes")
+    genes = pyorganism.read_pickle(os.path.join(base_path, "genes.pkl"))
+    LOGGER.info("Loading feature map")
+    id2gene = pyorganism.read_pickle(map_path)
     LOGGER.info("Creating data frame")
-    df = create_dataframe(feature2gene, version)
+    df = create_dataframe(id2gene, version)
     map_name = os.path.splitext(os.path.basename(map_path))[0]
     hdf_key = "/%s" % (map_name,)
+    LOGGER.info("Assembling joint frame")
     if os.path.exists(frame_path):
-        LOGGER.info("Assembling joint frame")
-        mapping = pandas.read_hdf(frame_path, hdf_key)
-        mapping[version] = pandas.Series(df[version], index=mapping.index)
+        try:
+            mapping = pandas.read_hdf(frame_path, hdf_key)
+            mapping[version] = pandas.Series(df[version], index=mapping.index)
+        except KeyError:
+            mapping = df
     else:
         mapping = df
     frame_info(mapping)

@@ -17,6 +17,10 @@ LOGGER.setLevel(logging.INFO)
 
 
 def construct_gpn(path, window_sizes):
+    version = os.path.basename(path)
+    if not version:
+        version = os.path.basename(os.path.dirname(path))
+    LOGGER.info("{0:*^78s}".format(version))
     genes = pyorganism.read_pickle(os.path.join(path, "genes.pkl"))
     gpn_gen = pyreg.GPNGenerator()
     gpn_gen.parse_genes(genes)

@@ -20,7 +20,7 @@ PyOrganism Regulatory Elements
 
 __all__ = ["Gene", "Product", "TranscriptionFactor", "SigmaFactor",
         "NucleoidAssociatedProtein", "Promoter", "TranscriptionUnit", "Operon",
-        "Conformation"]
+        "Conformation", "clear_memory"]
 
 import sys
 import logging
@@ -241,4 +241,16 @@ class Operon(UniqueBase):
         print >> stream, "name:", self.name
         print >> stream, "Genes:", ", ".join([gene.name if gene.name else "?" for gene in self.genes])
 
+
+def clear_memory():
+    Gene.clear()
+    Product.clear()
+    Regulator.clear()
+    TranscriptionFactor.clear()
+    SigmaFactor.clear()
+    NucleoidAssociatedProtein.clear()
+    Conformation.clear()
+    Promoter.clear()
+    TranscriptionUnit.clear()
+    Operon.clear()
 

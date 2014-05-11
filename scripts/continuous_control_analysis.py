@@ -64,7 +64,7 @@ def simple_continuous(df, feature2gene):
 
 def shuffle(df, n_times=1, axis=0):
     df = df.copy()
-    axis = int(not axis)
+    axis ^= 1 # make axes between numpy and pandas behave as expected
     for _ in range(n_times):
         for view in numpy.rollaxis(df.values, axis):
             numpy.random.shuffle(view)

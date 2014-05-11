@@ -5,9 +5,6 @@ import sys
 import os
 import logging
 
-import numpy
-import pandas
-
 import pyorganism
 import pyorganism.regulation as pyreg
 
@@ -125,6 +122,7 @@ def compile_feature2gene(objects_path):
     version = os.path.basename(objects_path)
     if not version:
         version = os.path.basename(os.path.dirname(objects_path))
+    LOGGER.info("{0:*^78s}".format(version))
     names = compile_names(CONFIG["data_paths"], CONFIG["data_load"])
     LOGGER.info("Loading genes")
     genes = pyorganism.read_pickle(os.path.join(objects_path, "genes.pkl"))

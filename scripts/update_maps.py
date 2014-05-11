@@ -36,6 +36,8 @@ def update_map(map_path, frame_path, update_from, version=""):
     base_path = os.path.dirname(map_path)
     if not version:
         version = os.path.basename(base_path)
+    LOGGER.info("{0:*^78s}".format(version))
+    # load into memory
     LOGGER.info("Loading genes")
     genes = pyorganism.read_pickle(os.path.join(base_path, "genes.pkl"))
     LOGGER.info("Reading data frame")
@@ -43,15 +45,16 @@ def update_map(map_path, frame_path, update_from, version=""):
     hdf_key = "/%s" % (map_name,)
     mapping = pandas.read_hdf(frame_path, hdf_key)
 #    frame_info(mapping)
-    feature2gene = dict()
+    id2gene = dict()
     for row in mapping[[version, update_from]].itertuples():
         if not row[1]:
-            feature2gene[row[0]] = pyreg.Gene.get(row[2])
+            id2gene[row[0]] = pyreg.Gene.get(row[2])
         elif row[1] != row[2]:
-            feature2gene[row[0]] = pyreg.Gene.get(row[2])
+            id2gene[row[0]] = pyreg.Gene.get(row[2])
         else:
-            feature2gene[row[0]] = pyreg.Gene.get(row[1])
-    pyorganism.write_pickle(feature2gene, map_path)
+            id2gene[row[0]] = pyreg.Gene.get(row[1])
+    pyorganism.write_pickle(id2gene, os.path.join(base_path, "corrected_" +
+        map_name + ".pkl"))
 
 
 if __name__ == "__main__":

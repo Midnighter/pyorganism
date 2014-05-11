@@ -1,0 +1,22 @@
+{
+    "versions":["8.1"],
+    "organism":"E. coli K12",
+    "continuous":true,
+    "experimental_base":"Expression/intra_strain",
+    "experimental_paths":["time_course_wt_interpol.txt", "time_course_fis_interpol.txt", "time_course_hns_interpol.txt"],
+    "experimental_names":["wt", "fis", "hns"],
+    "experimental_reader":["read_interpolated", "read_interpolated", "read_interpolated"],
+    "experimental_args":[[], ["fis"], ["hns"]],
+    "control_types":["digital", "analog"],
+    "regulondb_base":"RegulonDBObjects",
+    "gene_paths":["genes.pkl", "genes.pkl"],
+    "mapping_paths":["feature2gene.pkl", "feature2gene.pkl"],
+    "network_paths":["trn.pkl", "gpn_5000.pkl"],
+    "experimental_sets":[["wt", "fis", "hns"], ["wt", "fis", "hns"]],
+    "experimental_setup":[["simple_continuous", "simple_continuous", "simple_continuous"], ["simple_continuous", "simple_continuous", "simple_continuous"]],
+    "method":["continuous_digital_ctc_fixed_tf_num", "continuous_analog_ctc"],
+    "measures":[["continuous_difference_coherence", "continuous_abs_coherence", "continuous_functional_coherence", "continuous_functional_comparison"], ["continuous_difference_coherence", "continuous_abs_coherence"]],
+    "random_num":[1E0, 1E0],
+    "robustness_num": [0, 0],
+    "robustness_args": [[0.1], [0.1]]
+}

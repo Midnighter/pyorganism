@@ -37,6 +37,10 @@ class NodeConverter(object):
 
 
 def construct_trn(path):
+    version = os.path.basename(path)
+    if not version:
+        version = os.path.basename(os.path.dirname(path))
+    LOGGER.info("{0:*^78s}".format(version))
     # load objects so that they are in memory
     conformations = pyorganism.read_pickle(os.path.join(path, "conformations.pkl"))
     t_units = pyorganism.read_pickle(os.path.join(path, "transcription_units.pkl"))

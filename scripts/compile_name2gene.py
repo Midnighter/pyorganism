@@ -216,6 +216,7 @@ def compile_name2gene(objects_path):
     version = os.path.basename(objects_path)
     if not version:
         version = os.path.basename(os.path.dirname(objects_path))
+    LOGGER.info("{0:*^78s}".format(version))
     LOGGER.info("Loading genes")
     genes = pyorganism.read_pickle(os.path.join(objects_path, "genes.pkl"))
     LOGGER.info("Finding gene names")

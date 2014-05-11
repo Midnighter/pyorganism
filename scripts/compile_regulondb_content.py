@@ -206,6 +206,7 @@ def main(argv):
     if not os.path.exists(argv[1]):
         os.makedirs(argv[1])
     version = argv[2] if len(argv) == 3 else os.path.basename(argv[0])
+    LOGGER.info("{0:*^78s}".format(version))
     version = tuple([int(num) for num in version.split(".")])
     # compile genes and gene products
     gene_file = os.path.join(argv[1], "genes.pkl")

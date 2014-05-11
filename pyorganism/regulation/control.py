@@ -17,10 +17,11 @@ Regulatory Control Measures
 """
 
 
-__all__ = ["digital_control", "digital_ctc", "continuous_digital_control",
-        "continuous_digital_ctc_fixed_tf_num", "delayed_continuous_digital_ctc",
-        "analog_control", "analog_ctc", "continuous_analog_control",
-        "continuous_analog_ctc",
+__all__ = ["digital_control", "digital_ctc", "digital_ctc_fixed_tf_num",
+        "continuous_digital_control", "continuous_digital_ctc_fixed_tf_num",
+        "delayed_continuous_digital_ctc",
+        "analog_control", "analog_ctc",
+        "continuous_analog_control", "continuous_analog_ctc",
         "metabolic_coherence_ratio", "metabolic_coherence"]
 
 
