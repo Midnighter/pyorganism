@@ -64,11 +64,13 @@ class ControlData(tables.IsDescription):
     continuous = tables.BoolCol() # discrete or continuous
     description = tables.StringCol(30)
     control = tables.Float64Col() # analog or digital control or metabolic coherence
+    control_method = tables.StringCol(60)
     ctc = tables.Float64Col()
+    ctc_method = tables.StringCol(60)
+    measure = tables.StringCol(60)
     robustness_mean = tables.Float64Col()
     robustness_std = tables.Float64Col()
     time = tables.UInt32Col()
-    note = tables.StringCol(60)
 
 
 class ResultManager(object):
@@ -85,8 +87,9 @@ class ResultManager(object):
             self.robustness = self.root.robustness
             self.control = self.root.control
 
-    def append(self, version, control_type, continuous, description, control_strength, ctc,
-            samples=None, robustness=None, time=None, note=""):
+    def append(self, version, control_type, continuous, description,
+            control_strength, control_method, ctc, ctc_method, measure,
+            samples=None, robustness=None, time=None):
         unique_id = "sim" + str(uuid.uuid4()).replace("-", "")
         unique_id = unique_id[:UUID_LENGTH]
         if samples is not None:
@@ -112,11 +115,12 @@ class ResultManager(object):
         row["continuous"] = continuous
         row["description"] = description
         row["control"] = control_strength
+        row["control_method"] = control_method
         row["ctc"] = ctc
+        row["ctc_method"] = ctc_method
+        row["measure"] = measure
         if time is not None:
             row["time"] = int(time)
-        if note:
-            row["note"] = note
         if robustness is not None:
             mask = numpy.isfinite(robustness)
             row["robustness_mean"] = robustness[mask].mean()

@@ -23,4 +23,5 @@ from .errors import *
 from .organism import *
 from .io.generic import *
 from .search import *
+from .statistics import *
 

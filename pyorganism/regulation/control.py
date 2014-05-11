@@ -68,7 +68,7 @@ def digital_control(trn, active, measure=ms.discrete_total_ratio):
         BMC Systems Biology 2, 18.
     """
     (original, _, _) = nets.setup_trn(trn, active)
-    if numpy.isnan(original):
+    if original is numpy.nan:
         return original
     return measure(original)
 
@@ -102,7 +102,7 @@ def digital_ctc(trn, active, random_num=1E04, return_sample=False,
     """
     random_num = int(random_num)
     (original, _, _) = nets.setup_trn(trn, active)
-    if numpy.isnan(original):
+    if original is numpy.nan:
         return original
     size = len(original)
     sample = [ms.active_sample(trn, size, evaluate=measure) for i in xrange(random_num)]
@@ -142,7 +142,7 @@ def digital_ctc_fixed_tf_num(trn, active, random_num=1E04, return_sample=False,
     """
     random_num = int(random_num)
     (original, t_factors, regulated) = nets.setup_trn(trn, active)
-    if numpy.isnan(original):
+    if original is numpy.nan:
         return original
     # separate numbers
     tf_num = len(t_factors)
@@ -180,7 +180,7 @@ def continuous_digital_control(trn, active, expr_levels,
         BMC Systems Biology 2, 18.
     """
     (original, t_factors, regulated) = nets.setup_trn(trn, active)
-    if numpy.isnan(original):
+    if original is numpy.nan:
         return original
     gene2level = dict(izip(active, expr_levels))
     orig2level = nets.setup_trn_levels(t_factors, regulated, gene2level)
@@ -219,7 +219,7 @@ def continuous_digital_ctc_fixed_tf_num(trn, active, expr_levels, random_num=1E0
     """
     random_num = int(random_num)
     (original, t_factors, regulated) = nets.setup_trn(trn, active)
-    if numpy.isnan(original):
+    if original is numpy.nan:
         return original
     gene2level = dict(izip(active, expr_levels))
     orig2level = nets.setup_trn_levels(t_factors, regulated, gene2level)
@@ -238,7 +238,7 @@ def continuous_digital_ctc_fixed_tf_num(trn, active, expr_levels, random_num=1E0
     if len(in_ops) == 0:
         LOGGER.error("no target expression levels")
     sample = [ms.continuous_trn_operon_sampling(op_net, out_ops, out_levels,
-            in_ops, in_levels, evaluater=measure) for i in xrange(random_num)]
+            in_ops, in_levels, evaluate=measure) for i in xrange(random_num)]
     orig_ratio = measure(op_net, op2level)
     z_score = compute_zscore(orig_ratio, sample)
     if return_sample:
@@ -279,7 +279,7 @@ def delayed_continuous_digital_ctc(trn, active, expr_levels,
     """
     random_num = int(random_num)
     (original, t_factors, regulated) = nets.setup_trn(trn, active)
-    if numpy.isnan(original):
+    if original is numpy.nan:
         return original
     gene2level = dict(izip(active, expr_levels))
     orig2level = nets.setup_trn_levels(t_factors, regulated, gene2level)
@@ -335,7 +335,7 @@ def analog_control(gpn, active):
         BMC Systems Biology 2, 18.
     """
     original = nets.setup_gpn(gpn, active)
-    if numpy.isnan(original):
+    if original is numpy.nan:
         return original
     return ms.discrete_total_ratio(gpn)
 
@@ -362,7 +362,7 @@ def analog_ctc(gpn, active, random_num=1E04, return_sample=False,
     """
     random_num = int(random_num)
     original = nets.setup_gpn(gpn, active)
-    if numpy.isnan(original):
+    if original is numpy.nan:
         return original
     size = len(original)
     sample = [ms.active_sample(gpn, size, evaluate=measure) for i in xrange(random_num)]
@@ -396,7 +396,7 @@ def continuous_analog_control(gpn, active, expr_levels,
         BMC Systems Biology 2, 18.
     """
     original = nets.setup_gpn(gpn, active)
-    if numpy.isnan(original):
+    if original is numpy.nan:
         return original
     gene2level = dict(izip(active, expr_levels))
     (op_net, op2level) = nets.setup_continuous_operon_based(original, gene2level)
@@ -427,7 +427,7 @@ def continuous_analog_ctc(gpn, active, expr_levels, random_num=1E04,
     """
     random_num = int(random_num)
     original = nets.setup_gpn(gpn, active)
-    if numpy.isnan(original):
+    if original is numpy.nan:
         return original
     gene2level = dict(izip(active, expr_levels))
     (op_net, op2level) = nets.setup_continuous_operon_based(original, gene2level)
@@ -465,7 +465,7 @@ def metabolic_coherence_ratio(metabolic_network, active, bnumber2gene,
 
     """
     rxn_centric = nets.setup_metabolic(metabolic_network, rxn_centric)
-    if numpy.isnan(rxn_centric):
+    if rxn_centric is numpy.nan:
         return rxn_centric
     bpattern = re.compile(r"b\d{4}")
     active_reactions = list()
@@ -511,7 +511,7 @@ def metabolic_coherence(metabolic_network, active, bnumber2gene, rxn_centric=Non
     """
     random_num = int(random_num)
     rxn_centric = nets.setup_metabolic(metabolic_network, rxn_centric)
-    if numpy.isnan(rxn_centric):
+    if rxn_centric is numpy.nan:
         return rxn_centric
     bpattern = re.compile(r"b\d{4}")
     active_reactions = list()
