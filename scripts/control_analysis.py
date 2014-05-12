@@ -15,18 +15,17 @@ import pyorganism.regulation as pyreg
 import pyorganism.io.microarray as pymicro
 
 from itertools import izip
+from signal import SIGINT
+from logging.config import dictConfig
 
 from IPython.parallel import (Client, interactive)
-from progressbar import ProgressBar
+from progressbar import (ProgressBar, Timer, Bar, Percentage, ETA)
 
 from pyorganism.io.hdf5 import ResultManager
 
 
-logging.basicConfig()
 LOGGER = logging.getLogger()
-#LOGGER.setLevel(logging.INFO)
-LOGGER.setLevel(logging.DEBUG)
-#LOGGER.addHandler(logging.StreamHandler())
+LOGGER.addHandler(logging.StreamHandler())
 
 
 def check_path(path):
@@ -142,7 +141,7 @@ def worker(spec):
     pyreg.clear_memory()
     return (spec, res_cntrl, res_ctc)
 
-def main(args):
+def main(remote_client, args):
     config = json.load(codecs.open(args.config, encoding=args.encoding, mode="rb"))
     organism = pyorg.Organism(name=config["organism"])
     if config["continuous"]:
@@ -150,29 +149,29 @@ def main(args):
     else:
         load_discrete(organism, config)
     # general parallel setup using IPython.parallel
-    rc = Client(profile=args.profile, cluster_id=args.cluster_id)
-    dv = rc.direct_view()
     LOGGER.info("Remote imports")
-    dv.execute("import numpy; "\
+    d_view = remote_client.direct_view()
+    d_view.execute("import numpy; "\
             "import pyorganism as pyorg; import pyorganism.regulation as pyreg;"\
             "import logging; from IPython.config import Application;"\
             "LOGGER = Application.instance().log;"\
             "LOGGER.setLevel(logging.DEBUG);", block=True) # make level variable
     LOGGER.info("Transfer data")
     if config["continuous"]:
-        dv.push({"organism": organism, "simple_continuous": simple_continuous,
+        d_view.push({"organism": organism, "simple_continuous": simple_continuous,
                 "randomised_continuous": randomised_continuous,
                 "fully_randomised_continuous": fully_randomised_continuous},
                 block=True)
         result_mngr = ResultManager(config["output"], "/Continuous")
         jobs = continuous_jobs(organism, config)
     else:
-        dv.push({"organism": organism}, block=True)
+        d_view.push({"organism": organism}, block=True)
         result_mngr = ResultManager(config["output"], "/Discrete")
         jobs = discrete_jobs(organism, config)
-    lv = rc.load_balanced_view()
-    bar = ProgressBar(maxval=len(jobs), widgets=None).start()
-    results_it = lv.map(worker, jobs, ordered=False, block=False)
+    l_view = remote_client.load_balanced_view()
+    bar = ProgressBar(maxval=len(jobs), widgets=[Timer(), " ", Percentage(),
+            " ", Bar(), " ", ETA()]).start()
+    results_it = l_view.map(worker, jobs, ordered=False, block=False)
     for (spec, res_cntrl, res_ctc) in results_it:
         LOGGER.debug(res_cntrl)
         LOGGER.debug(res_ctc)
@@ -180,8 +179,8 @@ def main(args):
                 spec["experiment"], res_cntrl, spec["control"], res_ctc,
                 spec["ctc"], spec["measure"], time=int(float(spec["time"])))
         bar.update(bar.currval + 1)
-    bar.finish()
     result_mngr.finalize()
+    bar.finish()
     LOGGER.info("parallel speed-up was %.3g",
             results_it.serial_time / results_it.wall_time)
 
@@ -195,10 +194,26 @@ if __name__ == "__main__":
             help="IPython profile to connect to cluster (default: %(default)s)")
     parser.add_argument("--cluster-id", dest="cluster_id", default=None,
             help="IPython cluster-id to connect to (default: %(default)s)")
-    parser.add_argument("--level", dest="level", default="info",
-            help="Log level, i.e., debug, info, warn, error, critical (default: %(default)s)")
+    parser.add_argument("--log-level", dest="log_level", default="INFO",
+            help="Log level, i.e., DEBUG, INFO, WARN, ERROR, CRITICAL (default: %(default)s)")
     parser.add_argument("--encoding", dest="encoding", default="utf-8",
             help="File encoding to assume (default: %(default)s)")
     args = parser.parse_args()
-    sys.exit(main(args))
+    dictConfig({"version": 1, "incremental": True, "root": {"level": args.log_level}})
+    remote_client = Client(profile=args.profile, cluster_id=args.cluster_id)
+    pid_map = remote_client[:].apply_async(os.getpid).get_dict()
+    LOGGER.debug(str(pid_map))
+    try:
+        sys.exit(main(remote_client, args))
+    except: # we want to catch everything
+        (err, msg, trace) = sys.exc_info()
+        for (engine_id, pid) in pid_map.iteritems():
+            LOGGER.debug("interrupting engine %d", engine_id)
+            try:
+                os.kill(pid, SIGINT)
+            except OSError:
+                continue
+        raise err, msg, trace
+    finally:
+        logging.shutdown()
 

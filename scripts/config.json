@@ -11,7 +11,7 @@
     "control_types":["digital", "analog"],
     "regulondb_base":"RegulonDBObjects",
     "gene_paths":["genes.pkl", "genes.pkl"],
-    "mapping_paths":["feature2gene.pkl", "feature2gene.pkl"],
+    "mapping_paths":["corrected_feature2gene.pkl", "corrected_feature2gene.pkl"],
     "network_paths":["trn.pkl", "gpn_5000.pkl"],
     "experimental_sets":[["wt", "fis", "hns"], ["wt", "fis", "hns"]],
     "experimental_setup":[["simple_continuous", "simple_continuous", "simple_continuous"], ["simple_continuous", "simple_continuous", "simple_continuous"]],
