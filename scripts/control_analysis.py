@@ -178,7 +178,7 @@ def main(remote_client, args):
         result_mngr.append(spec["version"], spec["control_type"], spec["continuous"],
                 spec["experiment"], res_cntrl, spec["control"], res_ctc,
                 spec["ctc"], spec["measure"], time=int(float(spec["time"])))
-        bar.update(bar.currval + 1)
+        bar += 1
     result_mngr.finalize()
     bar.finish()
     LOGGER.info("parallel speed-up was %.3g",
