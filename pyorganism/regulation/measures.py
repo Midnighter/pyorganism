@@ -31,8 +31,9 @@ from .. import miscellaneous as misc
 
 __all__ = ["discrete_marr_ratio",
         "discrete_total_ratio",
-        "continuous_difference_coherence",
         "continuous_abs_coherence",
+        "continuous_difference_coherence",
+        "continuous_abs_difference_coherence",
         "continuous_functional_coherence",
         "continuous_functional_comparison",
         "delayed_continuous_difference_coherence",
@@ -142,12 +143,16 @@ def continuous_gpn_operon_sampling(op_net, active, levels, evaluate):
     op2level = dict(izip(op_net, levels))
     return evaluate(op_net, op2level)
 
+def continuous_abs_coherence(network, elem2level):
+    return sum([1.0 - abs(elem2level[u] - elem2level[v]) for (u, v) in\
+            network.edges_iter()])
+
 def continuous_difference_coherence(network, elem2level):
     return sum([elem2level[u] - elem2level[v] for (u, v) in\
             network.edges_iter()])
 
-def continuous_abs_coherence(network, elem2level):
-    return sum([1.0 - abs(elem2level[u] - elem2level[v]) for (u, v) in\
+def continuous_abs_difference_coherence(network, elem2level):
+    return sum([abs(elem2level[u] - elem2level[v]) for (u, v) in\
             network.edges_iter()])
 
 def continuous_functional_coherence(network, elem2level):
