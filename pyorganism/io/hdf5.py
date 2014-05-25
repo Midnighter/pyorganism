@@ -78,14 +78,9 @@ class ResultManager(object):
     def __init__(self, filename, key="/", **kw_args):
         super(ResultManager, self).__init__(**kw_args)
         self.key = key
-        if not os.path.exists(filename):
-            self._setup(filename)
-        else:
-            self.h5_file = tables.open_file(filename, mode="a")
-            self.root = self.h5_file._get_node(self.key)
-            self.samples = self.root.samples
-            self.robustness = self.root.robustness
-            self.control = self.root.control
+        self.h5_file = tables.open_file(filename, mode="a",
+                title="Control Analysis Data")
+        self._setup()
 
     def append(self, version, control_type, continuous, description,
             control_strength, control_method, ctc, ctc_method, measure,
@@ -131,19 +126,34 @@ class ResultManager(object):
         row.append()
         self.control.flush()
 
-    def _setup(self, filename):
-        self.h5_file = tables.open_file(filename, mode="w",
-                title="Control Analysis Data")
+    def _setup(self):
+        group = self.h5_file.root
         components = self.key.split("/")
-        self.h5_file.create_group("/", components[1])
-        for i in range(2, len(components)):
-            self.h5_file.create_group("/".join(components[:i]), components[i])
-        self.root = self.h5_file._get_node(self.key)
-        self.samples = self.h5_file.create_group(self.root, "samples", title="Null Model Samples")
-        self.robustness = self.h5_file.create_group(self.root, "robustness",
-                title="Robustness Analysis Results")
-        self.control = self.h5_file.create_table(self.root, "control",
-                ControlData, title="Summary table for all control analysis results.")
+        for node in components:
+            try:
+                group = self.h5_file.get_node(group, node)
+                if not isinstance(group, tables.Group):
+                    raise IOError("given key '{key}' contains none-Group nodes".format(
+                            key=self.key))
+            except tables.NoSuchNodeError:
+                group = self.h5_file.create_group(group, node)
+        self.root = group
+        try:
+            self.samples = self.root.samples
+        except tables.NoSuchNodeError:
+            self.samples = self.h5_file.create_group(self.root, "samples",
+                    title="Null Model Samples")
+        try:
+            self.robustness = self.root.robustness
+        except tables.NoSuchNodeError:
+            self.robustness = self.h5_file.create_group(self.root, "robustness",
+                    title="Robustness Analysis Results")
+        try:
+            self.control = self.root.control
+        except tables.NoSuchNodeError:
+            self.control = self.h5_file.create_table(self.root, "control",
+                    ControlData,
+                    title="Summary table for all control analysis results.")
 
     def finalize(self):
         self.h5_file.close()

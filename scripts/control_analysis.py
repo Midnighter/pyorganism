@@ -14,7 +14,7 @@ import pyorganism as pyorg
 import pyorganism.regulation as pyreg
 import pyorganism.io.microarray as pymicro
 
-from itertools import izip
+from itertools import (izip, chain)
 from signal import SIGINT
 from logging.config import dictConfig
 
@@ -31,6 +31,103 @@ LOGGER.addHandler(logging.StreamHandler())
 def check_path(path):
     if not os.path.exists(path):
         raise IOError("file does not exist '{path}'".format(path=path))
+
+
+##############################################################################
+# Discrete
+##############################################################################
+
+
+def load_discrete(organism, config):
+    LOGGER.info("Loading differentially expressed genes:")
+    for (basename, name, reader, extra) in izip(config["experimental_paths"],
+            config["experimental_names"], config["experimental_reader"],
+            config["experimental_args"]):
+        reader_func = getattr(pymicro, reader)
+        path = os.path.join(config["experimental_base"], basename)
+        check_path(path)
+        LOGGER.info("  %s: '%s'", name, path)
+        organism.activity[name] = reader_func(path)
+
+def simple_discrete(df, name2gene):
+    # TODO: take care of nan values
+    active = [name2gene[name] for name in df["name"]]
+    LOGGER.info("  mapped %d/%d active genes", len(active), len(df))
+    return active
+
+def ratio_discrete(df, name2gene):
+    up = (df["ratio (A/B)"] > 1.0)
+    down = (df["ratio (A/B)"] < 1.0)
+    # TODO: take care of nan values
+    up_regulated = [name2gene[name] for name in df[up]["name"]]
+    down_regulated = [name2gene[name] for name in df[down]["name"]]
+    LOGGER.info("  mapped %d/%d up-regulated genes", len(up_regulated), up.sum())
+    LOGGER.info("  mapped %d/%d down-regulated genes", len(down_regulated), down.sum())
+    return (up_regulated, down_regulated)
+
+def discrete_jobs(organism, config):
+    LOGGER.info("Generating discrete job specifications:")
+    jobs = list()
+    # TODO: take care of up/down for analog
+    for version in config["versions"]:
+        for (cntrl_name, gene_file, map_file, net_file, experiments, setups,
+                control, ctc, measures, random_num, robustness_num,
+                rob_extra) in izip(config["control_types"],
+                config["gene_paths"], config["mapping_paths"], config["network_paths"],
+                config["experimental_sets"], config["experimental_setup"],
+                config["control"], config["ctc"],
+                config["measures"], config["random_num"],
+                config["robustness_num"], config["robustness_args"]):
+            gene_path = os.path.join(config["regulondb_base"], version, gene_file)
+            check_path(gene_path)
+            map_path = os.path.join(config["regulondb_base"], version, map_file)
+            check_path(map_path)
+            net_path = os.path.join(config["regulondb_base"], version, net_file)
+            check_path(net_path)
+            for ms_name in measures:
+                for (exp_name, exp_setup) in izip(experiments, setups):
+                    spec = dict()
+                    spec["version"] = version
+                    spec["continuous"] = config["continuous"]
+                    spec["control_type"] = cntrl_name
+                    spec["genes"] = gene_path
+                    spec["mapping"] = map_path
+                    spec["network"] = net_path
+                    spec["experiment"] = exp_name
+                    spec["setup"] = exp_setup
+                    spec["control"] = control
+                    spec["ctc"] = ctc
+                    spec["measure"] = ms_name
+                    spec["random_num"] = random_num
+                    spec["robustness_num"] = robustness_num
+                    spec["robustness_args"] = rob_extra
+                    jobs.append(spec)
+    LOGGER.info("  %d jobs", len(jobs))
+    return jobs
+
+@interactive
+def discrete_worker(spec):
+    organism = globals()["organism"]
+    setup_func = globals()[spec["setup"]]
+    control = getattr(pyreg, spec["control"])
+    ctc = getattr(pyreg, spec["ctc"])
+    measure = getattr(pyreg, spec["measure"])
+    genes = pyorg.read_pickle(spec["genes"]) # load genes into memory
+    id2gene = pyorg.read_pickle(spec["mapping"])
+    net = pyorg.read_pickle(spec["network"])
+    df = organism.activity[spec["experiment"]]
+    prepared = setup_func(df, id2gene)
+    active = prepared["active"]
+    LOGGER.debug(len(active))
+    res_cntrl = control(net, active, measure=measure)
+    res_ctc = ctc(net, active, random_num=spec["random_num"], measure=measure)
+    pyreg.clear_memory()
+    return (spec, res_cntrl, res_ctc)
+
+##############################################################################
+# Continuous
+##############################################################################
+
 
 def simple_continuous(df, feature2gene):
     df[df <= 0.0] = numpy.nan
@@ -50,9 +147,31 @@ def simple_continuous(df, feature2gene):
         results["levels"].append(levels)
     return results
 
+def rate_continuous(df, feature2gene):
+    df[df <= 0.0] = numpy.nan
+    df = df.apply(pyorg.norm_zero2unity, axis=1, raw=True)
+    results = dict()
+    results["time"] = list()
+    results["active"] = list()
+    results["levels"] = list()
+    num_cols = len(df.columns)
+    for i in range(num_cols - 1):
+        col_a = df.icol(i)
+        col_b = df.icol(i + 1)
+        eligible = df.index[numpy.isfinite(col_a) & numpy.isfinite(col_b)]
+        mask = [bool(feature2gene[name]) for name in eligible]
+        active = [feature2gene[name] for name in eligible[mask]]
+        levels = col_b[eligible[mask]] - col_a.loc[eligible[mask]]
+        LOGGER.info("        %s - %s min: %d active genes", col_a.name,
+                col_b.name, len(active))
+        results["time"].append(col_b.name)
+        results["active"].append(active)
+        results["levels"].append(levels)
+    return results
+
 def shuffle(df, n_times=1, axis=0):
     df = df.copy()
-    axis ^= 1 # make axes between numpy and pandas behave as expected
+    axis ^= 1 # make axes between numpy and pandas behave as expected (only 2D!)
     for _ in range(n_times):
         for view in numpy.rollaxis(df.values, axis):
             numpy.random.shuffle(view)
@@ -98,6 +217,7 @@ def continuous_jobs(organism, config):
             check_path(net_path)
             for ms_name in measures:
                 for (exp_name, exp_setup) in izip(experiments, setups):
+# TODO: need to change this to use the actual times (for rate and delayed)
                     times = organism.activity[exp_name].columns
                     for time_point in times:
                         spec = dict()
@@ -121,7 +241,7 @@ def continuous_jobs(organism, config):
     return jobs
 
 @interactive
-def worker(spec):
+def continuous_worker(spec):
     organism = globals()["organism"]
     setup_func = globals()[spec["setup"]]
     control = getattr(pyreg, spec["control"])
@@ -141,13 +261,26 @@ def worker(spec):
     pyreg.clear_memory()
     return (spec, res_cntrl, res_ctc)
 
+
+##############################################################################
+# Main
+##############################################################################
+
+
 def main(remote_client, args):
     config = json.load(codecs.open(args.config, encoding=args.encoding, mode="rb"))
     organism = pyorg.Organism(name=config["organism"])
     if config["continuous"]:
-        load_continuous(organism, config)
+        load_func = load_continuous
+        table_key = "/Continuous"
+        job_gen = continuous_jobs
+        worker = continuous_worker
     else:
-        load_discrete(organism, config)
+        load_func = load_discrete
+        table_key = "/Discrete"
+        job_gen = discrete_jobs
+        worker = discrete_worker
+    load_func(organism, config)
     # general parallel setup using IPython.parallel
     LOGGER.info("Remote imports")
     d_view = remote_client.direct_view()
@@ -155,19 +288,15 @@ def main(remote_client, args):
             "import pyorganism as pyorg; import pyorganism.regulation as pyreg;"\
             "import logging; from IPython.config import Application;"\
             "LOGGER = Application.instance().log;"\
-            "LOGGER.setLevel(logging.DEBUG);", block=True) # make level variable
+            "LOGGER.setLevel(logging.{level});".format(level=args.log_level),
+            block=True)
     LOGGER.info("Transfer data")
-    if config["continuous"]:
-        d_view.push({"organism": organism, "simple_continuous": simple_continuous,
-                "randomised_continuous": randomised_continuous,
-                "fully_randomised_continuous": fully_randomised_continuous},
-                block=True)
-        result_mngr = ResultManager(config["output"], "/Continuous")
-        jobs = continuous_jobs(organism, config)
-    else:
-        d_view.push({"organism": organism}, block=True)
-        result_mngr = ResultManager(config["output"], "/Discrete")
-        jobs = discrete_jobs(organism, config)
+    namespace = dict((name, globals()[name])\
+            for name in set(chain(*config["experimental_setup"])))
+    namespace["organism"] = organism
+    d_view.push(namespace, block=True)
+    result_mngr = ResultManager(config["output"], table_key)
+    jobs = job_gen(organism, config)
     l_view = remote_client.load_balanced_view()
     bar = ProgressBar(maxval=len(jobs), widgets=[Timer(), " ", Percentage(),
             " ", Bar(), " ", ETA()]).start()
