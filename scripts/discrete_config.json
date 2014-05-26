@@ -18,7 +18,7 @@
     "control":["digital_control", "analog_control"],
     "ctc":["digital_ctc", "analog_ctc"],
     "measures":[["discrete_marr_ratio", "discrete_total_ratio"], ["discrete_marr_ratio", "discrete_total_ratio"]],
-    "random_num":[1E0, 1E0],
+    "random_num":[1E4, 1E4],
     "robustness_num": [0, 0],
     "robustness_args": [[0.1], [0.1]]
 }

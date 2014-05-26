@@ -314,7 +314,7 @@ def delayed_continuous_digital_ctc(trn, active, expr_levels,
     else:
         return z_score
 
-def analog_control(gpn, active):
+def analog_control(gpn, active, measure=ms.discrete_total_ratio):
     """
     Compute the analog control from an effective GPN.
 
@@ -337,7 +337,7 @@ def analog_control(gpn, active):
     original = nets.setup_gpn(gpn, active)
     if original is numpy.nan:
         return original
-    return ms.discrete_total_ratio(gpn)
+    return measure(gpn)
 
 def analog_ctc(gpn, active, random_num=1E04, return_sample=False,
         measure=ms.discrete_total_ratio):

@@ -63,6 +63,7 @@ class ControlData(tables.IsDescription):
     control_type = tables.StringCol(12) # analog or digital or metabolic
     continuous = tables.BoolCol() # discrete or continuous
     description = tables.StringCol(30)
+    direction = tables.StringCol(4) # up or down (based on fold-change)
     control = tables.Float64Col() # analog or digital control or metabolic coherence
     control_method = tables.StringCol(60)
     ctc = tables.Float64Col()
@@ -84,7 +85,7 @@ class ResultManager(object):
 
     def append(self, version, control_type, continuous, description,
             control_strength, control_method, ctc, ctc_method, measure,
-            samples=None, robustness=None, time=None):
+            samples=None, robustness=None, direction=None, time=None):
         unique_id = "sim" + str(uuid.uuid4()).replace("-", "")
         unique_id = unique_id[:UUID_LENGTH]
         if samples is not None:
@@ -114,6 +115,8 @@ class ResultManager(object):
         row["ctc"] = ctc
         row["ctc_method"] = ctc_method
         row["measure"] = measure
+        if direction is not None:
+            row["direction"] = direction
         if time is not None:
             row["time"] = int(time)
         if robustness is not None:

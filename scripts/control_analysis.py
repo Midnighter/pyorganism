@@ -50,20 +50,24 @@ def load_discrete(organism, config):
         organism.activity[name] = reader_func(path)
 
 def simple_discrete(df, name2gene):
-    # TODO: take care of nan values
-    active = [name2gene[name] for name in df["name"]]
+    eligible = df["name"].notnull()
+    active = [name2gene[name] for name in df["name"][eligible]\
+            if name2gene[name] is not None]
     LOGGER.info("  mapped %d/%d active genes", len(active), len(df))
     return active
 
-def ratio_discrete(df, name2gene):
-    up = (df["ratio (A/B)"] > 1.0)
-    down = (df["ratio (A/B)"] < 1.0)
-    # TODO: take care of nan values
-    up_regulated = [name2gene[name] for name in df[up]["name"]]
-    down_regulated = [name2gene[name] for name in df[down]["name"]]
-    LOGGER.info("  mapped %d/%d up-regulated genes", len(up_regulated), up.sum())
-    LOGGER.info("  mapped %d/%d down-regulated genes", len(down_regulated), down.sum())
-    return (up_regulated, down_regulated)
+def ratio_discrete(df, name2gene, direction="up"):
+    eligible = df["name"].notnull()
+    if direction == "up":
+        mask = (df["ratio (A/B)"] > 1.0) & eligible
+    elif direction == "down":
+        mask = (df["ratio (A/B)"] < 1.0) & eligible
+    else:
+        mask = eligible
+    active = [name2gene[name] for name in df["name"][mask]\
+            if name2gene[name] is not None]
+    LOGGER.info("  mapped %d/%d {dir}-regulated genes", len(active), len(df))
+    return active
 
 def discrete_jobs(organism, config):
     LOGGER.info("Generating discrete job specifications:")
@@ -86,22 +90,42 @@ def discrete_jobs(organism, config):
             check_path(net_path)
             for ms_name in measures:
                 for (exp_name, exp_setup) in izip(experiments, setups):
-                    spec = dict()
-                    spec["version"] = version
-                    spec["continuous"] = config["continuous"]
-                    spec["control_type"] = cntrl_name
-                    spec["genes"] = gene_path
-                    spec["mapping"] = map_path
-                    spec["network"] = net_path
-                    spec["experiment"] = exp_name
-                    spec["setup"] = exp_setup
-                    spec["control"] = control
-                    spec["ctc"] = ctc
-                    spec["measure"] = ms_name
-                    spec["random_num"] = random_num
-                    spec["robustness_num"] = robustness_num
-                    spec["robustness_args"] = rob_extra
-                    jobs.append(spec)
+                    if exp_setup == "ratio_discrete":
+                        for direction in ["up", "down"]:
+                            spec = dict()
+                            spec["version"] = version
+                            spec["continuous"] = config["continuous"]
+                            spec["control_type"] = cntrl_name
+                            spec["genes"] = gene_path
+                            spec["mapping"] = map_path
+                            spec["network"] = net_path
+                            spec["experiment"] = exp_name
+                            spec["setup"] = exp_setup
+                            spec["direction"] = direction
+                            spec["control"] = control
+                            spec["ctc"] = ctc
+                            spec["measure"] = ms_name
+                            spec["random_num"] = random_num
+                            spec["robustness_num"] = robustness_num
+                            spec["robustness_args"] = rob_extra
+                            jobs.append(spec)
+                    else:
+                        spec = dict()
+                        spec["version"] = version
+                        spec["continuous"] = config["continuous"]
+                        spec["control_type"] = cntrl_name
+                        spec["genes"] = gene_path
+                        spec["mapping"] = map_path
+                        spec["network"] = net_path
+                        spec["experiment"] = exp_name
+                        spec["setup"] = exp_setup
+                        spec["control"] = control
+                        spec["ctc"] = ctc
+                        spec["measure"] = ms_name
+                        spec["random_num"] = random_num
+                        spec["robustness_num"] = robustness_num
+                        spec["robustness_args"] = rob_extra
+                        jobs.append(spec)
     LOGGER.info("  %d jobs", len(jobs))
     return jobs
 
@@ -116,13 +140,21 @@ def discrete_worker(spec):
     id2gene = pyorg.read_pickle(spec["mapping"])
     net = pyorg.read_pickle(spec["network"])
     df = organism.activity[spec["experiment"]]
-    prepared = setup_func(df, id2gene)
-    active = prepared["active"]
+    if spec["setup"] == "ratio_discrete":
+        active = setup_func(df, id2gene, spec["direction"])
+    else:
+        active = setup_func(df, id2gene)
     LOGGER.debug(len(active))
     res_cntrl = control(net, active, measure=measure)
     res_ctc = ctc(net, active, random_num=spec["random_num"], measure=measure)
     pyreg.clear_memory()
     return (spec, res_cntrl, res_ctc)
+
+def discrete_result(manager, spec, res_cntrl, res_ctc):
+    manager.append(spec["version"], spec["control_type"], spec["continuous"],
+            spec["experiment"], res_cntrl, spec["control"], res_ctc,
+            spec["ctc"], spec["measure"], direction=spec.get("direction", None))
+
 
 ##############################################################################
 # Continuous
@@ -138,8 +170,8 @@ def simple_continuous(df, feature2gene):
     results["levels"] = list()
     for col in df.columns:
         eligible = df[col][numpy.isfinite(df[col])]
-        mask = [bool(feature2gene[name]) for name in eligible.index]
-        active = [feature2gene[name] for name in eligible.index[mask]]
+        active = [feature2gene[name] for name in eligible.index\
+                if feature2gene[name] is not None]
         levels = eligible[mask]
         LOGGER.info("        %s min: %d active genes", col, len(active))
         results["time"].append(col)
@@ -159,8 +191,8 @@ def rate_continuous(df, feature2gene):
         col_a = df.icol(i)
         col_b = df.icol(i + 1)
         eligible = df.index[numpy.isfinite(col_a) & numpy.isfinite(col_b)]
-        mask = [bool(feature2gene[name]) for name in eligible]
-        active = [feature2gene[name] for name in eligible[mask]]
+        active = [feature2gene[name] for name in eligible\
+                if feature2gene[name] is not None]
         levels = col_b[eligible[mask]] - col_a.loc[eligible[mask]]
         LOGGER.info("        %s - %s min: %d active genes", col_a.name,
                 col_b.name, len(active))
@@ -261,6 +293,11 @@ def continuous_worker(spec):
     pyreg.clear_memory()
     return (spec, res_cntrl, res_ctc)
 
+def continuous_result(manager, spec, res_cntrl, res_ctc):
+    manager.append(spec["version"], spec["control_type"], spec["continuous"],
+            spec["experiment"], res_cntrl, spec["control"], res_ctc,
+            spec["ctc"], spec["measure"], time=int(float(spec["time"])))
+
 
 ##############################################################################
 # Main
@@ -275,11 +312,13 @@ def main(remote_client, args):
         table_key = "/Continuous"
         job_gen = continuous_jobs
         worker = continuous_worker
+        result = continuous_result
     else:
         load_func = load_discrete
         table_key = "/Discrete"
         job_gen = discrete_jobs
         worker = discrete_worker
+        result = discrete_result
     load_func(organism, config)
     # general parallel setup using IPython.parallel
     LOGGER.info("Remote imports")
@@ -304,9 +343,7 @@ def main(remote_client, args):
     for (spec, res_cntrl, res_ctc) in results_it:
         LOGGER.debug(res_cntrl)
         LOGGER.debug(res_ctc)
-        result_mngr.append(spec["version"], spec["control_type"], spec["continuous"],
-                spec["experiment"], res_cntrl, spec["control"], res_ctc,
-                spec["ctc"], spec["measure"], time=int(float(spec["time"])))
+        result(result_mngr, spec, res_cntrl, res_ctc)
         bar += 1
     result_mngr.finalize()
     bar.finish()
