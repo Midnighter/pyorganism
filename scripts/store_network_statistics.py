@@ -29,41 +29,13 @@ import networkx as nx
 import pyorganism
 import pyorganism.regulation as pyreg # needed for object definitions
 
+from pyorganism.io.regulondb import RELEASE
 from meb.utils.network.subgraphs import triadic_census
 
 
 LOGGER = logging.getLogger()
 LOGGER.addHandler(logging.StreamHandler())
 LOGGER.setLevel(logging.INFO)
-
-RELEASE = {
-    "5.0": "March 16, 2006",
-    "5.1": "May 12, 2006",
-    "5.2": "June 8, 2006",
-    "5.5": "October 30, 2006",
-    "5.6": "January 15, 2007",
-    "5.7": "June 1, 2007",
-    "5.8": "September 17, 2007",
-    "6.0": "January 15, 2008",
-    "6.1": "April 15, 2008",
-    "6.2": "July 10, 2008",
-    "6.3": "February 15, 2008",
-    "6.4": "August 10, 2009",
-    "6.7": "March 24, 2010",
-    "6.8": "August 18, 2010",
-    "7.0": "January 26, 2011",
-    "7.2": "May 6, 2011",
-    "7.3": "November 1, 2011",
-    "7.4": "March 29, 2012",
-    "7.5": "August 29, 2012",
-    "8.0": "October 2, 2012",
-    "8.1": "December 17, 2012",
-    "8.2": "April 22, 2013",
-    "8.3": "July 29, 2013",
-    "8.5": "November 28, 2013",
-    "8.6": "April 11, 2014",
-}
-
 
 def trn_stats(genes, trn, version):
     LOGGER.info("Computing TRN statistics")
@@ -90,6 +62,7 @@ def trn_stats(genes, trn, version):
     data["num_regulated"] = len(regulated)
     data["num_links"] = grn.size()
     data["num_components"] = len(components)
+    data["largest_component"] = len(components[0])
     data["feed_forward"] = forward
     data["feedback"] = feedback
     data["cycles"] = len(cycles)
@@ -118,6 +91,7 @@ def gpn_stats(genes, gpn, version):
             "num_nodes": len(gpn),
             "num_links": gpn.size(),
             "num_components": len(components),
+            "largest_component": len(components[0]),
             "assortativity": ass,
             "hub_deg": max(deg)
             }, index=[1])

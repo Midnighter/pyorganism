@@ -8,8 +8,7 @@ fi
 
 output=$1
 script=$2
-location=`dirname $0`
-: ${script="${location}/compile_name2gene.py"}
+: ${script:="`dirname $0`/compile_name2gene.py"}
 
 ls -d -- ${output}/*/ | parallel --group -j+0 python ${script} ${output}/{/}
 

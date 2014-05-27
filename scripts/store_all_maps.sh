@@ -1,24 +1,22 @@
 #!/bin/bash
 
-if [ $# -lt 2 ] || [ $# -gt 4 ];then
-    echo "$0 <base RegulonDB directory> <base RegulonDBObjects directory> [id2gene map] [Python script]"
+if [ $# -lt 1 ] || [ $# -gt 3 ];then
+    echo "$0 <base RegulonDBObjects directory> [id2gene map] [Python script]"
     exit 2
+elif [ $# -eq 2 ];then
+    map=$2
 elif [ $# -eq 3 ];then
-    map=$3
-elif [ $# -eq 4 ];then
-    map=$3
-    script=$4
+    map=$2
+    script=$3
 fi
 
-base=$1
-output=$2
+output=$1
 : ${map:="feature2gene"} # conditional default value
-location=`dirname $0`
-: ${script="${location}/store_id2gene.py"}
+: ${script:="`dirname $0`/store_id2gene.py"}
 
-for ver in $(ls -d -- ${base}/[0-9].[0-9]/)
+for ver in $(ls -d -- ${output}/[0-9].[0-9]/)
 do
     number=`basename ${ver}`
-    python ${script} ${base}/${number}/${map}.pkl ${output}/unified_maps.h5
+    python ${script} ${output}/${number}/${map}.pkl ${output}/unified_maps.h5
 done
 

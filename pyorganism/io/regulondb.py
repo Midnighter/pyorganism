@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 
@@ -41,6 +40,33 @@ FUNCTIONS = {"repressor": -1, "activator": 1, "unknown": 0, "dual": 2,
         "-": -1, "+": 1, "?": 0, "+-": 2}
 NAPs = frozenset(["ECK120011186", "ECK120011224", "ECK120011229", "ECK120011235",
         "ECK120011294", "ECK120011345", "ECK120011383"])
+RELEASE = {
+    "5.0": "March 16, 2006",
+    "5.1": "May 12, 2006",
+    "5.2": "June 8, 2006",
+    "5.5": "October 30, 2006",
+    "5.6": "January 15, 2007",
+    "5.7": "June 1, 2007",
+    "5.8": "September 17, 2007",
+    "6.0": "January 15, 2008",
+    "6.1": "April 15, 2008",
+    "6.2": "July 10, 2008",
+    "6.3": "February 15, 2008",
+    "6.4": "August 10, 2009",
+    "6.7": "March 24, 2010",
+    "6.8": "August 18, 2010",
+    "7.0": "January 26, 2011",
+    "7.2": "May 6, 2011",
+    "7.3": "November 1, 2011",
+    "7.4": "March 29, 2012",
+    "7.5": "August 29, 2012",
+    "8.0": "October 2, 2012",
+    "8.1": "December 17, 2012",
+    "8.2": "April 22, 2013",
+    "8.3": "July 29, 2013",
+    "8.5": "November 28, 2013",
+    "8.6": "April 11, 2014",
+}
 
 
 def iter_rowset_soup(file_handle):

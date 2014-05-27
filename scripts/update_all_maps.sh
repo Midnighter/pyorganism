@@ -18,8 +18,7 @@ fi
 output=$1
 : ${map:="feature2gene"} # conditional default value
 : ${update:="8.5"} # conditional default value
-location=`dirname $0`
-: ${script="${location}/update_maps.py"}
+: ${script:="`dirname $0`/update_maps.py"}
 
 for ver in $(ls -d -- ${output}/[0-9].[0-9]/)
 do

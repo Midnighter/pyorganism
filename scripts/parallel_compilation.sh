@@ -9,8 +9,7 @@ fi
 base=$1
 output=$2
 script=$3
-location=`dirname $0`
-: ${script="${location}/compile_regulondb_content.py"}
+: ${script:="`dirname $0`/compile_regulondb_content.py"}
 
 ls -d -- ${base}/*/ | parallel --group -j+0 python ${script} ${base}/{/} ${output}/{/}
 

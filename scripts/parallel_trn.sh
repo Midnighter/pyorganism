@@ -8,8 +8,7 @@ fi
 
 output=$1
 script=$2
-location=`dirname $0`
-: ${script="${location}/construct_trn.py"}
+: ${script:="`dirname $0`/construct_trn.py"}
 
 ls -d -- ${output}/*/ | parallel --group -j+0 python ${script} ${output}/{/}
 
