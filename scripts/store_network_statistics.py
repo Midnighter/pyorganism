@@ -46,7 +46,7 @@ def trn_stats(genes, trn, version):
     components = nx.weakly_connected_components(grn)
     data = dict()
     for (a, b) in itertools.product(("in", "out"), repeat=2):
-        data["{a}-{b}-ass".format(a=a, b=b)] = nx.degree_assortativity_coefficient(grn, x=a, y=b)
+        data["{a}_{b}_ass".format(a=a, b=b)] = nx.degree_assortativity_coefficient(grn, x=a, y=b)
     census = triadic_census(grn)
     forward = census["030T"]
     feedback = census["030C"]
