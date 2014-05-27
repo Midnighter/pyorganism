@@ -68,6 +68,7 @@ def trn_stats(genes, trn, version):
     data["cycles"] = len(cycles)
     data["hub_out_deg"] = max(out_deg)
     stats = pandas.DataFrame(data, index=[1])
+    stats["release"] = pandas.to_datetime(stats["release"])
     dists = pandas.DataFrame({
         "version": version,
         "release": RELEASE[version],
@@ -76,6 +77,7 @@ def trn_stats(genes, trn, version):
         "out_degree": out_deg,
         "betweenness": bc
     })
+    dists["release"] = stats["release"].copy()
     return (stats, dists)
 
 def gpn_stats(genes, gpn, version):
@@ -95,12 +97,14 @@ def gpn_stats(genes, gpn, version):
             "assortativity": ass,
             "hub_deg": max(deg)
             }, index=[1])
+    stats["release"] = pandas.to_datetime(stats["release"])
     dists = pandas.DataFrame(data={
             "version": version,
             "release": RELEASE[version],
             "node": [node.unique_id for node in nodes],
             "degree": deg,
             })
+    dists["release"] = stats["release"].copy()
     return (stats, dists)
 
 def store_results(filename, df):
@@ -112,9 +116,9 @@ def store_results(filename, df):
     results.to_csv(filename, sep=";", header=True, index=False)
 
 def main(in_path, out_path, version=""):
-    base_path = os.path.dirname(in_path)
+    version = os.path.basename(in_path)
     if not version:
-        version = os.path.basename(base_path)
+        version = os.path.basename(os.path.dirname(in_path))
     LOGGER.info("{0:*^78s}".format(version))
     LOGGER.info("Loading genes")
     genes = pyorganism.read_pickle(os.path.join(in_path, "genes.pkl"))

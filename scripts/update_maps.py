@@ -33,6 +33,8 @@ LOGGER.setLevel(logging.INFO)
 
 
 def update_map(map_path, frame_path, update_from, version=""):
+    if not version:
+        version = os.path.basename(map_path)
     base_path = os.path.dirname(map_path)
     if not version:
         version = os.path.basename(base_path)

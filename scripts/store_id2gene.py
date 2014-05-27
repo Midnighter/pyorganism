@@ -61,6 +61,8 @@ def inconsistencies(df):
     return faulty_indeces
 
 def store_joint_ids(map_path, frame_path, version=""):
+    if not version:
+        version = os.path.basename(map_path)
     base_path = os.path.dirname(map_path)
     if not version:
         version = os.path.basename(base_path)
