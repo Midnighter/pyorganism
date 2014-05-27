@@ -8,7 +8,8 @@ fi
 base=$1
 output=$2
 script=$3
-: ${script="~/CodeBase/Development/pyorganism/scripts/store_network_statistics.py"}
+location=`dirname $0`
+: ${script="${location}/store_network_statistics.py"}
 
 for ver in $(ls -d -- ${base}/[0-9].[0-9]/)
 do

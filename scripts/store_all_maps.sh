@@ -13,7 +13,8 @@ fi
 base=$1
 output=$2
 : ${map:="feature2gene"} # conditional default value
-: ${script="~/CodeBase/Development/pyorganism/scripts/store_id2gene.py"}
+location=`dirname $0`
+: ${script="${location}/store_id2gene.py"}
 
 for ver in $(ls -d -- ${base}/[0-9].[0-9]/)
 do

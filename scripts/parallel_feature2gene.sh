@@ -8,7 +8,8 @@ fi
 
 output=$1
 script=$2
-: ${script="~/CodeBase/Development/pyorganism/scripts/compile_feature2gene.py"}
+location=`dirname $0`
+: ${script="${location}/compile_feature2gene.py"}
 
 ls -d -- ${output}/*/ | parallel --group -j+0 python ${script} ${output}/{/}
 
