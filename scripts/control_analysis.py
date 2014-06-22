@@ -16,6 +16,7 @@ import pyorganism.io.microarray as pymicro
 
 from itertools import (izip, chain)
 from signal import SIGINT
+from exceptions import SystemExit
 from logging.config import dictConfig
 
 from IPython.parallel import (Client, interactive)
@@ -170,8 +171,8 @@ def simple_continuous(df, feature2gene):
     results["levels"] = list()
     for col in df.columns:
         eligible = df[col][numpy.isfinite(df[col])]
-        active = [feature2gene[name] for name in eligible.index\
-                if feature2gene[name] is not None]
+        mask = [feature2gene[name] is not None for name in eligible.index]
+        active = [feature2gene[name] for name in eligible[mask].index]
         levels = eligible[mask]
         LOGGER.info("        %s min: %d active genes", col, len(active))
         results["time"].append(col)
@@ -190,10 +191,11 @@ def rate_continuous(df, feature2gene):
     for i in range(num_cols - 1):
         col_a = df.icol(i)
         col_b = df.icol(i + 1)
-        eligible = df.index[numpy.isfinite(col_a) & numpy.isfinite(col_b)]
-        active = [feature2gene[name] for name in eligible\
-                if feature2gene[name] is not None]
-        levels = col_b[eligible[mask]] - col_a.loc[eligible[mask]]
+        # TODO: fix selection of names and values
+#        eligible = df.index[numpy.isfinite(col_a) & numpy.isfinite(col_b)]
+#        mask = [feature2gene[name] is not None for name in eligible.index]
+#        active = [feature2gene[name] for name in eligible[mask].index]
+#        levels = col_b[eligible[mask]] - col_a.loc[eligible[mask]]
         LOGGER.info("        %s - %s min: %d active genes", col_a.name,
                 col_b.name, len(active))
         results["time"].append(col_b.name)
@@ -373,13 +375,14 @@ if __name__ == "__main__":
         sys.exit(main(remote_client, args))
     except: # we want to catch everything
         (err, msg, trace) = sys.exc_info()
-        for (engine_id, pid) in pid_map.iteritems():
-            LOGGER.debug("interrupting engine %d", engine_id)
-            try:
-                os.kill(pid, SIGINT)
-            except OSError:
-                continue
-        raise err, msg, trace
+        if err != SystemExit:
+            for (engine_id, pid) in pid_map.iteritems():
+                LOGGER.debug("interrupting engine %d", engine_id)
+                try:
+                    os.kill(pid, SIGINT)
+                except OSError:
+                    continue
+            raise err, msg, trace
     finally:
         logging.shutdown()
 

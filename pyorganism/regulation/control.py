@@ -37,6 +37,7 @@ from . import networks as nets
 from .. import miscellaneous as misc
 #from ..errors import PyOrganismError
 from ..statistics import compute_zscore
+from .elements import TranscriptionFactor
 
 
 LOGGER = logging.getLogger(__name__)
@@ -144,11 +145,9 @@ def digital_ctc_fixed_tf_num(trn, active, random_num=1E04, return_sample=False,
     (original, t_factors, regulated) = nets.setup_trn(trn, active)
     if original is numpy.nan:
         return original
-    # separate numbers
-    tf_num = len(t_factors)
-    gene_num = len(regulated)
-    LOGGER.info("picked %d transcription factors", tf_num)
-    sample = [ms.trn_sample(trn, t_factors, tf_num, regulated, gene_num,
+    LOGGER.info("picked %d transcription factors", len(t_factors))
+    (all_tf, all_genes) = nets.split_nodes(trn, TranscriptionFactor)
+    sample = [ms.trn_sample(trn, all_tf, len(t_factors), all_genes, len(regulated),
             evaluate=measure) for i in range(random_num)]
     z_score = compute_zscore(measure(original), sample)
     if return_sample:

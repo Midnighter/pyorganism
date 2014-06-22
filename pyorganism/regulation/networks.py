@@ -78,7 +78,9 @@ class GRN(nx.MultiDiGraph):
             if isinstance(gene_u.regulatory_product, TranscriptionFactor):
                 u = gene_u.regulatory_product
             else:
-                u = gene_u
+                LOGGER.error("gene '%s' has non-transcription factor interaction",
+                        gene_u.unique_id)
+                continue
             trn.add_edge(u, gene_v, key=k, **data)
             trn.node[u].update(self.node[gene_u])
             trn.node[gene_v].update(self.node[gene_v])
@@ -126,6 +128,7 @@ class TRN(nx.MultiDiGraph):
         couplon_gen = CouplonGenerator(self)
         couplon_gen.add_edges_from(sf_links)
         return couplon_gen
+
 
 #    def lookup_regulondb(self, tf2gene, name2gene=None, sep="\t",
 #            wsdl="http://regulondb.ccg.unam.mx/webservices/NetWork.jws?wsdl"):
@@ -536,24 +539,34 @@ def effective_network(network, active):
             .format(size, len(network), len(active) - size))
     return subnet
 
+def split_nodes(net, upper_type):
+    """
+    Return all nodes of ``upper_type`` and others.
+    """
+    upper = {node for node in net.nodes_iter() if isinstance(node,
+            upper_type)}
+    lower = set(net.nodes_iter()) - upper
+    return (list(upper), list(lower))
+
 def setup_trn(trn, active):
+    """
+    ``active`` contains only genes. For a gene we consider it as being active as
+    well as its potential transcription factor.
+    """
     if trn is None or trn.size() == 0:
         LOGGER.error("empty transcriptional regulatory network")
         return numpy.nan
-    tf_genes = set([gene for gene in active if isinstance(gene.regulatory_product,
-            TranscriptionFactor)])
-    t_factors = [gene.regulatory_product for gene in tf_genes]
-    regulated = set(active) - tf_genes
-    regulated = list(regulated)
-    original = effective_network(trn, regulated + t_factors)
+    t_factors = {gene.regulatory_product for gene in active if\
+            isinstance(gene.regulatory_product, TranscriptionFactor)}
+    original = effective_network(trn, list(active) + list(t_factors))
+    regulated = set(original.nodes_iter()) - t_factors
     if original.size() == 0:
         LOGGER.warn("empty effective network")
         return numpy.nan
-    return (original, t_factors, regulated)
+    return (original, list(t_factors), list(regulated))
 
 def setup_trn_levels(t_factors, regulated, gene2level):
-    joint = t_factors + regulated
-    orig_levels = numpy.zeros(len(joint), dtype=float)
+    orig_levels = numpy.zeros(len(t_factors) + len(regulated), dtype=float)
     for (i, tf) in enumerate(t_factors):
         orig_levels[i] = numpy.mean([gene2level[gene] for gene in\
                 tf.coded_from if gene in gene2level])
