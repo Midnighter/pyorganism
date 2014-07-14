@@ -28,32 +28,11 @@ LOGGER.setLevel(logging.INFO)
 
 import sys
 import os
-#from glob import glob
 
 import pyorganism
 import pyorganism.regulation as pyreg
 import pyorganism.io.regulondb as regdb
 
-
-#class FileHandleFactory(object):
-#
-#    def __init__(self, base, **kw_args):
-#        super(FileHandleFactory, self).__init__(**kw_args)
-#        if os.path.isdir(base):
-#            self.__call__ = self._filesystem
-#        elif base.endswith(".zip"):
-#            self.__call__ = self._zip_archive
-#        elif base.endswith(".tar"):
-#            self.__call__ = self._tar_archive
-#
-#    def __call__(self, filename):
-#        pass
-#
-#    def _filesystem(self, filename):
-#
-#    def _zip_archive(self, filename):
-#
-#    def _tar_archive(self, filename):
 
 def compile_genes(base_dir):
     LOGGER.info("Compiling genes...")

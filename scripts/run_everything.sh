@@ -1,10 +1,17 @@
 #!/bin/bash
 
-base="~/CodeBase/Development/pyorganism/scripts"
-indir="RegulonDB"
-outdir="RegulonDBObjects"
+if [ $# -gt 3 ];then
+    echo "$0 [base RegulonDB directory] [base RegulonDBObjects directory] [Python script]"
+    exit 2
+fi
 
-${base}/parallel_basics.sh ${indir} ${outdir}
+base=`dirname $0`
+indir=$1
+outdir=$2
+: ${indir:="${PWD}/RegulonDB"}
+: ${outdir:="${PWD}/RegulonDBObjects"}
+
+${base}/parallel_compilation.sh ${indir} ${outdir}
 ${base}/parallel_name2gene.sh ${outdir}
 ${base}/parallel_feature2gene.sh ${outdir}
 ${base}/parallel_trn.sh ${outdir}

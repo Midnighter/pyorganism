@@ -51,6 +51,7 @@ class Gene(UniqueBase):
         self.gc_content = misc.convert(gc_content, float)
         self.product = product
         self.regulatory_product = regulatory_product
+        self.transcription_units = set()
         self.operons = set()
 
     def __contains__(self, name):
@@ -65,6 +66,9 @@ class Gene(UniqueBase):
             return True
         else:
             return False
+
+    def get_transcription_units(self):
+        return self.transcription_units
 
     def get_operons(self):
         return self.operons
@@ -102,6 +106,9 @@ class Product(UniqueBase):
         else:
             return False
 
+    def get_transcription_units(self):
+        return set(tu for gene in self.coded_from for tu in gene.transcription_units)
+
     def get_operons(self):
         return set(op for gene in self.coded_from for op in gene.operons)
 
@@ -135,6 +142,9 @@ class Regulator(UniqueBase):
             return True
         else:
             return False
+
+    def get_transcription_units(self):
+        return set(tu for gene in self.coded_from for tu in gene.transcription_units)
 
     def get_operons(self):
         return set(op for gene in self.coded_from for op in gene.operons)

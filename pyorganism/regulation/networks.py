@@ -585,21 +585,65 @@ def setup_gpn(gpn, active):
         return numpy.nan
     return original
 
-def to_operon_based(network):
-    orn = type(network)()
+def to_transcription_unit_based(network):
+    tu_net = type(network)()
     for node in network:
-        orn.add_nodes_from(node.get_operons())
-    if orn.is_multigraph():
+        ops = node.get_transcription_units()
+        if len(ops) == 0:
+            tu_net.add_node(node)
+        else:
+            tu_net.add_nodes_from(ops)
+    if tu_net.is_multigraph():
         for (u, v, inter) in network.edges_iter(keys=True):
-            for (op_1, op_2) in product(u.get_operons(),
-                    v.get_operons()):
-                orn.add_edge(op_1, op_2, key=inter)
+            u_ops = u.get_transcription_units()
+            if len(u_ops) == 0:
+                u_ops = [u]
+            v_ops = v.get_transcription_units()
+            if len(v_ops) == 0:
+                v_ops = [v]
+            for (op_1, op_2) in product(u_ops, v_ops):
+                tu_net.add_edge(op_1, op_2, key=inter)
     else:
         for (u, v) in network.edges_iter():
-            for (op_1, op_2) in product(u.get_operons(),
-                    v.get_operons()):
-                orn.add_edge(op_1, op_2)
-    return orn
+            u_ops = u.get_transcription_units()
+            if len(u_ops) == 0:
+                u_ops = [u]
+            v_ops = v.get_transcription_units()
+            if len(v_ops) == 0:
+                v_ops = [v]
+            for (op_1, op_2) in product(u_ops, v_ops):
+                tu_net.add_edge(op_1, op_2)
+    return tu_net
+
+def to_operon_based(network):
+    op_net = type(network)()
+    for node in network:
+        ops = node.get_operons()
+        if len(ops) == 0:
+            op_net.add_node(node)
+        else:
+            op_net.add_nodes_from(ops)
+    if op_net.is_multigraph():
+        for (u, v, inter) in network.edges_iter(keys=True):
+            u_ops = u.get_operons()
+            if len(u_ops) == 0:
+                u_ops = [u]
+            v_ops = v.get_operons()
+            if len(v_ops) == 0:
+                v_ops = [v]
+            for (op_1, op_2) in product(u_ops, v_ops):
+                op_net.add_edge(op_1, op_2, key=inter)
+    else:
+        for (u, v) in network.edges_iter():
+            u_ops = u.get_operons()
+            if len(u_ops) == 0:
+                u_ops = [u]
+            v_ops = v.get_operons()
+            if len(v_ops) == 0:
+                v_ops = [v]
+            for (op_1, op_2) in product(u_ops, v_ops):
+                op_net.add_edge(op_1, op_2)
+    return op_net
 
 def setup_continuous_operon_based(network, elem2level):
     op2level = defaultdict(list)

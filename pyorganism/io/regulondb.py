@@ -465,6 +465,7 @@ def link_tu_genes(filename, sep="\t", comment="#", encoding=None,
                 LOGGER.error("unknown gene '%s', please parse those first.", gene_id)
                 continue
             t_unit.genes.append(gene)
+            gene.transcription_units.add(t_unit)
             t_units.append(t_unit)
     begin = attrgetter("position")
     for tu in t_units:
@@ -475,33 +476,6 @@ def link_tu_genes(filename, sep="\t", comment="#", encoding=None,
         else:
             LOGGER.error("conflicting strand information in transcription unit"\
                     " '%s'", tu.unique_id)
-
-#def read_tu_objects(filename, sep="\t", comment="#", encoding=None,
-#        mode="rb", **kw_args):
-#    """
-#    Extract transcription unit (TU) information.
-#
-#    Parameters
-#    ----------
-#    filename: str
-#        Relative or absolute path to file that contains the  RegulonDB information.
-#
-#    Returns
-#    -------
-#    A dict with keys that are TU IDs and values that are gene IDs contained
-#    within that TU.
-#    """
-#    kw_args["mode"] = mode
-#    kw_args["encoding"] = encoding
-#    units = defaultdict(list)
-#    with open_file(filename, **kw_args) as (file_h, ext):
-#        iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
-#        for row in iter_rowset(file_h):
-#            if row["tu_object_class"] == "GN":
-#                tu = row["transcription_unit_id"]
-#                gene = row["tu_object_id"]
-#                units[tu].append(gene)
-#    return dict(units)
 
 def read_promoters(filename, sep="\t", comment="#", encoding=None,
         mode="rb", **kw_args):
