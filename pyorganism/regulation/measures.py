@@ -17,6 +17,9 @@ Regulatory Control Measures
 """
 
 
+from __future__ import division
+
+
 import logging
 import random
 
@@ -53,11 +56,11 @@ def discrete_marr_ratio(network):
     if control == len(network):
         return numpy.nan
     else:
-        return control / float(len(network) - control)
+        return control / (len(network) - control)
 
 def discrete_total_ratio(network):
     control = sum(1 for (node, deg) in network.degree_iter() if deg > 0)
-    return control / float(len(network))
+    return control / len(network)
 
 def active_sample(network, size, evaluate=discrete_total_ratio):
     """
@@ -145,24 +148,27 @@ def continuous_gpn_operon_sampling(op_net, active, levels, evaluate):
 
 def continuous_abs_coherence(network, elem2level):
     return sum([1.0 - abs(elem2level[u] - elem2level[v]) for (u, v) in\
-            network.edges_iter()])
+            network.edges_iter()]) / network.size()
 
 def continuous_difference_coherence(network, elem2level):
     return sum([elem2level[u] - elem2level[v] for (u, v) in\
-            network.edges_iter()])
+            network.edges_iter()]) / network.size()
 
 def continuous_abs_difference_coherence(network, elem2level):
     return sum([abs(elem2level[u] - elem2level[v]) for (u, v) in\
-            network.edges_iter()])
+            network.edges_iter()]) / network.size()
 
 def continuous_functional_coherence(network, elem2level):
+    control = 0.0
     total = 0.0
     for (u, v, k) in network.edges_iter(keys=True):
         if k == 1:
-            total += 1.0 - abs(elem2level[u] - elem2level[v])
+            control += 1.0 - abs(elem2level[u] - elem2level[v])
+            total += 1.0
         elif k == -1:
-            total += abs(elem2level[u] - elem2level[v])
-    return total
+            control += abs(elem2level[u] - elem2level[v])
+            total += 1.0
+    return control / total
 
 def _activating(rate_a, rate_b):
     if (rate_a > 0):
@@ -177,37 +183,46 @@ def _inhibiting(rate_a, rate_b):
         return float(rate_b >= 0)
 
 def continuous_functional_comparison(network, elem2level):
+    control = 0.0
     total = 0.0
     for (u, v, k) in network.edges_iter(keys=True):
         if k == 1:
-            total += _activating(elem2level[u], elem2level[v])
+            control += _activating(elem2level[u], elem2level[v])
+            total += 1.0
         elif k == -1:
-            total += _inhibiting(elem2level[u], elem2level[v])
-    return total
+            control += _inhibiting(elem2level[u], elem2level[v])
+            total += 1.0
+    return control / total
 
 def delayed_continuous_difference_coherence(network, elem2level, delayed2level):
     return sum([elem2level[u] - delayed2level[v] for (u, v) in\
-            network.edges_iter()])
+            network.edges_iter()]) / network.size()
 
 def delayed_continuous_abs_coherence(network, elem2level):
     return sum([1.0 - abs(elem2level[u] - elem2level[v]) for (u, v) in\
-            network.edges_iter()])
+            network.edges_iter()]) / network.size()
 
 def delayed_continuous_functional_coherence(network, elem2level, delayed2level):
+    control = 0.0
     total = 0.0
     for (u, v, k) in network.edges_iter(keys=True):
         if k == 1:
-            total += 1.0 - abs(elem2level[u] - delayed2level[v])
+            control += 1.0 - abs(elem2level[u] - delayed2level[v])
+            total += 1.0
         elif k == -1:
-            total += abs(elem2level[u] - delayed2level[v])
-    return total
+            control += abs(elem2level[u] - delayed2level[v])
+            total += 1.0
+    return control / total
 
 def delayed_continuous_functional_comparison(network, elem2level, delayed2level):
+    control = 0.0
     total = 0.0
     for (u, v, k) in network.edges_iter(keys=True):
         if k == 1:
-            total += _activating(elem2level[u], delayed2level[v])
+            control += _activating(elem2level[u], delayed2level[v])
+            total += 1.0
         elif k == -1:
-            total += _inhibiting(elem2level[u], delayed2level[v])
-    return total
+            control += _inhibiting(elem2level[u], delayed2level[v])
+            total += 1.0
+    return control / total
 

@@ -37,7 +37,6 @@ from . import networks as nets
 from .. import miscellaneous as misc
 #from ..errors import PyOrganismError
 from ..statistics import compute_zscore
-from .elements import TranscriptionFactor
 
 
 LOGGER = logging.getLogger(__name__)
@@ -142,12 +141,12 @@ def digital_ctc_fixed_tf_num(trn, active, random_num=1E04, return_sample=False,
         BMC Systems Biology 2, 18.
     """
     random_num = int(random_num)
-    (original, t_factors, regulated) = nets.setup_trn(trn, active)
+    (original, t_factors, genes) = nets.setup_trn(trn, active)
     if original is numpy.nan:
         return original
     LOGGER.info("picked %d transcription factors", len(t_factors))
-    (all_tf, all_genes) = nets.split_nodes(trn, TranscriptionFactor)
-    sample = [ms.trn_sample(trn, all_tf, len(t_factors), all_genes, len(regulated),
+    (control, others) = nets.split_regulators(trn)
+    sample = [ms.trn_sample(trn, control, len(t_factors), others, len(genes),
             evaluate=measure) for i in range(random_num)]
     z_score = compute_zscore(measure(original), sample)
     if return_sample:
@@ -227,7 +226,7 @@ def continuous_digital_ctc_fixed_tf_num(trn, active, expr_levels, random_num=1E0
     out_ops = set(node for (node, deg) in op_net.out_degree_iter() if deg > 0)
     if len(out_ops) == 0:
         LOGGER.error("no out-hubs in operon-based TRN")
-    in_ops = set(op_net.nodes_iter()).difference(out_ops)
+    in_ops = set(op_net.nodes_iter()) - out_ops
     if len(in_ops) == 0:
         LOGGER.error("no targets in operon-based TRN")
     out_levels = [op2level[op] for op in out_ops]

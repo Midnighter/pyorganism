@@ -130,76 +130,6 @@ class TRN(nx.MultiDiGraph):
         return couplon_gen
 
 
-#    def lookup_regulondb(self, tf2gene, name2gene=None, sep="\t",
-#            wsdl="http://regulondb.ccg.unam.mx/webservices/NetWork.jws?wsdl"):
-#        """
-#        Retrieve the current version of the TRN from RegulonDB.
-#
-#        Transcription factors in these interactions are replaced by the genes
-#        that produce them.
-#
-#        Parameters
-#        ----------
-#        tf2gene: dict
-#            An association between transcription factors and their genes. The
-#            values in the dict can be lists in case of dimeric transcriptional
-#            regulators.
-#        name2gene: dict (optional)
-#            The genes in the interactions between transcription factors and genes parsed
-#            from RegulonDB are given by their name. If instead the desired
-#            identifier is their Blattner number or RegulonDB identifier, a
-#            mapping is required.
-#        sep: str (optional)
-#            The column separator; not likely to change.
-#        wsdl: str (optional)
-#            The url of the WSDL definition for the DBGET server.
-#
-#        Notes
-#        -----
-#        Requires a SOAPpy installation and an active internet connection.
-#        """
-#        def use_mapping(rgltr, gene, effct, evdnc):
-#            self.add_edge(name2gene[rgltr], name2gene[gene], interaction=effct,
-#                    evidence=evdnc)
-#
-#        def no_mapping(rgltr, gene, effct, evdnc):
-#            self.add_edge(rgltr, gene, interaction=effct, evidence=evdnc)
-#
-#        # load the required SOAPpy module
-#        SOAPpy = misc.load_module("SOAPpy", url="http://pywebsvcs.sourceforge.net/")
-#        # establish connection to DBGET server
-#        server = SOAPpy.WSDL.Proxy(wsdl)
-#        interactions = server.getTFGene()
-#        interactions = interactions.split("\n")
-#        if not self.name:
-#            self.name = "TF Gene Network"
-#        self.graph["date"] = "{:%Y-%m-%d}".format(date.today())
-#        if name2gene:
-#            add_link = use_mapping
-#        else:
-#            add_link = no_mapping
-#        warnings = parser_warning
-#        # the last line is an empty one
-#        for line in interactions[:-1]:
-#            line = line.strip()
-#            partners = line.split(sep)
-#            regulators = tf2gene[partners[0]]
-#            if not isinstance(regulators, list):
-#                regulators = list(regulators)
-#            for regulator in regulators:
-#                if partners[2] == "repressor":
-#                    add_link(regulator, partners[1], -1, partners[3])
-#                elif partners[2] == "activator":
-#                    add_link(regulator, partners[1], 1, partners[3])
-#                elif partners[2] == "unknown":
-#                    add_link(regulator, partners[1], 0, partners[3])
-#                elif partners[2] == "dual":
-#                    add_link(regulator, partners[1], 2, partners[3])
-#                else:
-#                    warnings(line)
-#                    warnings = LOGGER.warn
-
-
 class CouplonGenerator(nx.DiGraph):
     """
     """
@@ -539,14 +469,13 @@ def effective_network(network, active):
             .format(size, len(network), len(active) - size))
     return subnet
 
-def split_nodes(net, upper_type):
+def split_regulators(net):
     """
     Return all nodes of ``upper_type`` and others.
     """
-    upper = {node for node in net.nodes_iter() if isinstance(node,
-            upper_type)}
-    lower = set(net.nodes_iter()) - upper
-    return (list(upper), list(lower))
+    control = {node for (node, deg) in net.out_degree_iter() if deg > 0}
+    regulated = set(net.nodes_iter()) - control
+    return (list(control), list(regulated))
 
 def setup_trn(trn, active):
     """
@@ -645,11 +574,34 @@ def to_operon_based(network):
                 op_net.add_edge(op_1, op_2)
     return op_net
 
+def setup_continuous_transcription_unit_based(network, elem2level):
+    tu2level = defaultdict(list)
+    for node in network:
+        tus = node.get_transcription_units()
+        if len(tus) == 0:
+            tu2level[node].append(elem2level[node])
+        else:
+            for tu in tus:
+                tu2level[tu].append(elem2level[node])
+    tus = tu2level.keys()
+    levels = [numpy.mean(tu2level[tu]) for tu in tus]
+    tu2level = dict(izip(tus, levels))
+    tu_net = to_transcription_unit_based(network)
+    active_net = tu_net.subgraph(tus)
+    if len(active_net) == 0 or active_net.size() == 0:
+        LOGGER.error("empty transcription unit network")
+        return numpy.nan
+    return (active_net, tu2level)
+
 def setup_continuous_operon_based(network, elem2level):
     op2level = defaultdict(list)
-    for node in network.nodes_iter():
-        for op in node.get_operons():
-            op2level[op].append(elem2level[node])
+    for node in network:
+        ops = node.get_operons()
+        if len(ops) == 0:
+            op2level[node].append(elem2level[node])
+        else:
+            for op in ops:
+                op2level[op].append(elem2level[node])
     ops = op2level.keys()
     levels = [numpy.mean(op2level[op]) for op in ops]
     op2level = dict(izip(ops, levels))
