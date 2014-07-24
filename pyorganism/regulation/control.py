@@ -17,8 +17,8 @@ Regulatory Control Measures
 """
 
 
-__all__ = ["digital_control", "digital_ctc", "digital_ctc_fixed_tf_num",
-        "continuous_digital_control", "continuous_digital_ctc_fixed_tf_num",
+__all__ = ["digital_control", "digital_ctc", "digital_ctc_fixed_regulators",
+        "continuous_digital_control", "continuous_digital_ctc_fixed_regulators",
         "delayed_continuous_digital_ctc",
         "analog_control", "analog_ctc",
         "continuous_analog_control", "continuous_analog_ctc",
@@ -45,21 +45,18 @@ LOGGER.addHandler(misc.NullHandler())
 OPTIONS = misc.OptionsManager.get_instance()
 
 
-def digital_control(trn, active, measure=ms.discrete_total_ratio):
+def digital_control(effective, measure=ms.discrete_total_ratio):
     """
-    Compute the digital control of an effective TRN using a list of
-    differentially expressed genes.
+    Compute the digital control of an effective transcriptional regulatory
+    network (TRN).
 
     Parameters
     ----------
-    trn: nx.(Multi)DiGraph
-        Static transcriptional regulatory network.
-    active: iterable
-        An iterable with gene instances that are differentially expressed.
-
-    Warning
-    -------
-    Gene instances not in the TRN are silently ignored.
+    effective: TRN or nx.(Multi)DiGraph
+        Effective TRN.
+    measure: callable (optional)
+        Takes the effective network as its only argument and returns the
+        magnitude of control within it.
 
     References
     ----------
@@ -67,72 +64,32 @@ def digital_control(trn, active, measure=ms.discrete_total_ratio):
         Dissecting the logical types of network control in gene expression profiles.
         BMC Systems Biology 2, 18.
     """
-    (original, _, _) = nets.setup_trn(trn, active)
-    if original is numpy.nan:
-        return original
-    return measure(original)
+    if effective is None or effective.size() == 0:
+        return numpy.nan
+    return measure(effective)
 
-def digital_ctc(trn, active, random_num=1E04, return_sample=False,
-        measure=ms.discrete_total_ratio):
+def digital_ctc(effective, reference, measure=ms.discrete_total_ratio,
+        random_num=1E04, return_sample=False):
     """
-    Compute the digital control type confidence of an effective TRN using a list
-    of differentially expressed genes.
+    Compute the digital control type confidence (CTC) of an effective
+    transcriptional regulatory network (TRN).
+
+    This function computes a Z-score of digital control using a reference
+    (complete) TRN as a simple null model.
 
     Parameters
     ----------
-    trn: nx.(Multi)DiGraph
-        Static transcriptional regulatory network.
-    active: iterable
-        An iterable with gene instances that are differentially expressed.
-
-    Warning
-    -------
-    Gene instances not in the TRN are silently ignored.
-
-    Notes
-    -----
-    In the null model the number of transcription factors (nodes with
-    out-degree > 0) are kept constant.
-
-    References
-    ----------
-    [1] Marr, C., Geertz, M., Hütt, M.-T., Muskhelishvili, G., 2008.
-        Dissecting the logical types of network control in gene expression profiles.
-        BMC Systems Biology 2, 18.
-    """
-    random_num = int(random_num)
-    (original, _, _) = nets.setup_trn(trn, active)
-    if original is numpy.nan:
-        return original
-    size = len(original)
-    sample = [ms.active_sample(trn, size, evaluate=measure) for i in xrange(random_num)]
-    z_score = compute_zscore(measure(original), sample)
-    if return_sample:
-        return (z_score, sample)
-    else:
-        return z_score
-
-def digital_ctc_fixed_tf_num(trn, active, random_num=1E04, return_sample=False,
-        measure=ms.discrete_total_ratio):
-    """
-    Compute the digital control type confidence of an effective TRN using a list
-    of differentially expressed genes.
-
-    Parameters
-    ----------
-    trn: nx.(Multi)DiGraph
-        Static transcriptional regulatory network.
-    active: iterable
-        An iterable with gene instances that are differentially expressed.
-
-    Warning
-    -------
-    Gene instances not in the TRN are silently ignored.
-
-    Notes
-    -----
-    In the null model the number of transcription factors (nodes with
-    out-degree > 0) are kept constant.
+    effective: TRN or nx.(Multi)DiGraph
+        Effective TRN.
+    reference: TRN or nx.(Multi)DiGraph
+        Complete TRN.
+    measure: callable (optional)
+        Takes the effective network as its only argument and returns the
+        magnitude of control within it.
+    random_num: int (optional)
+        Size of the sample distribution of digital control in the null model.
+    return_sample: bool (optional)
+        Whether or not to return the sample distribution.
 
     References
     ----------
@@ -141,73 +98,160 @@ def digital_ctc_fixed_tf_num(trn, active, random_num=1E04, return_sample=False,
         BMC Systems Biology 2, 18.
     """
     random_num = int(random_num)
-    (original, t_factors, genes) = nets.setup_trn(trn, active)
-    if original is numpy.nan:
-        return original
-    LOGGER.info("picked %d transcription factors", len(t_factors))
-    (control, others) = nets.split_regulators(trn)
-    sample = [ms.trn_sample(trn, control, len(t_factors), others, len(genes),
-            evaluate=measure) for i in range(random_num)]
-    z_score = compute_zscore(measure(original), sample)
+    if effective is None or effective.size() == 0:
+        return numpy.nan
+    size = len(effective)
+    sample = [ms.active_sample(reference, size, evaluate=measure) for i in xrange(random_num)]
+    z_score = compute_zscore(measure(effective), sample)
     if return_sample:
         return (z_score, sample)
     else:
         return z_score
 
-def continuous_digital_control(trn, active, expr_levels,
+def digital_ctc_fixed_regulators(effective, reference, measure=ms.discrete_total_ratio,
+        random_num=1E04, return_sample=False):
+    """
+    Compute the digital control type confidence (CTC) of an effective
+    transcriptional regulatory network (TRN).
+
+    This function computes a Z-score of digital control using an improved null
+    model where the number of regulating nodes (out-degree > 0) is kept constant.
+
+    Parameters
+    ----------
+    effective: TRN or nx.(Multi)DiGraph
+        Effective TRN.
+    reference: TRN or nx.(Multi)DiGraph
+        Complete TRN.
+    measure: callable (optional)
+        Takes the effective network as its only argument and returns the
+        magnitude of control within it.
+    random_num: int (optional)
+        Size of the sample distribution of digital control in the null model.
+    return_sample: bool (optional)
+        Whether or not to return the sample distribution.
+
+    References
+    ----------
+    [1] 
+    """
+    random_num = int(random_num)
+    if effective is None or effective.size() == 0:
+        return numpy.nan
+    (eff_regs, eff_slaves) = nets.split_regulators(effective)
+    (regulators, slaves) = nets.split_regulators(reference)
+    LOGGER.info("picked %d regulators", len(eff_regs))
+    sample = [ms.fixed_regulator_sample(reference, regulators, len(eff_regs),
+            slaves, len(eff_slaves), evaluate=measure) for i in range(random_num)]
+    z_score = compute_zscore(measure(effective), sample)
+    if return_sample:
+        return (z_score, sample)
+    else:
+        return z_score
+
+def continuous_digital_control(trn, active, levels,
         measure=ms.continuous_functional_coherence):
     """
-    Compute the digital control of an effective TRN using a list of
-    differentially expressed genes.
+    Compute the continuous digital control of a transcriptional regulatory
+    network (TRN).
+
+    Uses expression levels of nodes in a TRN in order to evaluate the magnitude of
+    control.
 
     Parameters
     ----------
-    trn: nx.(Multi)DiGraph
-        Static transcriptional regulatory network.
-    active: iterable
-        An iterable with gene instances that are differentially expressed.
-
-    Warning
-    -------
-    Gene instances not in the TRN are silently ignored.
+    trn: TRN or nx.(Multi)DiGraph
+        Effective TRN.
+    active: list
+        Ordered collection of active nodes.
+    levels: list
+        Corresponding expression levels of active nodes (same shape and ordering
+        expected).
+    measure: callable (optional)
+        Takes the effective network and expression level map and returns the
+        magnitude of control.
 
     References
     ----------
-    [1] Marr, C., Geertz, M., Hütt, M.-T., Muskhelishvili, G., 2008.
-        Dissecting the logical types of network control in gene expression profiles.
-        BMC Systems Biology 2, 18.
+    [1] 
     """
-    (original, t_factors, regulated) = nets.setup_trn(trn, active)
-    if original is numpy.nan:
-        return original
-    gene2level = dict(izip(active, expr_levels))
-    orig2level = nets.setup_trn_levels(t_factors, regulated, gene2level)
-    (op_net, op2level) = nets.setup_continuous_operon_based(original, orig2level)
-    return measure(op_net, op2level)
+    if trn is None or trn.size() == 0:
+        return numpy.nan
+    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
+    return measure(trn, node2level)
 
-def continuous_digital_ctc_fixed_tf_num(trn, active, expr_levels, random_num=1E04,
+def continuous_digital_ctc(trn, active, levels,
+        measure=ms.continuous_functional_coherence, random_num=1E04,
+        return_sample=False):
+    """
+    Compute the continuous digital control type confidence (CTC) in a
+    transcriptional regulatory network (TRN).
+
+    This function computes a Z-score of continuous digital control using
+    expression levels of nodes in a TRN as a simple null model.
+
+    Parameters
+    ----------
+    trn: TRN or nx.(Multi)DiGraph
+        Effective TRN.
+    active: list
+        Ordered collection of active nodes.
+    levels: list
+        Corresponding expression levels of active nodes (same shape and ordering
+        expected).
+    measure: callable (optional)
+        Takes the effective network and expression level map and returns the
+        magnitude of control.
+    random_num: int (optional)
+        Size of the sample distribution of continuous digital control in the
+        null model.
+    return_sample: bool (optional)
+        Whether or not to return the sample distribution.
+
+    References
+    ----------
+    [1] 
+    """
+    random_num = int(random_num)
+    if trn is None or trn.size() == 0:
+        return numpy.nan
+    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
+    sample = [ms.continuous_sampling(trn, active, levels, evaluate=measure)\
+            for i in xrange(random_num)]
+    z_score = compute_zscore(measure(trn, node2level), sample)
+    if return_sample:
+        return (z_score, sample)
+    else:
+        return z_score
+
+def continuous_digital_ctc_fixed_regulators(trn, active, levels, random_num=1E04,
         return_sample=False, measure=ms.continuous_functional_coherence):
     """
-    Compute a continuous digital control type confidence of given gene
-    expression levels in the effective TRN.
+    Compute the continuous digital control type confidence (CTC) in a
+    transcriptional regulatory network (TRN).
+
+    This function computes a Z-score of continuous digital control using
+    expression levels of nodes in a TRN and considering expression levels of
+    regulating nodes (out-degree > 0) and regulated nodes (out-degree = 0)
+    separately.
 
     Parameters
     ----------
-    trn: nx.(Multi)DiGraph
-        Static transcriptional regulatory network.
-    active: iterable
-        An iterable with gene instances.
-    expr_levels: iterable
-        An iterable in the same order as ``active`` with expression levels.
-
-    Warning
-    -------
-    Gene instances not in the TRN are silently ignored.
-
-    Notes
-    -----
-    The null model randomises expression levels but leaves the topology
-    unchanged.
+    trn: TRN or nx.(Multi)DiGraph
+        Effective TRN.
+    active: list
+        Ordered collection of active nodes.
+    levels: list
+        Corresponding expression levels of active nodes (same shape and ordering
+        expected).
+    measure: callable (optional)
+        Takes the effective network and expression level map and returns the
+        magnitude of control.
+    random_num: int (optional)
+        Size of the sample distribution of continuous digital control in the
+        null model.
+    return_sample: bool (optional)
+        Whether or not to return the sample distribution.
 
     References
     ----------
@@ -216,58 +260,116 @@ def continuous_digital_ctc_fixed_tf_num(trn, active, expr_levels, random_num=1E0
         BMC Systems Biology 2, 18.
     """
     random_num = int(random_num)
-    (original, t_factors, regulated) = nets.setup_trn(trn, active)
-    if original is numpy.nan:
-        return original
-    gene2level = dict(izip(active, expr_levels))
-    orig2level = nets.setup_trn_levels(t_factors, regulated, gene2level)
-    (op_net, op2level) = nets.setup_continuous_operon_based(original, orig2level)
+    if trn is None or trn.size() == 0:
+        return numpy.nan
+    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
+    (regulators, slaves) = nets.split_regulators(trn)
     # in TRN structure the out-hubs and spokes differentiation matters
-    out_ops = set(node for (node, deg) in op_net.out_degree_iter() if deg > 0)
-    if len(out_ops) == 0:
-        LOGGER.error("no out-hubs in operon-based TRN")
-    in_ops = set(op_net.nodes_iter()) - out_ops
-    if len(in_ops) == 0:
-        LOGGER.error("no targets in operon-based TRN")
-    out_levels = [op2level[op] for op in out_ops]
-    if len(out_levels) == 0:
-        LOGGER.error("no out-hub expression levels")
-    in_levels = [op2level[op] for op in in_ops]
-    if len(in_ops) == 0:
-        LOGGER.error("no target expression levels")
-    sample = [ms.continuous_trn_operon_sampling(op_net, out_ops, out_levels,
-            in_ops, in_levels, evaluate=measure) for i in xrange(random_num)]
-    orig_ratio = measure(op_net, op2level)
-    z_score = compute_zscore(orig_ratio, sample)
+    reg_levels = [node2level[node] for node in regulators]
+    slave_levels = [node2level[node] for node in slaves]
+    sample = [ms.continuous_fixed_regulator_sampling(trn, regulators, reg_levels,
+            slaves, slave_levels, evaluate=measure) for i in xrange(random_num)]
+    z_score = compute_zscore(measure(trn, node2level), sample)
     if return_sample:
         return (z_score, sample)
     else:
         return z_score
 
-def delayed_continuous_digital_ctc(trn, active, expr_levels,
-        delayed_expr_levels, random_num=1E04, return_sample=False,
-        measure=ms.continuous_functional_coherence):
+def delayed_continuous_digital_ctc(trn, active, levels,
+        delayed_levels, random_num=1E04, return_sample=False,
+        measure=ms.delayed_continuous_functional_coherence):
     """
-    Compute a continuous digital control type confidence of given gene
-    expression levels in the effective TRN.
+    Compute the continuous digital control type confidence (CTC) in a
+    transcriptional regulatory network (TRN).
+
+    This function computes a Z-score of continuous digital control using
+    expression levels of nodes in a TRN as a simple null model. Expression
+    levels are considered at two different time points: if there is a link from
+    u to v then the expression level for u at time t is compared with the
+    expression level of v at time point t + 1.
 
     Parameters
     ----------
-    trn: nx.(Multi)DiGraph
-        Static transcriptional regulatory network.
-    active: iterable
-        An iterable with gene instances.
-    expr_levels: iterable
-        An iterable in the same order as ``active`` with expression levels.
+    trn: TRN or nx.(Multi)DiGraph
+        Effective TRN.
+    active: list
+        Ordered collection of active nodes.
+    levels: list
+        Corresponding expression levels of active nodes (same shape and ordering
+        expected) at time point t.
+    delayed_levels: list
+        Corresponding expression levels of active nodes (same shape and ordering
+        expected) at time point t + 1.
+    measure: callable (optional)
+        Takes the effective network and expression level map and returns the
+        magnitude of control.
+    random_num: int (optional)
+        Size of the sample distribution of continuous digital control in the
+        null model.
+    return_sample: bool (optional)
+        Whether or not to return the sample distribution.
 
-    Warning
-    -------
-    Gene instances not in the TRN are silently ignored.
+    References
+    ----------
+    [1] 
+    """
+    random_num = int(random_num)
+    if trn is None or trn.size() == 0:
+        return numpy.nan
+    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
+    node2delayed = {node: lvl for (node, lvl) in izip(active, delayed_levels)}
+    sample = [ms.continuous_sampling(trn, active, levels, evaluate=measure)\
+            for i in xrange(random_num)]
+    z_score = compute_zscore(measure(trn, node2level, node2delayed), sample)
+    if return_sample:
+        return (z_score, sample)
+    else:
+        return z_score
 
-    Notes
-    -----
-    The null model randomises expression levels but leaves the topology
-    unchanged.
+def analog_control(effective, measure=ms.discrete_total_ratio):
+    """
+    Compute the analog control of an effective gene proximity network (GPN).
+
+    Parameters
+    ----------
+    effective: GPN or nx.(Multi)Graph
+        Effective GPN.
+    measure: callable (optional)
+        Takes the effective network as its only argument and returns the
+        magnitude of control within it.
+
+    References
+    ----------
+    [1] Marr, C., Geertz, M., Hütt, M.-T., Muskhelishvili, G., 2008.
+        Dissecting the logical types of network control in gene expression profiles.
+        BMC Systems Biology 2, 18.
+    """
+    if effective is None or effective.size() == 0:
+        return numpy.nan
+    return measure(effective)
+
+def analog_ctc(effective, reference, measure=ms.discrete_total_ratio,
+        random_num=1E04, return_sample=False):
+    """
+    Compute the analog control type confidence (CTC) of an effective gene
+    proximity network (GPN).
+
+    This function computes a Z-score of analog control using a reference
+    (complete) GPN as a simple null model.
+
+    Parameters
+    ----------
+    effective: GPN or nx.(Multi)Graph
+        Effective GPN.
+    reference: GPN or nx.(Multi)Graph
+        Complete GPN.
+    measure: callable (optional)
+        Takes the effective network as its only argument and returns the
+        magnitude of control within it.
+    random_num: int (optional)
+        Size of the sample distribution of analog control in the null model.
+    return_sample: bool (optional)
+        Whether or not to return the sample distribution.
 
     References
     ----------
@@ -276,165 +378,84 @@ def delayed_continuous_digital_ctc(trn, active, expr_levels,
         BMC Systems Biology 2, 18.
     """
     random_num = int(random_num)
-    (original, t_factors, regulated) = nets.setup_trn(trn, active)
-    if original is numpy.nan:
-        return original
-    gene2level = dict(izip(active, expr_levels))
-    orig2level = nets.setup_trn_levels(t_factors, regulated, gene2level)
-    gene2level = dict(izip(active, delayed_expr_levels))
-    delayed2level = nets.setup_trn_levels(t_factors, regulated, gene2level)
-    (op_net, op2level) = nets.setup_continuous_operon_based(original, orig2level)
-    (op_net, delayed_op2level) = nets.setup_continuous_operon_based(original,
-            delayed2level)
-    active_nodes = op_net.nodes()
-# Ignoring out-hubs for time delayed analysis for now
-#    # in TRN structure the out-hubs and spokes differentiation matters
-#    out_ops = set(node for (node, deg) in op_net.out_degree_iter() if deg > 0)
-#    if len(out_ops) == 0:
-#        LOGGER.error("no out-hubs in operon-based TRN")
-#    in_ops = set(op_net.nodes_iter()).difference(out_ops)
-#    if len(in_ops) == 0:
-#        LOGGER.error("no targets in operon-based TRN")
-#    out_levels = [op2level[op] for op in out_ops]
-#    if len(out_levels) == 0:
-#        LOGGER.error("no out-hub expression levels")
-#    in_levels = [op2level[op] for op in in_ops]
-#    if len(in_ops) == 0:
-#        LOGGER.error("no target expression levels")
-    levels = [op2level[node] for node in active_nodes]
-    delayed_levels = [delayed_op2level[node] for node in active_nodes]
-    sample = [ms.delayed_continuous_trn_operon_sampling(op_net, active_nodes,
-            levels, delayed_levels, measure) for i in xrange(random_num)]
-    orig_ratio = measure(op_net, op2level, delayed_op2level)
-    z_score = compute_zscore(orig_ratio, sample)
+    if effective is None or effective.size() == 0:
+        return numpy.nan
+    size = len(effective)
+    sample = [ms.active_sample(reference, size, evaluate=measure) for i in xrange(random_num)]
+    z_score = compute_zscore(measure(effective), sample)
     if return_sample:
         return (z_score, sample)
     else:
         return z_score
 
-def analog_control(gpn, active, measure=ms.discrete_total_ratio):
-    """
-    Compute the analog control from an effective GPN.
-
-    Parameters
-    ----------
-    active: iterable
-        An iterable with names of genes that are active in a specific
-        condition.
-
-    Warning
-    -------
-    Unknown gene names are silently ignored.
-
-    References
-    ----------
-    [1] Marr, C., Geertz, M., Hütt, M.-T., Muskhelishvili, G., 2008.
-        Dissecting the logical types of network control in gene expression profiles.
-        BMC Systems Biology 2, 18.
-    """
-    original = nets.setup_gpn(gpn, active)
-    if original is numpy.nan:
-        return original
-    return measure(gpn)
-
-def analog_ctc(gpn, active, random_num=1E04, return_sample=False,
-        measure=ms.discrete_total_ratio):
-    """
-    Compute the analog control from an effective GPN.
-
-    Parameters
-    ----------
-    active: iterable
-        An iterable with names of genes that are active in a specific
-        condition.
-
-    Warning
-    -------
-    Unknown gene names are silently ignored.
-
-    References
-    ----------
-    [1] Marr, C., Geertz, M., Hütt, M.-T., Muskhelishvili, G., 2008.
-        Dissecting the logical types of network control in gene expression profiles.
-        BMC Systems Biology 2, 18.
-    """
-    random_num = int(random_num)
-    original = nets.setup_gpn(gpn, active)
-    if original is numpy.nan:
-        return original
-    size = len(original)
-    sample = [ms.active_sample(gpn, size, evaluate=measure) for i in xrange(random_num)]
-    z_score = compute_zscore(measure(original), sample)
-    if return_sample:
-        return (z_score, sample)
-    else:
-        return z_score
-
-def continuous_analog_control(gpn, active, expr_levels,
+def continuous_analog_control(gpn, active, levels,
         measure=ms.continuous_abs_coherence):
     """
-    Compute the analog control from an effective GPN.
+    Compute the continuous analog control of a gene proximity network (GPN).
+
+    Uses expression levels of nodes in a GPN in order to evaluate the magnitude of
+    control.
 
     Parameters
     ----------
-    active: iterable
-        An iterable with names of genes.
-    expr_levels: iterable
-        An iterable in the same order as `active` with expression levels
-        (floats).
-
-    Warning
-    -------
-    Unknown gene names are silently ignored.
+    gpn: GPN or nx.(Multi)Graph
+        Effective GPN.
+    active: list
+        Ordered collection of active nodes.
+    levels: list
+        Corresponding expression levels of active nodes (same shape and ordering
+        as active expected).
+    measure: callable (optional)
+        Takes the effective network and expression level map and returns the
+        magnitude of control.
 
     References
     ----------
-    [1] Marr, C., Geertz, M., Hütt, M.-T., Muskhelishvili, G., 2008.
-        Dissecting the logical types of network control in gene expression profiles.
-        BMC Systems Biology 2, 18.
+    [1] 
     """
-    original = nets.setup_gpn(gpn, active)
-    if original is numpy.nan:
-        return original
-    gene2level = dict(izip(active, expr_levels))
-    (op_net, op2level) = nets.setup_continuous_operon_based(original, gene2level)
-    return measure(op_net, op2level)
+    if gpn is None or gpn.size() == 0:
+        return numpy.nan
+    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
+    return measure(gpn, node2level)
 
-def continuous_analog_ctc(gpn, active, expr_levels, random_num=1E04,
-        return_sample=False, measure=ms.continuous_abs_coherence):
+def continuous_analog_ctc(gpn, active, levels, measure=ms.continuous_abs_coherence,
+        random_num=1E04, return_sample=False):
     """
-    Compute the analog control from an effective GPN.
+    Compute the continuous analog control type confidence (CTC) in a gene
+    proximity network (GPN).
+
+    This function computes a Z-score of continuous analog control using
+    expression levels of nodes in a GPN as a simple null model.
 
     Parameters
     ----------
-    active: iterable
-        An iterable with names of genes.
-    expr_levels: iterable
-        An iterable in the same order as `active` with expression levels
-        (floats).
-
-    Warning
-    -------
-    Unknown gene names are silently ignored.
+    gpn: GPN or nx.(Multi)Graph
+        Effective GPN.
+    active: list
+        Ordered collection of active nodes.
+    levels: list
+        Corresponding expression levels of active nodes (same shape and ordering
+        as active expected).
+    measure: callable (optional)
+        Takes the effective network and expression level map and returns the
+        magnitude of control.
+    random_num: int (optional)
+        Size of the sample distribution of continuous analog control in the
+        null model.
+    return_sample: bool (optional)
+        Whether or not to return the sample distribution.
 
     References
     ----------
-    [1] Marr, C., Geertz, M., Hütt, M.-T., Muskhelishvili, G., 2008.
-        Dissecting the logical types of network control in gene expression profiles.
-        BMC Systems Biology 2, 18.
+    [1] 
     """
     random_num = int(random_num)
-    original = nets.setup_gpn(gpn, active)
-    if original is numpy.nan:
-        return original
-    gene2level = dict(izip(active, expr_levels))
-    (op_net, op2level) = nets.setup_continuous_operon_based(original, gene2level)
-    active = op_net.nodes()
-    levels = [op2level[op] for op in active]
-    sample = [ms.continuous_gpn_operon_sampling(op_net, active, levels,
-        measure) for i in xrange(random_num)]
-    orig_ratio = measure(op_net, op2level)
-    z_score = compute_zscore(orig_ratio, sample)
+    if gpn is None or gpn.size() == 0:
+        return numpy.nan
+    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
+    sample = [ms.continuous_sampling(gpn, active, levels, evaluate=measure)\
+            for i in xrange(random_num)]
+    z_score = compute_zscore(measure(gpn, node2level), sample)
     if return_sample:
         return (z_score, sample)
     else:

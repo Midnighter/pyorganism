@@ -64,7 +64,7 @@ def construct_trn(path):
             trn.add_edge(first, nbr, key=k, **d.copy())
     LOGGER.info("%d Nodes", len(trn))
     LOGGER.info("%d Links", trn.size())
-    components = nx.connected_components(trn.to_undirected())
+    components = list(nx.connected_components(trn.to_undirected()))
     LOGGER.info("%d Components", len(components))
     LOGGER.info("Largest Component: %d", len(components[0]))
     if len(components) > 1:
