@@ -50,11 +50,11 @@ def update_map(map_path, frame_path, update_from, version=""):
     id2gene = dict()
     for row in mapping[[version, update_from]].itertuples():
         if not row[1]:
-            id2gene[row[0]] = pyreg.Gene.get(row[2])
+            id2gene[row[0]] = pyreg.Gene.get(row[2], version)
         elif row[1] != row[2]:
-            id2gene[row[0]] = pyreg.Gene.get(row[2])
+            id2gene[row[0]] = pyreg.Gene.get(row[2], version)
         else:
-            id2gene[row[0]] = pyreg.Gene.get(row[1])
+            id2gene[row[0]] = pyreg.Gene.get(row[1], version)
     pyorganism.write_pickle(id2gene, os.path.join(base_path, "corrected_" +
         map_name + ".pkl"))
 
