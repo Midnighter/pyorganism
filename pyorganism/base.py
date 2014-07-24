@@ -203,7 +203,7 @@ def _unpickle_call(cls, unique_id, name_space):
     """
     Prevents setting of state iff the object existed before.
     """
-    memory = cls._memory[name_space]
+    memory = cls._memory.setdefault(name_space, dict())
     skip = unique_id in memory # test before instantiation
     obj = cls(unique_id=unique_id, name_space=name_space)
     obj._skip_setstate = skip
