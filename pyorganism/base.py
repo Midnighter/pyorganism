@@ -88,6 +88,9 @@ class MetaBase(type):
     def clear(cls, name_space="default"):
         cls._memory[name_space].clear()
 
+    def has_key(cls, unique_id, name_space="default"):
+        return unique_id in cls._memory[name_space]
+
 
 class UniqueBase(object):
     """
