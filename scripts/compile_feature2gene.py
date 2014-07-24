@@ -117,7 +117,7 @@ def manual_name_updates(feature2gene):
     gene = pyreg.Gene.get("ECK120001387", None, VERSION)
     feature2gene["waak"] = gene
 # [ybbv](http://ecoliwiki.net/colipedia/index.php/ybbV:Quickview)
-    gene = pyreg.Gene.get("ECK120002943", VERSION)
+    gene = pyreg.Gene.get("ECK120002943", None, VERSION)
     feature2gene["ybbv"] = gene
 
 def compile_feature2gene(objects_path):
