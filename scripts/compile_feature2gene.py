@@ -121,6 +121,7 @@ def manual_name_updates(feature2gene):
     feature2gene["ybbv"] = gene
 
 def compile_feature2gene(objects_path):
+    LOGGER.info("{0:*^78s}".format("Compile Gene Feature Map"))
     version = os.path.basename(objects_path)
     if not version:
         version = os.path.basename(os.path.dirname(objects_path))

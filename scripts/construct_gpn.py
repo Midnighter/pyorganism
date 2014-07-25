@@ -17,6 +17,7 @@ LOGGER.setLevel(logging.INFO)
 
 
 def construct_gpn(path, window_sizes):
+    LOGGER.info("{0:*^78s}".format("Construct GPN"))
     version = os.path.basename(path)
     if not version:
         version = os.path.basename(os.path.dirname(path))

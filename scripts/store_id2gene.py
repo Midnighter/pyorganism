@@ -61,8 +61,7 @@ def inconsistencies(df):
     return faulty_indeces
 
 def store_joint_ids(map_path, frame_path, version=""):
-    if not version:
-        version = os.path.basename(map_path)
+    LOGGER.info("{0:*^78s}".format("Store Gene IDs"))
     base_path = os.path.dirname(map_path)
     if not version:
         version = os.path.basename(base_path)

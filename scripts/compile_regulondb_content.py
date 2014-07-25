@@ -186,6 +186,7 @@ def compile_regulation(base_dir):
 
 
 def main(argv):
+    LOGGER.info("{0:*^78s}".format("Compile RegulonDB Content"))
     if not os.path.exists(argv[0]):
         sys.exit(1)
     if not os.path.exists(argv[1]):

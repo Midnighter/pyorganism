@@ -37,6 +37,7 @@ class NodeConverter(object):
 
 
 def construct_trn(path):
+    LOGGER.info("{0:*^78s}".format("Construct TRN"))
     version = os.path.basename(path)
     if not version:
         version = os.path.basename(os.path.dirname(path))

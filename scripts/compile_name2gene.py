@@ -214,6 +214,7 @@ def verify_union(name2gene, blattner2gene, full_data):
 
 
 def compile_name2gene(objects_path):
+    LOGGER.info("{0:*^78s}".format("Compile Gene Name Map"))
     full_data = compile_names(CONFIG["data_paths"], CONFIG["data_load"])
     version = os.path.basename(objects_path)
     if not version:
