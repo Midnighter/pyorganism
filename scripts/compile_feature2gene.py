@@ -19,6 +19,8 @@ LOGGER = logging.getLogger()
 LOGGER.addHandler(logging.StreamHandler())
 LOGGER.setLevel(logging.INFO)
 
+VERSION = "default"
+
 
 base_dir = "Expression/intra_strain"
 CONFIG = dict(
@@ -112,16 +114,19 @@ def synonym_finder(genes):
 
 def manual_name_updates(feature2gene):
 # [waak](http://www.ecogene.org/old/geneinfo.php?eg_id=EG11423)
-    gene = pyreg.Gene.get("ECK120001387")
+    gene = pyreg.Gene.get("ECK120001387", None, VERSION)
     feature2gene["waak"] = gene
 # [ybbv](http://ecoliwiki.net/colipedia/index.php/ybbV:Quickview)
-    gene = pyreg.Gene.get("ECK120002943")
+    gene = pyreg.Gene.get("ECK120002943", None, VERSION)
     feature2gene["ybbv"] = gene
 
 def compile_feature2gene(objects_path):
+    LOGGER.info("{0:*^78s}".format("Compile Gene Feature Map"))
     version = os.path.basename(objects_path)
     if not version:
         version = os.path.basename(os.path.dirname(objects_path))
+    global VERSION
+    VERSION = version
     LOGGER.info("{0:*^78s}".format(version))
     names = compile_names(CONFIG["data_paths"], CONFIG["data_load"])
     LOGGER.info("Loading genes")

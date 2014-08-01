@@ -25,8 +25,9 @@ import random
 
 import numpy
 
-from copy import copy
 from itertools import izip
+
+from numpy.random import shuffle
 
 from .. import miscellaneous as misc
 #from ..errors import PyOrganismError
@@ -52,14 +53,14 @@ OPTIONS = misc.OptionsManager.get_instance()
 
 
 def discrete_marr_ratio(network):
-    control = sum(1 for (node, deg) in network.degree_iter() if deg > 0)
+    control = sum(deg > 0 for (node, deg) in network.degree_iter())
     if control == len(network):
         return numpy.nan
     else:
         return control / (len(network) - control)
 
 def discrete_total_ratio(network):
-    control = sum(1 for (node, deg) in network.degree_iter() if deg > 0)
+    control = sum(deg > 0 for (node, deg) in network.degree_iter())
     return control / len(network)
 
 def active_sample(network, size, evaluate=discrete_total_ratio):
@@ -71,80 +72,37 @@ def active_sample(network, size, evaluate=discrete_total_ratio):
     result = evaluate(subnet)
     return result
 
-def trn_sample(trn, tfs, tf_num, genes, gene_num, evaluate=discrete_total_ratio):
+def fixed_regulator_sample(reference, regulators, reg_num, slaves, slave_num,
+        evaluate=discrete_total_ratio):
     """
     Sample from affected genes and transcription factors as null model.
     """
-    local_tfs = random.sample(tfs, tf_num)
-    local_genes = random.sample(genes, gene_num)
-    subnet = trn.subgraph(local_tfs + local_genes)
-    result = evaluate(subnet)
-    return result
+    eff_regs = random.sample(regulators, reg_num)
+    eff_slaves = random.sample(slaves, slave_num)
+    subnet = reference.subgraph(eff_regs + eff_slaves)
+    return evaluate(subnet)
 
-def jack_replace(active, replacement, replace_num):
-    positions = random.sample(xrange(len(active)), replace_num)
-    tmp = copy(active)
-    replace = random.sample(replacement, replace_num)
-    for (i, k) in enumerate(positions):
-        tmp[k] = replace[i]
-    return tmp
+def continuous_sample(net, active, levels, evaluate):
+    shuffle(levels)
+    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
+    return evaluate(net, node2level)
 
-def jackknife(active, remove_num):
-    positions = random.sample(xrange(len(active)), remove_num)
-    tmp = copy(active)
-    for i in positions:
-        del tmp[i]
-    return tmp
-
-def robustness(control_type, active, fraction=0.1,
-        random_num=1E04, control_num=1E04, **kw_args):
-    """
-    Cut a fraction of active genes.
-    """
-    kw_args["random_num"] = control_num
-    size = len(active)
-    cut_num = int(round(size * fraction))
-    LOGGER.info("cutting {0:d}/{1:d} genes".format(cut_num, size))
-    samples = [jackknife(active, cut_num) for i in xrange(int(random_num))]
-    distribution = [control_type(sample, **kw_args) for sample in samples]
-    return distribution
-
-def robustness_with_replacement(control_type, active, replacement, fraction=0.1,
-        random_num=1E04, control_num=1E04, **kw_args):
-    """
-    Replace a fraction of the active genes with other genes.
-    """
-    kw_args["random_num"] = control_num
-    size = len(active)
-    replace_num = int(round(size * fraction))
-    LOGGER.info("replacing {0:d}/{1:d} genes".format(replace_num, size))
-    samples = [jack_replace(active, replacement, replace_num)\
-            for i in range(int(random_num))]
-    distribution = [control_type(sample, **kw_args) for sample in samples]
-    return distribution
-
-def continuous_trn_operon_sampling(op_net, out_ops, out_levels, in_ops,
-        in_levels, evaluate):
+def continuous_fixed_regulator_sample(net, regulators, reg_levels, slaves,
+        slave_levels, evaluate):
     # select out- and in-ops and then compute similarity based on different
     # null-models
-    numpy.random.shuffle(out_levels)
-    numpy.random.shuffle(in_levels)
-    op2level = dict(izip(out_ops, out_levels))
-    op2level.update(izip(in_ops, in_levels))
-    return evaluate(op_net, op2level)
+    shuffle(reg_levels)
+    shuffle(slave_levels)
+    node2level = {node: lvl for (node, lvl) in izip(regulators, reg_levels)}
+    node2level.update(izip(slaves, slave_levels))
+    return evaluate(net, node2level)
 
-def delayed_continuous_trn_operon_sampling(op_net, active, levels,
-        delayed_levels, evaluate):
-    numpy.random.shuffle(levels)
-    numpy.random.shuffle(delayed_levels)
-    op2level = dict(izip(active, levels))
-    delayed_op2level = dict(izip(active, delayed_levels))
-    return evaluate(op_net, op2level, delayed_op2level)
-
-def continuous_gpn_operon_sampling(op_net, active, levels, evaluate):
-    numpy.random.shuffle(levels)
-    op2level = dict(izip(op_net, levels))
-    return evaluate(op_net, op2level)
+def delayed_continuous_sample(net, active, levels, delayed_levels, evaluate):
+    shuffle(levels)
+    shuffle(delayed_levels)
+    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
+    node2delayed = {node: lvl for (node, lvl) in izip(active, delayed_levels)}
+    return evaluate(net, node2level, node2delayed)
 
 def continuous_abs_coherence(network, elem2level):
     return sum([1.0 - abs(elem2level[u] - elem2level[v]) for (u, v) in\
@@ -194,35 +152,35 @@ def continuous_functional_comparison(network, elem2level):
             total += 1.0
     return control / total
 
-def delayed_continuous_difference_coherence(network, elem2level, delayed2level):
-    return sum([elem2level[u] - delayed2level[v] for (u, v) in\
+def delayed_continuous_difference_coherence(network, elem2level, elem2delayed):
+    return sum([elem2level[u] - elem2delayed[v] for (u, v) in\
             network.edges_iter()]) / network.size()
 
-def delayed_continuous_abs_coherence(network, elem2level):
-    return sum([1.0 - abs(elem2level[u] - elem2level[v]) for (u, v) in\
+def delayed_continuous_abs_coherence(network, elem2level, elem2delayed):
+    return sum([1.0 - abs(elem2level[u] - elem2delayed[v]) for (u, v) in\
             network.edges_iter()]) / network.size()
 
-def delayed_continuous_functional_coherence(network, elem2level, delayed2level):
+def delayed_continuous_functional_coherence(network, elem2level, elem2delayed):
     control = 0.0
     total = 0.0
     for (u, v, k) in network.edges_iter(keys=True):
         if k == 1:
-            control += 1.0 - abs(elem2level[u] - delayed2level[v])
+            control += 1.0 - abs(elem2level[u] - elem2delayed[v])
             total += 1.0
         elif k == -1:
-            control += abs(elem2level[u] - delayed2level[v])
+            control += abs(elem2level[u] - elem2delayed[v])
             total += 1.0
     return control / total
 
-def delayed_continuous_functional_comparison(network, elem2level, delayed2level):
+def delayed_continuous_functional_comparison(network, elem2level, elem2delayed):
     control = 0.0
     total = 0.0
     for (u, v, k) in network.edges_iter(keys=True):
         if k == 1:
-            control += _activating(elem2level[u], delayed2level[v])
+            control += _activating(elem2level[u], elem2delayed[v])
             total += 1.0
         elif k == -1:
-            control += _inhibiting(elem2level[u], delayed2level[v])
+            control += _inhibiting(elem2level[u], elem2delayed[v])
             total += 1.0
     return control / total
 

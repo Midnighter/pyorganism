@@ -91,8 +91,8 @@ FILE_PARSERS = {
         ".xml": iter_rowset_lxml
 }
 
-def read_genes(filename, sep="\t", comment="#", encoding=None, mode="rb",
-        **kw_args):
+def read_genes(filename, version="default", sep="\t", comment="#",
+        encoding=None, mode="rb", **kw_args):
     """
     Retrieve the gene locations from a RegulonDB flat file and construct the
     GPN using the `proximity_threshold`.
@@ -138,6 +138,7 @@ def read_genes(filename, sep="\t", comment="#", encoding=None, mode="rb",
                 bnumber = None
 
             gene = elem.Gene(unique_id=row["gene_id"],
+                name_space=version,
                 name=name,
                 bnumber=bnumber,
                 position_start=start,
@@ -147,8 +148,8 @@ def read_genes(filename, sep="\t", comment="#", encoding=None, mode="rb",
             genes.append(gene)
     return genes
 
-def update_gene_synonyms(filename, sep="\t", comment="#", encoding=None,
-        mode="rb", **kw_args):
+def update_gene_synonyms(filename, version="default", sep="\t", comment="#",
+        encoding=None, mode="rb", **kw_args):
     bpattern = BPATTERN
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
@@ -156,9 +157,9 @@ def update_gene_synonyms(filename, sep="\t", comment="#", encoding=None,
         iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
         for row in iter_rowset(file_h):
             obj_id = row["object_id"]
-            if obj_id not in elem.Gene:
+            if not elem.Gene.has_key(obj_id, version):
                 continue
-            gene = elem.Gene[obj_id]
+            gene = elem.Gene[obj_id, version]
             synonym = row["object_synonym_name"]
             if synonym is not None:
                 if bpattern.match(synonym):
@@ -169,8 +170,8 @@ def update_gene_synonyms(filename, sep="\t", comment="#", encoding=None,
                 else:
                     gene.synonyms.add(synonym)
 
-def update_gene_external(filename, sep="\t", comment="#", encoding=None,
-        mode="rb", **kw_args):
+def update_gene_external(filename, version="default", sep="\t", comment="#",
+        encoding=None, mode="rb", **kw_args):
     bpattern = BPATTERN
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
@@ -178,9 +179,9 @@ def update_gene_external(filename, sep="\t", comment="#", encoding=None,
         iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
         for row in iter_rowset(file_h):
             obj_id = row["object_id"]
-            if obj_id not in elem.Gene:
+            if not elem.Gene.has_key(obj_id, version):
                 continue
-            gene = elem.Gene[obj_id]
+            gene = elem.Gene[obj_id, version]
             synonym = row["ext_reference_id"]
             if synonym is not None:
                 if bpattern.match(synonym):
@@ -191,8 +192,8 @@ def update_gene_external(filename, sep="\t", comment="#", encoding=None,
                 else:
                     gene.synonyms.add(synonym)
 
-def read_products(filename, sep="\t", comment="#", encoding=None,
-        mode="rb", **kw_args):
+def read_products(filename, version="default", sep="\t", comment="#",
+        encoding=None, mode="rb", **kw_args):
     products = list()
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
@@ -207,44 +208,45 @@ def read_products(filename, sep="\t", comment="#", encoding=None,
             if not ip:
                 ip = None
             product = elem.Product(unique_id=row["product_id"],
+                name_space=version,
                 name=row["product_name"],
                 molecular_weight=mw,
                 isoelectric_point=ip)
             products.append(product)
     return products
 
-def update_synonyms(filename, cls, sep="\t", comment="#", encoding=None,
-        mode="rb", **kw_args):
+def update_synonyms(filename, cls, version="default", sep="\t", comment="#",
+        encoding=None, mode="rb", **kw_args):
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
     with open_file(filename, **kw_args) as (file_h, ext):
         iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
         for row in iter_rowset(file_h):
             obj_id = row["object_id"]
-            if obj_id not in cls:
+            if not cls.has_key(obj_id, version):
                 continue
-            inst = cls[obj_id]
+            inst = cls[obj_id, version]
             synonym = row["object_synonym_name"]
             if synonym:
                 inst.synonyms.add(synonym)
 
-def update_external(filename, cls, sep="\t", comment="#", encoding=None,
-        mode="rb", **kw_args):
+def update_external(filename, cls, version="default", sep="\t", comment="#",
+        encoding=None, mode="rb", **kw_args):
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
     with open_file(filename, **kw_args) as (file_h, ext):
         iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
         for row in iter_rowset(file_h):
             obj_id = row["object_id"]
-            if obj_id not in cls:
+            if not cls.has_key(obj_id, version):
                 continue
-            inst = cls[obj_id]
+            inst = cls[obj_id, version]
             synonym = row["ext_reference_id"]
             if synonym:
                 inst.synonyms.add(synonym)
 
-def link_gene_product(filename, sep="\t", comment="#", encoding=None,
-        mode="rb", **kw_args):
+def link_gene_product(filename, version="default", sep="\t", comment="#",
+        encoding=None, mode="rb", **kw_args):
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
     with open_file(filename, **kw_args) as (file_h, ext):
@@ -252,7 +254,7 @@ def link_gene_product(filename, sep="\t", comment="#", encoding=None,
         for row in iter_rowset(file_h):
             gene_id = row["gene_id"]
             try:
-                gene = elem.Gene[gene_id]
+                gene = elem.Gene[gene_id, version]
             except KeyError:
                 LOGGER.warn("unknown gene: {0}".format(gene_id))
                 continue
@@ -264,7 +266,7 @@ def link_gene_product(filename, sep="\t", comment="#", encoding=None,
                             " different context".format(gene_id, prod_id))
                 continue
             try:
-                gene.product = elem.Product[prod_id]
+                gene.product = elem.Product[prod_id, version]
             except KeyError:
                 LOGGER.warn("unknown product: {0}".format(prod_id))
                 continue
@@ -276,8 +278,8 @@ def link_gene_product(filename, sep="\t", comment="#", encoding=None,
                 continue
             gene.product.coded_from = gene
 
-def read_gene_regulation(filename, sep="\t", comment="#", encoding=None,
-        mode="rb", **kw_args):
+def read_gene_regulation(filename, version="default", sep="\t", comment="#",
+        encoding=None, mode="rb", **kw_args):
     grn = GRN(name="Gene Regulatory Network")
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
@@ -286,13 +288,13 @@ def read_gene_regulation(filename, sep="\t", comment="#", encoding=None,
         for row in iter_rowset(file_h):
             try:
                 eck12 = row["gene_id_regulator"]
-                gene_u = elem.Gene[eck12]
+                gene_u = elem.Gene[eck12, version]
             except KeyError:
                 LOGGER.warn("unknown gene: {0}".format(eck12))
                 continue
             try:
                 eck12 = row["gene_id_regulated"]
-                gene_v = elem.Gene[eck12]
+                gene_v = elem.Gene[eck12, version]
             except KeyError:
                 LOGGER.warn("unknown gene: {0}".format(eck12))
                 continue
@@ -300,8 +302,8 @@ def read_gene_regulation(filename, sep="\t", comment="#", encoding=None,
             grn.add_edge(gene_u, gene_v, key=FUNCTIONS[interaction])
     return grn
 
-def read_sigma_factors(filename, sep="\t", comment="#", encoding=None,
-        mode="rb", **kw_args):
+def read_sigma_factors(filename, version="default", sep="\t", comment="#",
+        encoding=None, mode="rb", **kw_args):
     s_factors = list()
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
@@ -309,11 +311,12 @@ def read_sigma_factors(filename, sep="\t", comment="#", encoding=None,
         iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
         for row in iter_rowset(file_h):
             sigma_factor = elem.SigmaFactor(unique_id=row["sigma_id"],
+                    name_space=version,
                     name=row["sigma_name"])
             sigma_factor.synonyms.add(row["sigma_synonyms"])
             try:
                 eck12 = row["sigma_gene_id"]
-                gene = elem.Gene[eck12]
+                gene = elem.Gene[eck12, version]
             except KeyError:
                 LOGGER.warn("unknown gene: {0}".format(eck12))
                 s_factors.append(sigma_factor)
@@ -324,8 +327,8 @@ def read_sigma_factors(filename, sep="\t", comment="#", encoding=None,
             s_factors.append(sigma_factor)
     return s_factors
 
-def read_transcription_factors(filename, sep="\t", comment="#", encoding=None,
-        mode="rb", **kw_args):
+def read_transcription_factors(filename, version="default", sep="\t", comment="#",
+        encoding=None, mode="rb", **kw_args):
     """
     TODO: transcription_factor.xml changes rapidly across versions, so depending
     on version we need to update various bits of information on the class
@@ -338,13 +341,14 @@ def read_transcription_factors(filename, sep="\t", comment="#", encoding=None,
         iter_rowset = FILE_PARSERS.get(ext, iter_rowset_flat_file)
         for row in iter_rowset(file_h):
             t_factor = elem.TranscriptionFactor(
-                    unique_id=row["transcription_factor_id"],
-                    name=row["transcription_factor_name"])
+                unique_id=row["transcription_factor_id"],
+                name_space=version,
+                name=row["transcription_factor_name"])
             t_factors.append(t_factor)
     return t_factors
 
-def update_product_transcription_factor_link(filename, sep="\t", comment="#",
-        encoding=None, mode="rb", **kw_args):
+def update_product_transcription_factor_link(filename, version="default",
+        sep="\t", comment="#", encoding=None, mode="rb", **kw_args):
     kw_args["mode"] = mode
     kw_args["encoding"] = encoding
     with open_file(filename, **kw_args) as (file_h, ext):
@@ -352,13 +356,13 @@ def update_product_transcription_factor_link(filename, sep="\t", comment="#",
         for row in iter_rowset(file_h):
             prod_id = row["product_id"]
             try:
-                product = elem.Product[prod_id]
+                product = elem.Product[prod_id, version]
             except KeyError:
                 LOGGER.warn("unknown product: {0}".format(prod_id))
                 continue
             tf_id = row["transcription_factor_id"]
             try:
-                t_factor = elem.TranscriptionFactor[tf_id]
+                t_factor = elem.TranscriptionFactor[tf_id, version]
             except KeyError:
                 LOGGER.warn("unknown transcription factor: {0}".format(prod_id))
                 continue
@@ -366,8 +370,8 @@ def update_product_transcription_factor_link(filename, sep="\t", comment="#",
             t_factor.coded_from.add(product.coded_from)
             product.coded_from.regulatory_product = t_factor
 
-def read_regulatory_interactions(filename, sep="\t", comment="#",
-        encoding=None, mode="rb", **kw_args):
+def read_regulatory_interactions(filename, sep="\t", comment="#", encoding=None,
+        mode="rb", **kw_args):
     """
     Extract regulatory interactions from relationships in RegulonDB files. Each
     interaction is given by a conformation ID and a promoter ID and the type of
@@ -385,8 +389,8 @@ def read_regulatory_interactions(filename, sep="\t", comment="#",
             interactions.append((u, v, k))
     return interactions
 
-def read_transcription_units(filename, sep="\t", comment="#", encoding=None,
-        mode="rb", **kw_args):
+def read_transcription_units(filename, version="default", sep="\t", comment="#",
+        encoding=None, mode="rb", **kw_args):
     """
     Extract pairs of transcription unit and promoter IDs.
 
@@ -408,7 +412,7 @@ def read_transcription_units(filename, sep="\t", comment="#", encoding=None,
             # promoter.xml
             if prom_id:
                 try:
-                    prom = elem.Promoter[prom_id]
+                    prom = elem.Promoter[prom_id, version]
                 except KeyError:
                     prom = None
                     LOGGER.warn("unknown promoter '%s' in transcription unit '%s'",
@@ -417,7 +421,7 @@ def read_transcription_units(filename, sep="\t", comment="#", encoding=None,
                 prom = None
             if op_id:
                 try:
-                    op = elem.Operon[op_id]
+                    op = elem.Operon[op_id, version]
                 except KeyError:
                     op = None
                     LOGGER.warn("unknown operon '%s' in transcription unit '%s'",
@@ -425,13 +429,14 @@ def read_transcription_units(filename, sep="\t", comment="#", encoding=None,
             else:
                 op = None
             tu = elem.TranscriptionUnit(unique_id=tu_id,
+                    name_space=version,
                     name=row["transcription_unit_name"],
                     promoter=prom, operon=op)
             units.append(tu)
     return units
 
-def link_tu_genes(filename, sep="\t", comment="#", encoding=None,
-        mode="rb", **kw_args):
+def link_tu_genes(filename, version="default", sep="\t", comment="#",
+        encoding=None, mode="rb", **kw_args):
     """
     Link transcription units (TU) with their corresponding genes.
 
@@ -453,14 +458,14 @@ def link_tu_genes(filename, sep="\t", comment="#", encoding=None,
         for row in iter_rowset(file_h):
             tu_id = row["transcription_unit_id"]
             try:
-                t_unit = elem.TranscriptionUnit[tu_id]
+                t_unit = elem.TranscriptionUnit[tu_id, version]
             except KeyError:
                 LOGGER.error("unknown transcription unit '%s', please parse"\
                         " those first.", tu_id)
                 continue
             gene_id = row["gene_id"]
             try:
-                gene = elem.Gene[gene_id]
+                gene = elem.Gene[gene_id, version]
             except KeyError:
                 LOGGER.error("unknown gene '%s', please parse those first.", gene_id)
                 continue
@@ -477,8 +482,8 @@ def link_tu_genes(filename, sep="\t", comment="#", encoding=None,
             LOGGER.error("conflicting strand information in transcription unit"\
                     " '%s'", tu.unique_id)
 
-def read_promoters(filename, sep="\t", comment="#", encoding=None,
-        mode="rb", **kw_args):
+def read_promoters(filename, version="default", sep="\t", comment="#",
+        encoding=None, mode="rb", **kw_args):
     """
     Extract promoter information.
 
@@ -499,8 +504,8 @@ def read_promoters(filename, sep="\t", comment="#", encoding=None,
             strand = row["promoter_strand"]
             if not strand:
                 strand = None
-            prom = elem.Promoter(
-                    unique_id=row["promoter_id"],
+            prom = elem.Promoter(unique_id=row["promoter_id"],
+                    name_space=version,
                     name=row["promoter_name"],
                     strand=strand,
                     pos_1=misc.convert2numeral(row["pos_1"]),
@@ -511,8 +516,8 @@ def read_promoters(filename, sep="\t", comment="#", encoding=None,
             promoters.append(prom)
     return promoters
 
-def read_operons(filename, sep="\t", comment="#", encoding=None,
-        mode="rb", **kw_args):
+def read_operons(filename, version="default", sep="\t", comment="#",
+        encoding=None, mode="rb", **kw_args):
     """
     Extract operon information.
 
@@ -547,6 +552,7 @@ def read_operons(filename, sep="\t", comment="#", encoding=None,
                 strand = None
             op = elem.Operon(
                     unique_id=row["operon_id"],
+                    name_space=version,
                     name=row["operon_name"],
                     strand=strand,
                     gene_position_start=gene_left,
@@ -592,8 +598,8 @@ def update_operons(operons, promoters, genes, **kw_args):
         else:
             op.genes.sort(key=begin)
 
-def read_conformations(filename, sep="\t", comment="#", encoding=None,
-        mode="rb", **kw_args):
+def read_conformations(filename, version="default", sep="\t", comment="#",
+        encoding=None, mode="rb", **kw_args):
     """
     Extract conformation information.
 
@@ -613,7 +619,7 @@ def read_conformations(filename, sep="\t", comment="#", encoding=None,
         for row in iter_rowset(file_h):
             tf_id = row["transcription_factor_id"]
             try:
-                t_factor = elem.TranscriptionFactor[tf_id]
+                t_factor = elem.TranscriptionFactor[tf_id, version]
             except KeyError:
                 LOGGER.warn("unknown transcription factor %s", tf_id)
                 LOGGER.warn("Please parse transcription factor information before"\
@@ -621,6 +627,7 @@ def read_conformations(filename, sep="\t", comment="#", encoding=None,
                 continue
             conf = elem.Conformation(
                     unique_id=row["conformation_id"],
+                    name_space=version,
                     tf=t_factor,
                     state=row["final_state"],
                     interaction=row["interaction_type"],

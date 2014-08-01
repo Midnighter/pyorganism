@@ -22,6 +22,8 @@ LOGGER = logging.getLogger()
 LOGGER.addHandler(logging.StreamHandler())
 LOGGER.setLevel(logging.INFO)
 
+VERSION = "default"
+
 
 single_dir = "Expression/LZ41-LZ54_single_knockouts"
 double_dir = "Expression/LZ41-LZ54_double_knockouts"
@@ -127,70 +129,70 @@ def synonym_finder(genes):
 
 def manual_name_updates(name2gene):
 # [b1500](http://regulondb.ccg.unam.mx/gene?term=ECK120003379&organism=ECK12&format=jsp&type=gene)
-    gene = pyreg.Gene.get("ECK120003379", None)
+    gene = pyreg.Gene.get("ECK120003379", None, VERSION)
     name2gene["b1500"] = gene
 # [b0609](http://regulondb.ccg.unam.mx/gene?term=ECK120002943&organism=ECK12&format=jsp&type=gene)
-    gene = pyreg.Gene.get("ECK120002943", None)
+    gene = pyreg.Gene.get("ECK120002943", None, VERSION)
     name2gene["b0609"] = gene
 # [b0332](http://www.ncbi.nlm.nih.gov/gene/?term=944992) is not recorded in RegulonDB.
 # [b3975](http://regulondb.ccg.unam.mx/gene?term=G7818&type=gene&format=jsp)
-    gene = pyreg.Gene.get("ECK120004318", None)
+    gene = pyreg.Gene.get("ECK120004318", None, VERSION)
     name2gene["b3975"] = gene
 # [b2084](http://regulondb.ccg.unam.mx/gene?term=G7121&type=gene&format=jsp)
-    gene = pyreg.Gene.get("ECK120003706", None)
+    gene = pyreg.Gene.get("ECK120003706", None, VERSION)
     name2gene["b2084"] = gene
 # [b0322](http://regulondb.ccg.unam.mx/gene?term=G0-10550&type=gene&format=jsp)
-    gene = pyreg.Gene.get("ECK120026444", None)
+    gene = pyreg.Gene.get("ECK120026444", None, VERSION)
     name2gene["b0322"] = gene
 # [b0309](http://regulondb.ccg.unam.mx/gene?term=ECK120002798&organism=ECK12&format=jsp&type=gene)
-    gene = pyreg.Gene.get("ECK120002798", None)
+    gene = pyreg.Gene.get("ECK120002798", None, VERSION)
     name2gene["b0309"] = gene
 # [b2596](http://regulondb.ccg.unam.mx/gene?term=G7353&type=gene&format=jsp)
-    gene = pyreg.Gene.get("ECK120003922", None)
+    gene = pyreg.Gene.get("ECK120003922", None, VERSION)
     name2gene["b2596"] = gene
 # [b1364](http://regulondb.ccg.unam.mx/gene?term=ECK120003282&organism=ECK12&format=jsp&type=gene)
-    gene = pyreg.Gene.get("ECK120003282", None)
+    gene = pyreg.Gene.get("ECK120003282", None, VERSION)
     name2gene["b1364"] = gene
 # [b4091](http://porteco.org/AjaxSearch.jsp?searchString=b4091) is not recorded in RegulonDB.
-    gene = pyreg.Gene.get("ECK120003116", None)
+    gene = pyreg.Gene.get("ECK120003116", None, VERSION)
     name2gene["ycdF"] = gene
 # [ycdF](http://regulondb.ccg.unam.mx/gene?term=ECK120003116&organism=ECK12&format=jsp&type=gene)
-    gene = pyreg.Gene.get("ECK120003116", None)
+    gene = pyreg.Gene.get("ECK120003116", None, VERSION)
     name2gene["ycdF"] = gene
 # [b1903](http://regulondb.ccg.unam.mx/gene?term=G7034&type=gene&format=jsp)
-    gene = pyreg.Gene.get("ECK120003620", None)
+    gene = pyreg.Gene.get("ECK120003620", None, VERSION)
     name2gene["b1903"] = gene
 # [b0501](http://regulondb.ccg.unam.mx/gene?term=G6272&type=gene&format=jsp)
-    gene = pyreg.Gene.get("ECK120002880", None)
+    gene = pyreg.Gene.get("ECK120002880", None, VERSION)
     name2gene["b0501"] = gene
 # [b0165](http://regulondb.ccg.unam.mx/gene?term=ECK120002711&organism=ECK12&format=jsp&type=gene)
-    gene = pyreg.Gene.get("ECK120002711", None)
+    gene = pyreg.Gene.get("ECK120002711", None, VERSION)
     name2gene["b0165"] = gene
 # [rhsC_1](http://regulondb.ccg.unam.mx/gene?term=ECK120000839&organism=ECK12&format=jsp&type=gene)
-    gene = pyreg.Gene.get("ECK120000839", None)
+    gene = pyreg.Gene.get("ECK120000839", None, VERSION)
     name2gene["rhsC_1"] = gene
 # [rhsC_2](http://regulondb.ccg.unam.mx/gene?term=ECK120000839&organism=ECK12&format=jsp&type=gene)
-    gene = pyreg.Gene.get("ECK120000839", None)
+    gene = pyreg.Gene.get("ECK120000839", None, VERSION)
     name2gene["rhsC_2"] = gene
 # [b1354](http://regulondb.ccg.unam.mx/gene?term=G6678&type=gene&format=jsp)
-    gene = pyreg.Gene.get("ECK120003273", None)
+    gene = pyreg.Gene.get("ECK120003273", None, VERSION)
     name2gene["b1354"] = gene
 # [b2651](http://regulondb.ccg.unam.mx/gene?term=ECK120003954&organism=ECK12&format=jsp&type=gene)
-    gene = pyreg.Gene.get("ECK120003954", None)
+    gene = pyreg.Gene.get("ECK120003954", None, VERSION)
     name2gene["b2651"] = gene
 # [b1052](http://regulondb.ccg.unam.mx/gene?term=ECK120003149&organism=ECK12&format=jsp&type=gene)
-    gene = pyreg.Gene.get("ECK120003149", None)
+    gene = pyreg.Gene.get("ECK120003149", None, VERSION)
     name2gene["b1052"] = gene
 # [b0395](http://www.ncbi.nlm.nih.gov/gene/?term=949074) is not recorded in RegulonDB.
 # [b0725](http://regulondb.ccg.unam.mx/gene?term=ECK120002988&organism=ECK12&format=jsp&type=gene)
-    gene = pyreg.Gene.get("ECK120002988", None)
+    gene = pyreg.Gene.get("ECK120002988", None, VERSION)
     name2gene["b0725"] = gene
 # [b3837](http://porteco.org/AjaxSearch.jsp?searchString=b3837) is not recorded in RegulonDB.
 # [b3007](http://regulondb.ccg.unam.mx/gene?term=G7562&type=gene&format=jsp)
-    gene = pyreg.Gene.get("ECK120004121", None)
+    gene = pyreg.Gene.get("ECK120004121", None, VERSION)
     name2gene["b3007"] = gene
 # [b3004](http://regulondb.ccg.unam.mx/gene?term=G7561&type=gene&format=jsp)
-    gene = pyreg.Gene.get("ECK120004120", None)
+    gene = pyreg.Gene.get("ECK120004120", None, VERSION)
     name2gene["b3004"] = gene
 
 def verify_union(name2gene, blattner2gene, full_data):
@@ -212,10 +214,13 @@ def verify_union(name2gene, blattner2gene, full_data):
 
 
 def compile_name2gene(objects_path):
+    LOGGER.info("{0:*^78s}".format("Compile Gene Name Map"))
     full_data = compile_names(CONFIG["data_paths"], CONFIG["data_load"])
     version = os.path.basename(objects_path)
     if not version:
         version = os.path.basename(os.path.dirname(objects_path))
+    global VERSION
+    VERSION = version
     LOGGER.info("{0:*^78s}".format(version))
     LOGGER.info("Loading genes")
     genes = pyorganism.read_pickle(os.path.join(objects_path, "genes.pkl"))

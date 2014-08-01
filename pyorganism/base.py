@@ -51,32 +51,45 @@ class MetaBase(type):
         cls_dct["_memory"] = dict()
         return super(MetaBase, mcls).__new__(mcls, cls_name, cls_bases, cls_dct)
 
-    def __call__(cls, unique_id="", **kw_args):
+    def __call__(cls, unique_id="", name_space="default", **kw_args):
         """
         Returns an existing instance identified by `unique_id` or calls for a new
         one.
         """
-        memory = cls._memory.get(unique_id)
-        if memory is None:
-            cls._counter += 1
-            return super(type(cls), cls).__call__(unique_id=unique_id, **kw_args)
+        memory = cls._memory.setdefault(name_space, dict())
+        if unique_id in memory:
+            return memory[unique_id]
         else:
-            return memory
+            cls._counter += 1
+            return super(type(cls), cls).__call__(unique_id=unique_id,
+                    name_space=name_space, **kw_args)
 
-    def __contains__(cls, unique_id):
-        return unique_id in cls._memory
+    def __getitem__(cls, item):
+        if isinstance(item, tuple):
+            return cls._memory[item[1]][item[0]]
+        else:
+            return cls._memory["default"][item]
 
-    def __getitem__(cls, unique_id):
-        return cls._memory[unique_id]
+    def __setitem__(cls, item):
+        if isinstance(item, tuple):
+            return cls._memory[item[1]][item[0]]
+        else:
+            return cls._memory["default"][item]
 
-    def __len__(cls):
-        return len(cls._memory)
+    def __delitem__(cls, item):
+        if isinstance(item, tuple):
+            del cls._memory[item[1]][item[0]]
+        else:
+            del cls._memory["default"][item]
 
-    def get(cls, unique_id, default=None):
-        return cls._memory.get(unique_id, default)
+    def get(cls, unique_id, default=None, name_space="default"):
+        return cls._memory[name_space].get(unique_id, default)
 
-    def clear(cls):
-        cls._memory.clear()
+    def clear(cls, name_space="default"):
+        cls._memory[name_space].clear()
+
+    def has_key(cls, unique_id, name_space="default"):
+        return unique_id in cls._memory[name_space]
 
 
 class UniqueBase(object):
@@ -117,7 +130,7 @@ class UniqueBase(object):
     # immutable class attribute is subclass-specific automatically
     _counter = 0
 
-    def __init__(self, unique_id="", **kw_args):
+    def __init__(self, unique_id="", name_space="default", **kw_args):
         """
         Parameters
         ----------
@@ -131,8 +144,9 @@ class UniqueBase(object):
         else:
             self.unique_id = u"{0}_{1:d}".format(self.__class__.__name__,
                     self._index)
-        self.__skip_setstate = False
-        self.__class__._memory[self.unique_id] = self
+        self._name_space = name_space
+        self._skip_setstate = False
+        self.__class__._memory[name_space][self.unique_id] = self
 
     def __reduce__(self):
         """
@@ -153,13 +167,13 @@ class UniqueBase(object):
         The `unique_id` is all we need for persistent state. It allows us to
         retrieve an existing object with that ID or generate it accordingly.
         """
-        return (self.__class__, self.unique_id)
+        return (self.__class__, self.unique_id, self._name_space)
 
     def __getstate__(self):
         """
         We could take more fine-grained control here.
         """
-        self.__skip_setstate = False
+        self._skip_setstate = False
         return self.__dict__
 
     def __setstate__(self, state):
@@ -171,7 +185,7 @@ class UniqueBase(object):
         attributes with the unpickled ones (kind of a workaround, can't decide
         when an object was newly created upon unpickling).
         """
-        if self.__skip_setstate:
+        if self._skip_setstate:
             return
         self.__dict__.update(state)
 
@@ -185,12 +199,13 @@ class UniqueBase(object):
         return u"<{0}.{1} {2:d}>".format(self.__module__, self.__class__.__name__, id(self))
 
 
-def _unpickle_call(cls, unique_id):
+def _unpickle_call(cls, unique_id, name_space):
     """
     Prevents setting of state iff the object existed before.
     """
-    skip = unique_id in cls._memory
-    obj = cls(unique_id)
-    obj.__skip_setstate = skip
+    memory = cls._memory.setdefault(name_space, dict())
+    skip = unique_id in memory # test before instantiation
+    obj = cls(unique_id=unique_id, name_space=name_space)
+    obj._skip_setstate = skip
     return obj
 

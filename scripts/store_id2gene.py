@@ -61,8 +61,9 @@ def inconsistencies(df):
     return faulty_indeces
 
 def store_joint_ids(map_path, frame_path, version=""):
-    if not version:
-        version = os.path.basename(map_path)
+    LOGGER.info("{0:*^78s}".format("Store Gene IDs"))
+    map_name = os.path.splitext(os.path.basename(map_path))[0]
+    LOGGER.info("{0:*^78s}".format(map_name))
     base_path = os.path.dirname(map_path)
     if not version:
         version = os.path.basename(base_path)
@@ -74,7 +75,6 @@ def store_joint_ids(map_path, frame_path, version=""):
     id2gene = pyorganism.read_pickle(map_path)
     LOGGER.info("Creating data frame")
     df = create_dataframe(id2gene, version)
-    map_name = os.path.splitext(os.path.basename(map_path))[0]
     hdf_key = "/%s" % (map_name,)
     LOGGER.info("Assembling joint frame")
     if os.path.exists(frame_path):

@@ -463,6 +463,11 @@ class GPNGenerator(object):
 def effective_network(network, active):
     """
     Return the effective network imposed by a subset of nodes.
+
+    Warning
+    -------
+    Node instances not in the network are silently ignored.
+
     """
     subnet = network.subgraph(active)
     size = len(subnet)
@@ -472,11 +477,15 @@ def effective_network(network, active):
 
 def split_regulators(net):
     """
-    Return all nodes of ``upper_type`` and others.
+    Return a pair of all controlling nodes and others.
     """
-    control = {node for (node, deg) in net.out_degree_iter() if deg > 0}
-    regulated = set(net.nodes_iter()) - control
-    return (list(control), list(regulated))
+    regulators = {node for (node, deg) in net.out_degree_iter() if deg > 0}
+    if len(regulators) == 0:
+        LOGGER.error("no regulating hubs in TRN")
+    slaves = set(net.nodes_iter()) - regulators
+    if len(slaves) == 0:
+        LOGGER.error("no regulated targets in TRN")
+    return (list(regulators), list(slaves))
 
 def setup_trn(trn, active):
     """

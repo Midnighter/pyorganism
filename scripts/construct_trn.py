@@ -37,6 +37,7 @@ class NodeConverter(object):
 
 
 def construct_trn(path):
+    LOGGER.info("{0:*^78s}".format("Construct TRN"))
     version = os.path.basename(path)
     if not version:
         version = os.path.basename(os.path.dirname(path))
@@ -45,15 +46,15 @@ def construct_trn(path):
     conformations = pyorganism.read_pickle(os.path.join(path, "conformations.pkl"))
     t_units = pyorganism.read_pickle(os.path.join(path, "transcription_units.pkl"))
     interactions = pyorganism.read_pickle(os.path.join(path, "interactions.pkl"))
-    assert all(triple[0] in pyreg.Conformation for triple in interactions),\
+    assert all(pyreg.Conformation.has_key(triple[0], version) for triple in interactions),\
             "unknown conformation in regulatory interactions"
-    assert all(triple[1] in pyreg.Promoter for triple in interactions),\
+    assert all(pyreg.Promoter.has_key(triple[1], version) for triple in interactions),\
             "unknown promoter in regulatory interactions"
     # conformation-promoter directed regulatory network
     cpn = nx.MultiDiGraph()
     for (u, v, inter) in interactions:
-        first = pyreg.Conformation[u]
-        second = pyreg.Promoter[v]
+        first = pyreg.Conformation[u, version]
+        second = pyreg.Promoter[v, version]
         cpn.add_edge(first, second, key=inter)
     # TRN from CPN
     trn = pyreg.TRN()
@@ -64,7 +65,7 @@ def construct_trn(path):
             trn.add_edge(first, nbr, key=k, **d.copy())
     LOGGER.info("%d Nodes", len(trn))
     LOGGER.info("%d Links", trn.size())
-    components = nx.connected_components(trn.to_undirected())
+    components = list(nx.connected_components(trn.to_undirected()))
     LOGGER.info("%d Components", len(components))
     LOGGER.info("Largest Component: %d", len(components[0]))
     if len(components) > 1:

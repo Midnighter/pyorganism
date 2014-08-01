@@ -17,6 +17,7 @@ LOGGER.setLevel(logging.INFO)
 
 
 def construct_gpn(path, window_sizes):
+    LOGGER.info("{0:*^78s}".format("Construct GPN"))
     version = os.path.basename(path)
     if not version:
         version = os.path.basename(os.path.dirname(path))
@@ -29,7 +30,7 @@ def construct_gpn(path, window_sizes):
         gpn = gpn_gen.generate_gpn(window)
         LOGGER.info("%d Nodes", len(gpn))
         LOGGER.info("%d Links", gpn.size())
-        components = nx.connected_components(gpn)
+        components = list(nx.connected_components(gpn))
         LOGGER.info("%d Components", len(components))
         LOGGER.info("Largest Component: %d", len(components[0]))
         if len(components) > 1:
