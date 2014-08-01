@@ -17,7 +17,8 @@ PyOrganism Regulatory Networks
 """
 
 
-__all__ = ["GRN", "TRN", "CouplonGenerator", "GPNGenerator"]
+__all__ = ["GRN", "TRN", "CouplonGenerator", "GPNGenerator",
+        "to_transcription_unit_based", "to_operon_based"]
 
 
 import logging

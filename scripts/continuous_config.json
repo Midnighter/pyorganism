@@ -18,7 +18,7 @@
     "control":["continuous_digital_control", "continuous_analog_control"],
     "ctc":["continuous_digital_ctc_fixed_tf_num", "continuous_analog_ctc"],
     "measures":[["continuous_difference_coherence", "continuous_abs_coherence", "continuous_functional_coherence", "continuous_functional_comparison"], ["continuous_difference_coherence", "continuous_abs_coherence"]],
-    "random_num":[1E0, 1E0],
+    "random_num":[1E1, 1E1],
     "robustness_num": [0, 0],
     "robustness_args": [[0.1], [0.1]]
 }

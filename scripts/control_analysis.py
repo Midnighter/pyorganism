@@ -14,7 +14,7 @@ import pyorganism as pyorg
 import pyorganism.regulation as pyreg
 import pyorganism.io.microarray as pymicro
 
-from itertools import (izip, chain)
+from itertools import (izip,)
 from signal import SIGINT
 from exceptions import SystemExit
 from logging.config import dictConfig
@@ -41,11 +41,12 @@ def check_path(path):
 
 def load_discrete(organism, config):
     LOGGER.info("Loading differentially expressed genes:")
-    for (basename, name, reader, extra) in izip(config["experimental_paths"],
-            config["experimental_names"], config["experimental_reader"],
-            config["experimental_args"]):
+    experiments = config["experiments"]
+    for (filename, name, reader, extra) in izip(experiments["paths"],
+            experiments["names"], experiments["readers"],
+            experiments["args"]):
         reader_func = getattr(pymicro, reader)
-        path = os.path.join(config["experimental_base"], basename)
+        path = os.path.join(experiments["base"], filename)
         check_path(path)
         LOGGER.info("  %s: '%s'", name, path)
         organism.activity[name] = reader_func(path)
@@ -73,36 +74,46 @@ def ratio_discrete(df, name2gene, direction="up"):
 def discrete_jobs(organism, config):
     LOGGER.info("Generating discrete job specifications:")
     jobs = list()
-    # TODO: take care of up/down for analog
+    analysis = config["analysis"]
     for version in config["versions"]:
-        for (cntrl_name, gene_file, map_file, net_file, experiments, setups,
+        for (cntrl_name, experiments, setups,
                 control, ctc, measures, random_num, robustness_num,
-                rob_extra) in izip(config["control_types"],
-                config["gene_paths"], config["mapping_paths"], config["network_paths"],
-                config["experimental_sets"], config["experimental_setup"],
-                config["control"], config["ctc"],
-                config["measures"], config["random_num"],
-                config["robustness_num"], config["robustness_args"]):
-            gene_path = os.path.join(config["regulondb_base"], version, gene_file)
-            check_path(gene_path)
-            map_path = os.path.join(config["regulondb_base"], version, map_file)
-            check_path(map_path)
-            net_path = os.path.join(config["regulondb_base"], version, net_file)
-            check_path(net_path)
-            for ms_name in measures:
-                for (exp_name, exp_setup) in izip(experiments, setups):
-                    if exp_setup == "ratio_discrete":
-                        for direction in ["up", "down"]:
+                rob_extra) in izip(analysis["control_types"],
+                analysis["experimental_sets"], analysis["experimental_setups"],
+                analysis["control"], analysis["ctc"],
+                analysis["measures"], analysis["random_num"],
+                analysis["robustness_num"], analysis["robustness_args"]):
+            if cntrl_name == "digital":
+                index = config["network"]["names"].index("TRN")
+            elif cntrl_name == "analog":
+                index = config["network"]["names"].index("GPN")
+            projections = config["network"]["projections"][index]
+            for basis in projections:
+                for ms_name in measures:
+                    for (exp_name, exp_setup) in izip(experiments, setups):
+                        if exp_setup == "ratio_discrete":
+                            for direction in ["up", "down"]:
+                                spec = dict()
+                                spec["version"] = version
+                                spec["continuous"] = config["continuous"]
+                                spec["control_type"] = cntrl_name
+                                spec["experiment"] = exp_name
+                                spec["basis"] = basis
+                                spec["direction"] = direction
+                                spec["control"] = control
+                                spec["ctc"] = ctc
+                                spec["measure"] = ms_name
+                                spec["random_num"] = random_num
+                                spec["robustness_num"] = robustness_num
+                                spec["robustness_args"] = rob_extra
+                                jobs.append(spec)
+                        else:
                             spec = dict()
                             spec["version"] = version
                             spec["continuous"] = config["continuous"]
                             spec["control_type"] = cntrl_name
-                            spec["genes"] = gene_path
-                            spec["mapping"] = map_path
-                            spec["network"] = net_path
                             spec["experiment"] = exp_name
-                            spec["setup"] = exp_setup
-                            spec["direction"] = direction
+                            spec["basis"] = basis
                             spec["control"] = control
                             spec["ctc"] = ctc
                             spec["measure"] = ms_name
@@ -110,41 +121,22 @@ def discrete_jobs(organism, config):
                             spec["robustness_num"] = robustness_num
                             spec["robustness_args"] = rob_extra
                             jobs.append(spec)
-                    else:
-                        spec = dict()
-                        spec["version"] = version
-                        spec["continuous"] = config["continuous"]
-                        spec["control_type"] = cntrl_name
-                        spec["genes"] = gene_path
-                        spec["mapping"] = map_path
-                        spec["network"] = net_path
-                        spec["experiment"] = exp_name
-                        spec["setup"] = exp_setup
-                        spec["control"] = control
-                        spec["ctc"] = ctc
-                        spec["measure"] = ms_name
-                        spec["random_num"] = random_num
-                        spec["robustness_num"] = robustness_num
-                        spec["robustness_args"] = rob_extra
-                        jobs.append(spec)
     LOGGER.info("  %d jobs", len(jobs))
     return jobs
 
 @interactive
 def discrete_worker(spec):
-    organism = globals()["organism"]
-    setup_func = globals()[spec["setup"]]
+    version = spec["version"]
+    cntrl_type = spec["control_type"]
+    global_vars = globals()
     control = getattr(pyreg, spec["control"])
     ctc = getattr(pyreg, spec["ctc"])
     measure = getattr(pyreg, spec["measure"])
-    genes = pyorg.read_pickle(spec["genes"]) # load genes into memory
-    id2gene = pyorg.read_pickle(spec["mapping"])
-    net = pyorg.read_pickle(spec["network"])
-    df = organism.activity[spec["experiment"]]
-    if spec["setup"] == "ratio_discrete":
-        active = setup_func(df, id2gene, spec["direction"])
+    net = global_vars["networks"][version][cntrl_type][spec["projection"]]
+    if cntrl_type == "analog":
+        active = global_vars["prepared"][version][cntrl_type][spec["experiment"]][spec["direction"]]
     else:
-        active = setup_func(df, id2gene)
+        active = global_vars["prepared"][version][cntrl_type][spec["experiment"]]
     LOGGER.debug(len(active))
     res_cntrl = control(net, active, measure=measure)
     res_ctc = ctc(net, active, random_num=spec["random_num"], measure=measure)
@@ -222,11 +214,11 @@ def fully_randomised_continuous(df, feature2gene):
 
 def load_continuous(organism, config):
     LOGGER.info("Loading continuous expression data:")
-    for (basename, name, reader, extra) in izip(config["experimental_paths"],
-            config["experimental_names"], config["experimental_reader"],
-            config["experimental_args"]):
+    experiments = config["experiments"]
+    for (filename, name, reader, extra) in izip(experiments["paths"],
+            experiments["names"], experiments["readers"], experiments["args"]):
         reader_func = getattr(pymicro, reader)
-        path = os.path.join(config["experimental_base"], basename)
+        path = os.path.join(experiments["base"], filename)
         check_path(path)
         LOGGER.info("  %s: '%s'", name, path)
         organism.activity[name] = reader_func(path, mutants=extra)
@@ -234,65 +226,58 @@ def load_continuous(organism, config):
 def continuous_jobs(organism, config):
     LOGGER.info("Generating continuous job specifications:")
     jobs = list()
+    analysis = config["analysis"]
     for version in config["versions"]:
-        for (cntrl_name, gene_file, map_file, net_file, experiments, setups,
-                control, ctc, measures, random_num, robustness_num,
-                rob_extra) in izip(config["control_types"],
-                config["gene_paths"], config["mapping_paths"], config["network_paths"],
-                config["experimental_sets"], config["experimental_setup"],
-                config["control"], config["ctc"],
-                config["measures"], config["random_num"],
-                config["robustness_num"], config["robustness_args"]):
-            gene_path = os.path.join(config["regulondb_base"], version, gene_file)
-            check_path(gene_path)
-            map_path = os.path.join(config["regulondb_base"], version, map_file)
-            check_path(map_path)
-            net_path = os.path.join(config["regulondb_base"], version, net_file)
-            check_path(net_path)
-            for ms_name in measures:
-                for (exp_name, exp_setup) in izip(experiments, setups):
-# TODO: need to change this to use the actual times (for rate and delayed)
-                    times = organism.activity[exp_name].columns
-                    for time_point in times:
-                        spec = dict()
-                        spec["version"] = version
-                        spec["continuous"] = config["continuous"]
-                        spec["control_type"] = cntrl_name
-                        spec["time"] = time_point
-                        spec["genes"] = gene_path
-                        spec["mapping"] = map_path
-                        spec["network"] = net_path
-                        spec["experiment"] = exp_name
-                        spec["setup"] = exp_setup
-                        spec["control"] = control
-                        spec["ctc"] = ctc
-                        spec["measure"] = ms_name
-                        spec["random_num"] = random_num
-                        spec["robustness_num"] = robustness_num
-                        spec["robustness_args"] = rob_extra
-                        jobs.append(spec)
+        for (cntrl_name, experiments, control, ctc, measures, random_num,
+                robustness_num, rob_extra) in izip(analysis["control_types"],
+                analysis["experimental_sets"], analysis["control"],
+                analysis["ctc"], analysis["measures"], analysis["random_num"],
+                analysis["robustness_num"], analysis["robustness_args"]):
+            if cntrl_name == "digital":
+                index = config["network"]["names"].index("TRN")
+            elif cntrl_name == "analog":
+                index = config["network"]["names"].index("GPN")
+            projections = config["network"]["projections"][index]
+            for basis in projections:
+                for ms_name in measures:
+                    for exp_name in experiments:
+    # TODO: need to change this to use the actual times (for rate and delayed)
+                        times = organism.activity[exp_name].columns
+                        for time_point in times:
+                            spec = dict()
+                            spec["version"] = version
+                            spec["continuous"] = config["continuous"]
+                            spec["control_type"] = cntrl_name
+                            spec["time"] = time_point
+                            spec["experiment"] = exp_name
+                            spec["basis"] = basis
+                            spec["control"] = control
+                            spec["ctc"] = ctc
+                            spec["measure"] = ms_name
+                            spec["random_num"] = random_num
+                            spec["robustness_num"] = robustness_num
+                            spec["robustness_args"] = rob_extra
+                            jobs.append(spec)
     LOGGER.info("  %d jobs", len(jobs))
     return jobs
 
 @interactive
 def continuous_worker(spec):
-    organism = globals()["organism"]
-    setup_func = globals()[spec["setup"]]
+    version = spec["version"]
+    cntrl_type = spec["control_type"]
+    global_vars = globals()
     control = getattr(pyreg, spec["control"])
     ctc = getattr(pyreg, spec["ctc"])
     measure = getattr(pyreg, spec["measure"])
-    genes = pyorg.read_pickle(spec["genes"]) # load genes into memory
-    id2gene = pyorg.read_pickle(spec["mapping"])
-    net = pyorg.read_pickle(spec["network"])
-    df = organism.activity[spec["experiment"]]
-    prepared = setup_func(df, id2gene)
+    # TODO: projection
+    net = global_vars["networks"][version][cntrl_type]
+    prepared = global_vars["prepared"][version][cntrl_type][spec["experiment"]]
     index = prepared["time"].index(spec["time"])
     active = prepared["active"][index]
     LOGGER.debug(len(active))
     levels = prepared["levels"][index]
     res_cntrl = control(net, active, levels, measure=measure)
     res_ctc = ctc(net, active, levels, random_num=spec["random_num"], measure=measure)
-    pyreg.clear_memory()
     return (spec, res_cntrl, res_ctc)
 
 def continuous_result(manager, spec, res_cntrl, res_ctc):
@@ -308,7 +293,6 @@ def continuous_result(manager, spec, res_cntrl, res_ctc):
 
 def main(remote_client, args):
     config = json.load(codecs.open(args.config, encoding=args.encoding, mode="rb"))
-    organism = pyorg.Organism(name=config["organism"])
     if config["continuous"]:
         load_func = load_continuous
         table_key = "/Continuous"
@@ -321,7 +305,53 @@ def main(remote_client, args):
         job_gen = discrete_jobs
         worker = discrete_worker
         result = discrete_result
+    organism = pyorg.Organism(name=config["organism"])
     load_func(organism, config)
+    LOGGER.info("Load data")
+    glob_vars = globals()
+    data = config["data"]
+    network = config["network"]
+    analysis = config["analysis"]
+    namespace = dict()
+    namespace["genes"] = dict()
+    namespace["id2gene"] = dict()
+    namespace["networks"] = dict()
+    namespace["prepared"] = dict()
+    for version in config["versions"]:
+        namespace["genes"][version] = pyorg.read_pickle(os.path.join(
+                data["base"], version, data["gene_path"]))
+        id2gene = pyorg.read_pickle(os.path.join(data["base"], version,
+                data["mapping_path"]))
+        namespace["networks"][version] = dict()
+        for (net_name, net_file, projections) in izip(network["names"],
+                network["paths"], network["projections"]):
+            net = pyorg.read_pickle(os.path.join(data["base"], version, net_file))
+            namespace["networks"][version][net_name] = dict()
+            for basis in projections:
+                if basis == "gene":
+                    namespace["networks"][version][net_name][basis] = net
+                elif basis == "transcription_unit":
+                    namespace["networks"][version][net_name][basis] =\
+                            pyreg.to_transcription_unit_based(net)
+                elif basis == "operon":
+                    namespace["networks"][version][net_name][basis] =\
+                            pyreg.to_operon_based(net)
+        namespace["prepared"][version] = dict()
+        for (cntrl_type, experiments, setups) in izip(analysis["control_types"],
+                 analysis["experimental_sets"], analysis["experimental_setup"]):
+            namespace["prepared"][version][cntrl_type] = dict()
+            for (exp_name, exp_setup) in izip(experiments, setups):
+                df = organism.activity[exp_name]
+                setup_func = glob_vars[exp_setup]
+                if exp_setup == "ratio_discrete":
+                    namespace["prepared"][version][cntrl_type][exp_name] = dict()
+                    namespace["prepared"][version][cntrl_type][exp_name]["up"] =\
+                            setup_func(df, id2gene, "up")
+                    namespace["prepared"][version][cntrl_type][exp_name]["down"] =\
+                            setup_func(df, id2gene, "down")
+                else:
+                    namespace["prepared"][version][cntrl_type][exp_name] =\
+                            setup_func(df, id2gene)
     # general parallel setup using IPython.parallel
     LOGGER.info("Remote imports")
     d_view = remote_client.direct_view()
@@ -332,9 +362,6 @@ def main(remote_client, args):
             "LOGGER.setLevel(logging.{level});".format(level=args.log_level),
             block=True)
     LOGGER.info("Transfer data")
-    namespace = dict((name, globals()[name])\
-            for name in set(chain(*config["experimental_setup"])))
-    namespace["organism"] = organism
     d_view.push(namespace, block=True)
     result_mngr = ResultManager(config["output"], table_key)
     jobs = job_gen(organism, config)
@@ -375,7 +402,7 @@ if __name__ == "__main__":
         sys.exit(main(remote_client, args))
     except: # we want to catch everything
         (err, msg, trace) = sys.exc_info()
-        if err != SystemExit:
+        if not isinstance(err, SystemExit):
             for (engine_id, pid) in pid_map.iteritems():
                 LOGGER.debug("interrupting engine %d", engine_id)
                 try:
