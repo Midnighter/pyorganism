@@ -68,7 +68,8 @@ def ratio_discrete(df, name2gene, direction="up"):
         mask = eligible
     active = [name2gene[name] for name in df["name"][mask]\
             if name2gene[name] is not None]
-    LOGGER.info("  mapped %d/%d {dir}-regulated genes", len(active), len(df))
+    LOGGER.info("  mapped %d/%d %s-regulated genes", len(active), len(df),
+            direction)
     return active
 
 def discrete_jobs(organism, config):
@@ -99,6 +100,7 @@ def discrete_jobs(organism, config):
                                 spec["control_type"] = cntrl_name
                                 spec["experiment"] = exp_name
                                 spec["basis"] = basis
+                                spec["setup"] = exp_setup
                                 spec["direction"] = direction
                                 spec["control"] = control
                                 spec["ctc"] = ctc
@@ -114,6 +116,7 @@ def discrete_jobs(organism, config):
                             spec["control_type"] = cntrl_name
                             spec["experiment"] = exp_name
                             spec["basis"] = basis
+                            spec["setup"] = exp_setup
                             spec["control"] = control
                             spec["ctc"] = ctc
                             spec["measure"] = ms_name
@@ -140,13 +143,14 @@ def discrete_worker(spec):
     LOGGER.debug(len(active))
     res_cntrl = control(net, active, measure=measure)
     res_ctc = ctc(net, active, random_num=spec["random_num"], measure=measure)
-    pyreg.clear_memory()
     return (spec, res_cntrl, res_ctc)
 
 def discrete_result(manager, spec, res_cntrl, res_ctc):
-    manager.append(spec["version"], spec["control_type"], spec["continuous"],
-            spec["experiment"], res_cntrl, spec["control"], res_ctc,
-            spec["ctc"], spec["measure"], direction=spec.get("direction", None))
+    manager.append(version=spec["version"], control_type=spec["control_type"],
+            continuous=spec["continuous"], strain=spec["experiment"],
+            projection=spec["basis"], setup=, control_strength=res_cntrl,
+            control_method=spec["control"], ctc=res_ctc, ctc_method=spec["ctc"],
+            measure=spec["measure"], direction=spec.get("direction", None))
 
 
 ##############################################################################
@@ -228,11 +232,12 @@ def continuous_jobs(organism, config):
     jobs = list()
     analysis = config["analysis"]
     for version in config["versions"]:
-        for (cntrl_name, experiments, control, ctc, measures, random_num,
+        for (cntrl_name, experiments, setups, control, ctc, measures, random_num,
                 robustness_num, rob_extra) in izip(analysis["control_types"],
-                analysis["experimental_sets"], analysis["control"],
-                analysis["ctc"], analysis["measures"], analysis["random_num"],
-                analysis["robustness_num"], analysis["robustness_args"]):
+                analysis["experimental_sets"], analysis["experimental_setups"],
+                analysis["control"], analysis["ctc"], analysis["measures"],
+                analysis["random_num"], analysis["robustness_num"],
+                analysis["robustness_args"]):
             if cntrl_name == "digital":
                 index = config["network"]["names"].index("TRN")
             elif cntrl_name == "analog":
@@ -240,7 +245,7 @@ def continuous_jobs(organism, config):
             projections = config["network"]["projections"][index]
             for basis in projections:
                 for ms_name in measures:
-                    for exp_name in experiments:
+                    for (exp_name, exp_setup) in izip(experiments, setups):
     # TODO: need to change this to use the actual times (for rate and delayed)
                         times = organism.activity[exp_name].columns
                         for time_point in times:
@@ -251,6 +256,7 @@ def continuous_jobs(organism, config):
                             spec["time"] = time_point
                             spec["experiment"] = exp_name
                             spec["basis"] = basis
+                            spec["setup"] = exp_setup
                             spec["control"] = control
                             spec["ctc"] = ctc
                             spec["measure"] = ms_name
@@ -269,8 +275,7 @@ def continuous_worker(spec):
     control = getattr(pyreg, spec["control"])
     ctc = getattr(pyreg, spec["ctc"])
     measure = getattr(pyreg, spec["measure"])
-    # TODO: projection
-    net = global_vars["networks"][version][cntrl_type]
+    net = global_vars["networks"][version][cntrl_type][spec["projection"]]
     prepared = global_vars["prepared"][version][cntrl_type][spec["experiment"]]
     index = prepared["time"].index(spec["time"])
     active = prepared["active"][index]
@@ -281,9 +286,12 @@ def continuous_worker(spec):
     return (spec, res_cntrl, res_ctc)
 
 def continuous_result(manager, spec, res_cntrl, res_ctc):
-    manager.append(spec["version"], spec["control_type"], spec["continuous"],
-            spec["experiment"], res_cntrl, spec["control"], res_ctc,
-            spec["ctc"], spec["measure"], time=int(float(spec["time"])))
+    manager.append(version=spec["version"], control_type=spec["control_type"],
+            continuous=spec["continuous"], strain=spec["experiment"],
+            projection=spec["basis"], setup=spec["setup"],
+            control_strength=res_cntrl, control_method=spec["control"],
+            ctc=res_ctc, ctc_method=spec["ctc"],
+            measure=spec["measure"], time=int(float(spec["time"])))
 
 
 ##############################################################################
@@ -338,9 +346,10 @@ def main(remote_client, args):
                             pyreg.to_operon_based(net)
         namespace["prepared"][version] = dict()
         for (cntrl_type, experiments, setups) in izip(analysis["control_types"],
-                 analysis["experimental_sets"], analysis["experimental_setup"]):
+                 analysis["experimental_sets"], analysis["experimental_setups"]):
             namespace["prepared"][version][cntrl_type] = dict()
             for (exp_name, exp_setup) in izip(experiments, setups):
+                # TODO: active nodes on projection (levels, too)
                 df = organism.activity[exp_name]
                 setup_func = glob_vars[exp_setup]
                 if exp_setup == "ratio_discrete":

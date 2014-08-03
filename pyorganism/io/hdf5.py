@@ -20,7 +20,6 @@ Input/Output of HDF5 Files
 __all__ = ["ResultManager"]
 
 
-import os
 import logging
 import uuid
 
@@ -62,7 +61,10 @@ class ControlData(tables.IsDescription):
     db_version = tables.StringCol(4) # xx.x
     control_type = tables.StringCol(12) # analog or digital or metabolic
     continuous = tables.BoolCol() # discrete or continuous
-    description = tables.StringCol(30)
+    strain = tables.StringCol(30) # experimental strain
+    projection = tables.StringCol(30) # gene, TU, operon
+    setup = tables.StringCol(30) # data setup
+    description = tables.StringCol(30) # misc
     direction = tables.StringCol(4) # up or down (based on fold-change)
     control = tables.Float64Col() # analog or digital control or metabolic coherence
     control_method = tables.StringCol(60)
@@ -83,22 +85,23 @@ class ResultManager(object):
                 title="Control Analysis Data")
         self._setup()
 
-    def append(self, version, control_type, continuous, description,
-            control_strength, control_method, ctc, ctc_method, measure,
-            samples=None, robustness=None, direction=None, time=None):
+    def append(self, version, control_type, continuous, strain, projection,
+            setup, control_strength, control_method, ctc, ctc_method, measure,
+            description=None, samples=None, robustness=None, direction=None,
+            time=None):
         unique_id = "sim" + str(uuid.uuid4()).replace("-", "")
         unique_id = unique_id[:UUID_LENGTH]
         if samples is not None:
-            table = self.h5_file.create_table(self.samples, unique_id, SimpleData,
-                    expectedrows=len(samples))
+            table = self.h5_file.create_table(self.samples, unique_id,
+                    SimpleData, expectedrows=len(samples))
             sample = table.row
             for item in samples:
                 sample["value"] = item
                 sample.append()
             table.flush()
         if robustness is not None:
-            table = self.h5_file.create_table(self.robustness, unique_id, SimpleData,
-                    expectedrows=len(robustness))
+            table = self.h5_file.create_table(self.robustness, unique_id,
+                    SimpleData, expectedrows=len(robustness))
             sample = table.row
             for item in robustness:
                 sample["value"] = item
@@ -109,14 +112,18 @@ class ResultManager(object):
         row["db_version"] = version
         row["control_type"] = control_type
         row["continuous"] = continuous
-        row["description"] = description
+        row["strain"] = strain
+        row["projection"] = projection
+        row["setup"] = setup
+        if description is not None:
+            row["description"] = description
+        if direction is not None:
+            row["direction"] = direction
         row["control"] = control_strength
         row["control_method"] = control_method
         row["ctc"] = ctc
         row["ctc_method"] = ctc_method
         row["measure"] = measure
-        if direction is not None:
-            row["direction"] = direction
         if time is not None:
             row["time"] = int(time)
         if robustness is not None:

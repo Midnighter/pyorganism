@@ -8,22 +8,22 @@
         "paths":["LZ41-LZ54.tsv", "LZ41_d_fis-LZ54_d_fis.tsv", "LZ41_d_hns-LZ54_d_hns.tsv", "LZ41-LZ41_d_fis.tsv", "LZ54-LZ54_d_fis.tsv", "LZ41-LZ41_d_hns.tsv", "LZ54-LZ54_d_hns.tsv"],
         "names":["wt", "fis", "hns", "wt-fis-low", "wt-fis-high", "wt-hns-low", "wt-hns-high"],
         "readers":["read_microarray", "read_microarray", "read_microarray", "read_microarray", "read_microarray", "read_microarray", "read_microarray"],
-        "args":[[], [], [], [], [], [], []],
+        "args":[[], [], [], [], [], [], []]
     },
     "data": {
         "base":"RegulonDBObjects",
         "gene_path":"genes.pkl",
-        "mapping_path":"corrected_name2gene.pkl",
+        "mapping_path":"corrected_name2gene.pkl"
     },
     "network": {
         "names":["TRN", "GPN"],
         "paths":["trn.pkl", "gpn_5000.pkl"],
-        "projections":[["gene", "transcription_unit", "operon"], ["gene", "transcription_unit", "operon"]],
+        "projections":[["gene", "transcription_unit", "operon"], ["gene", "transcription_unit", "operon"]]
     },
     "analysis": {
         "control_types":["digital", "analog"],
         "experimental_sets":[["wt", "fis", "hns", "wt-fis-low", "wt-fis-high", "wt-hns-low", "wt-hns-high"], ["wt-fis-low", "wt-fis-high", "wt-hns-low", "wt-hns-high"]],
-        "experimental_setup":[["simple_discrete", "simple_discrete", "simple_discrete", "simple_discrete", "simple_discrete", "simple_discrete", "simple_discrete"], ["ratio_discrete", "ratio_discrete", "ratio_discrete", "ratio_discrete"]],
+        "experimental_setups":[["simple_discrete", "simple_discrete", "simple_discrete", "simple_discrete", "simple_discrete", "simple_discrete", "simple_discrete"], ["ratio_discrete", "ratio_discrete", "ratio_discrete", "ratio_discrete"]],
         "control":["digital_control", "analog_control"],
         "ctc":["digital_ctc", "analog_ctc"],
         "measures":[["discrete_marr_ratio", "discrete_total_ratio"], ["discrete_marr_ratio", "discrete_total_ratio"]],
