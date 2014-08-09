@@ -23,7 +23,7 @@ __all__ = ["read_microarray", "read_interpolated"]
 
 import logging
 
-import numpy
+import numpy as np
 import pandas
 
 from .. import miscellaneous as misc
@@ -41,6 +41,6 @@ def read_interpolated(filename, mutants=[]):
     df = pandas.read_table(filename, sep="\t", index_col=0, header=0)
     df.sort_index(inplace=True)
     for ind in mutants:
-        df.loc[ind] = numpy.nan
+        df.loc[ind] = np.nan
     return df
 

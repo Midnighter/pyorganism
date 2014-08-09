@@ -21,7 +21,7 @@ import logging
 import re
 import itertools
 
-import numpy
+import numpy as np
 
 from operator import attrgetter
 from lxml import etree
@@ -574,20 +574,20 @@ def update_operons(operons, promoters, genes, **kw_args):
     -------
     """
     promoters = list(prom for prom in promoters if prom.pos_1 is not None)
-    prom_i = numpy.arange(len(promoters), dtype=int)
-    prom_pos = numpy.array([prom.pos_1 for prom in promoters])
+    prom_i = np.arange(len(promoters), dtype=int)
+    prom_pos = np.array([prom.pos_1 for prom in promoters])
     genes = list(gene for gene in genes if gene.position is not None)
-    gene_i = numpy.arange(len(genes), dtype=int)
-    gene_start = numpy.array([gene.position_start for gene in genes])
-    gene_end = numpy.array([gene.position_end for gene in genes])
+    gene_i = np.arange(len(genes), dtype=int)
+    gene_start = np.array([gene.position_start for gene in genes])
+    gene_end = np.array([gene.position_end for gene in genes])
     begin = attrgetter("position")
     for op in operons:
-        mask = numpy.logical_and((prom_pos >= op.regulation_position_start),
+        mask = np.logical_and((prom_pos >= op.regulation_position_start),
                 (prom_pos <= op.regulation_position_end))
         for prom in (promoters[i] for i in prom_i[mask]):
             if prom.strand == op.strand:
                 op.promoters.add(prom)
-        mask = numpy.logical_and((gene_start >= op.gene_position_start),
+        mask = np.logical_and((gene_start >= op.gene_position_start),
                 (gene_end <= op.gene_position_end))
         for gene in (genes[i] for i in gene_i[mask]):
             if gene.strand == op.strand:
