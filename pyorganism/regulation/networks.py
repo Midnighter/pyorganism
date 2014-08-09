@@ -18,17 +18,16 @@ PyOrganism Regulatory Networks
 
 
 __all__ = ["GRN", "TRN", "CouplonGenerator", "GPNGenerator",
-        "to_transcription_unit_based", "to_operon_based"]
+    "effective_network", "to_transcription_unit_based", "to_operon_based"]
 
 
 import logging
 
-import numpy
+import numpy as np
 import networkx as nx
 
 from itertools import (product, izip)
 from operator import itemgetter, attrgetter
-from collections import defaultdict
 from datetime import date
 
 from .elements import TranscriptionFactor
@@ -341,9 +340,9 @@ class GPNGenerator(object):
         genome_length = end(max(genes, key=end))
         length = len(genes)
         self.i2name = dict(izip(xrange(length), genes))
-        self.distances = numpy.zeros((length, length), dtype=int)
+        self.distances = np.zeros((length, length), dtype=int)
         self.distances.fill(-1)
-        diffs = numpy.zeros(4, dtype=int)
+        diffs = np.zeros(4, dtype=int)
         no_position = set()
         for i in xrange(length - 1):
             gene_u = genes[i]
@@ -436,7 +435,7 @@ class GPNGenerator(object):
         length = len(genes)
         self.i2name = dict(izip(xrange(length),
             (name(gene) for gene in genes)))
-        self.distances = numpy.zeros((length, length), dtype=int)
+        self.distances = np.zeros((length, length), dtype=int)
         for i in xrange(length - 1):
             gene_u = genes[i]
             start_u = start(gene_u)
@@ -486,43 +485,6 @@ def split_regulators(net):
     if len(slaves) == 0:
         LOGGER.error("no regulated targets in TRN")
     return (list(regulators), list(slaves))
-
-def setup_trn(trn, active):
-    """
-    ``active`` contains only genes. For a gene we consider it as being active as
-    well as its potential transcription factor.
-    """
-    if trn is None or trn.size() == 0:
-        LOGGER.error("empty transcriptional regulatory network")
-        return numpy.nan
-    t_factors = {gene.regulatory_product for gene in active if\
-            isinstance(gene.regulatory_product, TranscriptionFactor)}
-    original = effective_network(trn, list(active) + list(t_factors))
-    regulated = set(original.nodes_iter()) - t_factors
-    if original.size() == 0:
-        LOGGER.warn("empty effective network")
-        return numpy.nan
-    return (original, list(t_factors), list(regulated))
-
-def setup_trn_levels(t_factors, regulated, gene2level):
-    orig_levels = numpy.zeros(len(t_factors) + len(regulated), dtype=float)
-    for (i, tf) in enumerate(t_factors):
-        orig_levels[i] = numpy.mean([gene2level[gene] for gene in\
-                tf.coded_from if gene in gene2level])
-    for (i, gene) in enumerate(regulated, start=len(t_factors)):
-        orig_levels[i] = gene2level[gene]
-    orig2level = dict(izip(t_factors + regulated, orig_levels))
-    return orig2level
-
-def setup_gpn(gpn, active):
-    if gpn is None or gpn.size() == 0:
-        LOGGER.error("empty gene proximity network")
-        return numpy.nan
-    original = effective_network(gpn, active)
-    if original.size() == 0:
-        LOGGER.warn("empty effective network")
-        return numpy.nan
-    return original
 
 def to_transcription_unit_based(network):
     tu_net = type(network)()
@@ -584,52 +546,14 @@ def to_operon_based(network):
                 op_net.add_edge(op_1, op_2)
     return op_net
 
-def setup_continuous_transcription_unit_based(network, elem2level):
-    tu2level = defaultdict(list)
-    for node in network:
-        tus = node.get_transcription_units()
-        if len(tus) == 0:
-            tu2level[node].append(elem2level[node])
-        else:
-            for tu in tus:
-                tu2level[tu].append(elem2level[node])
-    tus = tu2level.keys()
-    levels = [numpy.mean(tu2level[tu]) for tu in tus]
-    tu2level = dict(izip(tus, levels))
-    tu_net = to_transcription_unit_based(network)
-    active_net = tu_net.subgraph(tus)
-    if len(active_net) == 0 or active_net.size() == 0:
-        LOGGER.error("empty transcription unit network")
-        return numpy.nan
-    return (active_net, tu2level)
-
-def setup_continuous_operon_based(network, elem2level):
-    op2level = defaultdict(list)
-    for node in network:
-        ops = node.get_operons()
-        if len(ops) == 0:
-            op2level[node].append(elem2level[node])
-        else:
-            for op in ops:
-                op2level[op].append(elem2level[node])
-    ops = op2level.keys()
-    levels = [numpy.mean(op2level[op]) for op in ops]
-    op2level = dict(izip(ops, levels))
-    op_net = to_operon_based(network)
-    active_net = op_net.subgraph(ops)
-    if len(active_net) == 0 or active_net.size() == 0:
-        LOGGER.error("empty operon network")
-        return numpy.nan
-    return (active_net, op2level)
-
 def setup_metabolic(metabolic, rxn_centric):
     if rxn_centric is None:
         if metabolic is None:
             LOGGER.error("no metabolic network")
-            return numpy.nan
+            return np.nan
         else:
             rxn_centric = metabolic.to_reaction_centric()
     if rxn_centric.size() == 0:
         LOGGER.error("empty metabolic network")
-        return numpy.nan
+        return np.nan
 

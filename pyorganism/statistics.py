@@ -22,7 +22,7 @@ __all__ = ["compute_zscore", "norm_zero2unity"]
 
 
 import logging
-import numpy
+import numpy as np
 
 from . import miscellaneous as misc
 #from .errors import PyOrganismError
@@ -41,35 +41,34 @@ def compute_zscore(obs, random_stats):
     random_stats : iterable
         same observable in randomised versions
     """
-    if len(random_stats) == 0:
-        return numpy.nan
-    random_stats = numpy.ma.masked_invalid(random_stats)
-    if random_stats.mask.all():
+    random_stats = np.asarray(random_stats)
+    mask = np.isfinite(random_stats)
+    if len(random_stats[mask]) == 0:
         LOGGER.warn("invalid null model values")
-        return numpy.nan
-    values = random_stats[numpy.logical_not(random_stats.mask)]
-    mean = numpy.mean(values)
-    std = numpy.std(values)
+        return np.nan
+    values = random_stats[mask]
+    mean = np.mean(values)
+    std = np.std(values)
     nominator = obs - mean
     if nominator == 0.0:
         return nominator
     if std == 0.0:
         if nominator < 0.0:
-            return -numpy.inf
+            return -np.inf
         else:
-            return numpy.inf
+            return np.inf
     else:
         return (nominator / std)
 
 def norm_zero2unity(vec):
     """
-    Normalise a numpy.array to values between zero and unity.
+    Normalise a np.array to values between zero and unity.
 
     Warning
     -------
     Beware of infinity values.
     """
-    mask = numpy.isfinite(vec)
+    mask = np.isfinite(vec)
     if len(vec[mask]) == 0:
         return vec
     min_num = vec[mask].min()

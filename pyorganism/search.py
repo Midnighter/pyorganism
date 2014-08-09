@@ -22,7 +22,7 @@ __all__ = ["FindObject"]
 
 import logging
 
-import numpy
+import numpy as np
 
 from . import miscellaneous as misc
 
@@ -58,16 +58,16 @@ class FindObject(object):
         super(FindObject, self).__init__(**kw_args)
         self.collection = list(collection)
         if attr is not None:
-            self.targets = numpy.array([getattr(item, attr, default)\
+            self.targets = np.array([getattr(item, attr, default)\
                     for item in self.collection])
             self.indeces = self.targets.argsort()
             self.targets = self.targets[self.indeces]
         elif targets is not None:
-            self.targets = numpy.array(targets)
+            self.targets = np.array(targets)
             if indeces is None:
-                self.indeces = numpy.arange(len(collection), dtype=int)
+                self.indeces = np.arange(len(collection), dtype=int)
             else:
-                self.indeces = numpy.array(indeces, dtype=int)
+                self.indeces = np.array(indeces, dtype=int)
             assert len(self.targets) == len(self.indeces), "search targets is"\
                     " longer than indeces, please provide"
             tmp_i = self.targets.argsort()
@@ -78,7 +78,7 @@ class FindObject(object):
         return self.binary_search(value)
 
     def binary_search(self, value):
-        index = numpy.searchsorted(self.targets, value)
+        index = np.searchsorted(self.targets, value)
         if index == len(self.targets) or self.targets[index] != value:
             raise IndexError("not found '%s'" % value)
         return self.collection[self.indeces[index]]
@@ -91,6 +91,6 @@ class FindObject(object):
                 match[1])
         return (self.binary_search(match[0]), match[0], match[1])
 
-    def match_iter(self, value, operator=numpy.equal):
+    def match_iter(self, value, operator=np.equal):
         return (self.collection[i] for i in self.indeces[operator(self.targets, value)])
 

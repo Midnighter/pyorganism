@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 
@@ -42,7 +43,7 @@ def update_map(map_path, frame_path, update_from, version=""):
     LOGGER.info("{0:*^78s}".format(version))
     # load into memory
     LOGGER.info("Loading genes")
-    genes = pyorganism.read_pickle(os.path.join(base_path, "genes.pkl"))
+    pyorganism.read_pickle(os.path.join(base_path, "genes.pkl"))
     LOGGER.info("Reading data frame")
     hdf_key = "/%s" % (map_name,)
     mapping = pandas.read_hdf(frame_path, hdf_key)

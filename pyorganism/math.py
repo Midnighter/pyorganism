@@ -22,7 +22,7 @@ __all__ = ["rank", "svd_nullspace", "qr_nullspace"]
 
 
 import logging
-import numpy
+import numpy as np
 import scipy.linalg as sl
 
 from . import miscellaneous as misc
@@ -66,12 +66,12 @@ def rank(mat, atol=1E-13, rtol=0.0):
 
     See also
     --------
-    numpy.linalg.matrix_rank
+    np.linalg.matrix_rank
         matrix_rank is basically the same as this function, but it does not
         provide the option of the absolute tolerance.
     """
 
-    mat = numpy.atleast_2d(mat)
+    mat = np.atleast_2d(mat)
     s = sl.svd(mat, compute_uv=False)
     tol = max(atol, rtol * s[0])
     rank = int((s >= tol).sum())
@@ -109,11 +109,11 @@ def svd_nullspace(mat, atol=1E-13, rtol=0.0):
         If `mat` is an array with shape (m, k), then `nullspace` will be an
         array with shape (k, n), where n is the estimated dimension of the
         nullspace of `mat`.  The columns of `nullspace` are a basis for the
-        nullspace; each element in numpy.dot(mat, nullspace) will be
+        nullspace; each element in np.dot(mat, nullspace) will be
         approximately zero.
     """
 
-    mat = numpy.atleast_2d(mat)
+    mat = np.atleast_2d(mat)
     (u, s, vh) = sl.svd(mat)
     tol = max(atol, rtol * s[0])
     non_zero = (s >= tol).sum()
@@ -142,7 +142,7 @@ def qr_nullspace(mat):
     q2 : ndarray
         If `mat` is an array with shape (m, n), then `q2` will be an array
         with shape (m, m - n). The columns of `q2` are a basis for the
-        nullspace;  each column i of q2 in numpy.dot(mat, q2[:, i]) will
+        nullspace;  each column i of q2 in np.dot(mat, q2[:, i]) will
         produce approximately zero vectors.
     """
     assert mat.shape[0] >= mat.shape[1]
@@ -182,16 +182,16 @@ def nullspaces(mat, atol=1E-13, rtol=0.0):
         If `mat` is an array with shape (m, n), then `left_ns` will be an
         array with shape (m, m - r), where r is the estimated rank of `mat`.
         The columns of `left_ns` are a linear basis for the left nullspace,
-        i.e., each element in numpy.dot(left_ns.T, mat) will be approximately
+        i.e., each element in np.dot(left_ns.T, mat) will be approximately
         zero.
     nullspace : ndarray
         If `mat` is an array with shape (m, n), then `nullspace` will be an
         array with shape (n, r), where r is the estimated dimension of the
         nullspace of `mat`.  The columns of `nullspace` are a linear basis for
-        the nullspace; each element in numpy.dot(mat, nullspace) will be
+        the nullspace; each element in np.dot(mat, nullspace) will be
         approximately zero.
     """
-    mat = numpy.atleast_2d(mat)
+    mat = np.atleast_2d(mat)
     (u, s, vh) = sl.svd(mat)
     tol = max(atol, rtol * s[0])
     rank = (s >= tol).sum()

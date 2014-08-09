@@ -23,7 +23,7 @@ __all__ = ["ResultManager"]
 import logging
 import uuid
 
-import numpy
+import numpy as np
 import tables
 
 from .. import miscellaneous as misc
@@ -42,10 +42,12 @@ class ExpressionData(tables.IsDescription):
     value = tables.Float64Col() # normalized or not, see table description
 
 
-class SimpleData(tables.IsDescription):
+class SampleData(tables.IsDescription):
     """
+    Random sample data belonging to a particular analysis.
     """
-    value = tables.Float64Col() # either random sample or jackknife result
+    value = tables.Float64Col()
+    study = tables.StringCol(UUID_LENGTH)
 
 
 class ControlData(tables.IsDescription):
@@ -74,6 +76,7 @@ class ControlData(tables.IsDescription):
     robustness_mean = tables.Float64Col()
     robustness_std = tables.Float64Col()
     time = tables.UInt32Col()
+    delay = tables.UInt32Col()
 
 
 class ResultManager(object):
@@ -83,30 +86,31 @@ class ResultManager(object):
         self.key = key
         self.h5_file = tables.open_file(filename, mode="a",
                 title="Control Analysis Data")
+        self.samples = None
+        self.robustness = None
+        self.control = None
         self._setup()
 
     def append(self, version, control_type, continuous, strain, projection,
             setup, control_strength, control_method, ctc, ctc_method, measure,
             description=None, samples=None, robustness=None, direction=None,
-            time=None):
+            time=None, delay=None):
         unique_id = "sim" + str(uuid.uuid4()).replace("-", "")
         unique_id = unique_id[:UUID_LENGTH]
         if samples is not None:
-            table = self.h5_file.create_table(self.samples, unique_id,
-                    SimpleData, expectedrows=len(samples))
-            sample = table.row
+            row = self.samples.row
             for item in samples:
-                sample["value"] = item
-                sample.append()
-            table.flush()
+                row["value"] = item
+                row["study"] = unique_id
+                row.append()
+            self.samples.flush()
         if robustness is not None:
-            table = self.h5_file.create_table(self.robustness, unique_id,
-                    SimpleData, expectedrows=len(robustness))
-            sample = table.row
-            for item in robustness:
-                sample["value"] = item
-                sample.append()
-            table.flush()
+            row = self.robustness.row
+            for item in samples:
+                row["value"] = item
+                row["study"] = unique_id
+                row.append()
+            self.robustness.flush()
         row = self.control.row
         row["uuid"] = unique_id
         row["db_version"] = version
@@ -126,44 +130,45 @@ class ResultManager(object):
         row["measure"] = measure
         if time is not None:
             row["time"] = int(time)
+        if delay is not None:
+            row["delay"] = int(delay)
         if robustness is not None:
-            mask = numpy.isfinite(robustness)
+            mask = np.isfinite(robustness)
             row["robustness_mean"] = robustness[mask].mean()
             row["robustness_std"] = robustness[mask].std(ddof=1)
         else:
-            row["robustness_mean"] = numpy.nan
-            row["robustness_std"] = numpy.nan
+            row["robustness_mean"] = np.nan
+            row["robustness_std"] = np.nan
         row.append()
         self.control.flush()
 
     def _setup(self):
-        group = self.h5_file.root
+        root = self.h5_file.root
         components = self.key.split("/")
         for node in components:
             try:
-                group = self.h5_file.get_node(group, node)
-                if not isinstance(group, tables.Group):
+                root = self.h5_file.get_node(root, node)
+                if not isinstance(root, tables.Group):
                     raise IOError("given key '{key}' contains none-Group nodes".format(
                             key=self.key))
             except tables.NoSuchNodeError:
-                group = self.h5_file.create_group(group, node)
-        self.root = group
+                root = self.h5_file.create_group(root, node)
         try:
-            self.samples = self.root.samples
+            self.samples = root.samples
         except tables.NoSuchNodeError:
-            self.samples = self.h5_file.create_group(self.root, "samples",
+            self.samples = self.h5_file.create_table(root, "samples",
                     title="Null Model Samples")
         try:
-            self.robustness = self.root.robustness
+            self.robustness = root.robustness
         except tables.NoSuchNodeError:
-            self.robustness = self.h5_file.create_group(self.root, "robustness",
+            self.robustness = self.h5_file.create_table(root, "robustness",
                     title="Robustness Analysis Results")
         try:
-            self.control = self.root.control
+            self.control = root.control
         except tables.NoSuchNodeError:
-            self.control = self.h5_file.create_table(self.root, "control",
+            self.control = self.h5_file.create_table(root, "control",
                     ControlData,
-                    title="Summary table for all control analysis results.")
+                    title="Summary for all control analysis results.")
 
     def finalize(self):
         self.h5_file.close()

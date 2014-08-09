@@ -1,4 +1,8 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
+
+from __future__ import division
 
 
 import sys
@@ -8,7 +12,7 @@ import argparse
 import json
 import codecs
 
-import numpy
+import numpy as np
 
 import pyorganism as pyorg
 import pyorganism.regulation as pyreg
@@ -51,26 +55,45 @@ def load_discrete(organism, config):
         LOGGER.info("  %s: '%s'", name, path)
         organism.activity[name] = reader_func(path)
 
-def simple_discrete(df, name2gene):
+def simple_discrete(control_type, df, name2gene):
     eligible = df["name"].notnull()
     active = [name2gene[name] for name in df["name"][eligible]\
             if name2gene[name] is not None]
-    LOGGER.info("  mapped %d/%d active genes", len(active), len(df))
-    return active
+    LOGGER.info("  mapped %d/%d active genes (%.2f%%)", len(active), len(df),
+            len(active) / len(df) * 100.0)
+    results = dict()
+    results["gene"] = active
+    if control_type == "digital":
+        results["gene"] = pyreg.active_genes_and_tf(active)
+    results["tu"] = pyreg.active_tu(active)
+    results["operon"] = pyreg.active_operons(active)
+    return results
 
-def ratio_discrete(df, name2gene, direction="up"):
+def ratio_discrete(control_type, df, name2gene):
     eligible = df["name"].notnull()
-    if direction == "up":
-        mask = (df["ratio (A/B)"] > 1.0) & eligible
-    elif direction == "down":
-        mask = (df["ratio (A/B)"] < 1.0) & eligible
-    else:
-        mask = eligible
-    active = [name2gene[name] for name in df["name"][mask]\
+    up = (df["ratio (A/B)"] > 1.0) & eligible
+    down = (df["ratio (A/B)"] < 1.0) & eligible
+    up_reg = [name2gene[name] for name in df["name"][up]\
             if name2gene[name] is not None]
-    LOGGER.info("  mapped %d/%d %s-regulated genes", len(active), len(df),
-            direction)
-    return active
+    total = up.sum()
+    LOGGER.info("  mapped %d/%d up-regulated genes (%.2f%%)", len(up_reg), total,
+            len(up_reg) / total * 100.0)
+    down_reg = [name2gene[name] for name in df["name"][down]\
+            if name2gene[name] is not None]
+    total = down.sum()
+    LOGGER.info("  mapped %d/%d down-regulated genes (%.2f%%)", len(down_reg),
+            total, len(down_reg) / total * 100.0)
+    results = dict()
+    results["gene"] = dict()
+    results["gene"]["up"] = up_reg
+    results["gene"]["down"] = down_reg
+    results["tu"] = dict()
+    results["tu"]["up"] = pyreg.active_tu(up_reg)
+    results["tu"]["down"] = pyreg.active_tu(down_reg)
+    results["operon"] = dict()
+    results["operon"]["up"] = pyreg.active_operons(up_reg)
+    results["operon"]["down"] = pyreg.active_operons(down_reg)
+    return results
 
 def discrete_jobs(organism, config):
     LOGGER.info("Generating discrete job specifications:")
@@ -79,16 +102,12 @@ def discrete_jobs(organism, config):
     for version in config["versions"]:
         for (cntrl_name, experiments, setups,
                 control, ctc, measures, random_num, robustness_num,
-                rob_extra) in izip(analysis["control_types"],
+                rob_extra, projections) in izip(analysis["control_types"],
                 analysis["experimental_sets"], analysis["experimental_setups"],
                 analysis["control"], analysis["ctc"],
                 analysis["measures"], analysis["random_num"],
-                analysis["robustness_num"], analysis["robustness_args"]):
-            if cntrl_name == "digital":
-                index = config["network"]["names"].index("TRN")
-            elif cntrl_name == "analog":
-                index = config["network"]["names"].index("GPN")
-            projections = config["network"]["projections"][index]
+                analysis["robustness_num"], analysis["robustness_args"],
+                config["network"]["projections"]):
             for basis in projections:
                 for ms_name in measures:
                     for (exp_name, exp_setup) in izip(experiments, setups):
@@ -99,7 +118,7 @@ def discrete_jobs(organism, config):
                                 spec["continuous"] = config["continuous"]
                                 spec["control_type"] = cntrl_name
                                 spec["experiment"] = exp_name
-                                spec["basis"] = basis
+                                spec["projection"] = basis
                                 spec["setup"] = exp_setup
                                 spec["direction"] = direction
                                 spec["control"] = control
@@ -115,7 +134,7 @@ def discrete_jobs(organism, config):
                             spec["continuous"] = config["continuous"]
                             spec["control_type"] = cntrl_name
                             spec["experiment"] = exp_name
-                            spec["basis"] = basis
+                            spec["projection"] = basis
                             spec["setup"] = exp_setup
                             spec["control"] = control
                             spec["ctc"] = ctc
@@ -129,6 +148,7 @@ def discrete_jobs(organism, config):
 
 @interactive
 def discrete_worker(spec):
+    LOGGER.debug(spec)
     version = spec["version"]
     cntrl_type = spec["control_type"]
     global_vars = globals()
@@ -137,20 +157,23 @@ def discrete_worker(spec):
     measure = getattr(pyreg, spec["measure"])
     net = global_vars["networks"][version][cntrl_type][spec["projection"]]
     if cntrl_type == "analog":
-        active = global_vars["prepared"][version][cntrl_type][spec["experiment"]][spec["direction"]]
+        active = global_vars["prepared"][version][cntrl_type][spec["experiment"]][spec["projection"]][spec["direction"]]
     else:
-        active = global_vars["prepared"][version][cntrl_type][spec["experiment"]]
+        active = global_vars["prepared"][version][cntrl_type][spec["experiment"]][spec["projection"]]
     LOGGER.debug(len(active))
-    res_cntrl = control(net, active, measure=measure)
-    res_ctc = ctc(net, active, random_num=spec["random_num"], measure=measure)
-    return (spec, res_cntrl, res_ctc)
+    effective = pyreg.effective_network(net, active)
+    res_cntrl = control(effective, measure=measure)
+    (res_ctc, samples) = ctc(effective, net, measure=measure,
+            random_num=spec["random_num"], return_sample=True)
+    return (spec, res_cntrl, res_ctc, samples)
 
-def discrete_result(manager, spec, res_cntrl, res_ctc):
+def discrete_result(manager, spec, res_cntrl, res_ctc, samples):
     manager.append(version=spec["version"], control_type=spec["control_type"],
             continuous=spec["continuous"], strain=spec["experiment"],
-            projection=spec["basis"], setup=, control_strength=res_cntrl,
+            projection=spec["projection"], setup=spec["setup"], control_strength=res_cntrl,
             control_method=spec["control"], ctc=res_ctc, ctc_method=spec["ctc"],
-            measure=spec["measure"], direction=spec.get("direction", None))
+            measure=spec["measure"], direction=spec.get("direction", None),
+            samples=samples)
 
 
 ##############################################################################
@@ -158,53 +181,83 @@ def discrete_result(manager, spec, res_cntrl, res_ctc):
 ##############################################################################
 
 
-def simple_continuous(df, feature2gene):
-    df[df <= 0.0] = numpy.nan
+def simple_continuous(control_type, df, feature2gene):
+    df[df <= 0.0] = np.nan
     df = df.apply(pyorg.norm_zero2unity, axis=1, raw=True)
-    results = dict()
-    results["time"] = list()
-    results["active"] = list()
-    results["levels"] = list()
+    times = list()
+    actives = list()
+    levels = list()
     for col in df.columns:
-        eligible = df[col][numpy.isfinite(df[col])]
+        eligible = df[col][np.isfinite(df[col])]
         mask = [feature2gene[name] is not None for name in eligible.index]
         active = [feature2gene[name] for name in eligible[mask].index]
-        levels = eligible[mask]
-        LOGGER.info("        %s min: %d active genes", col, len(active))
-        results["time"].append(col)
-        results["active"].append(active)
-        results["levels"].append(levels)
+        level = eligible[mask]
+        LOGGER.info("        %s min: %d/%d active genes (%.2f%%)", col,
+                len(active), len(df), len(active) / len(df) * 100.0)
+        times.append(col)
+        actives.append(active)
+        levels.append(level)
+    results = dict()
+    results["time"] = times
+    results["gene"] = dict()
+    results["gene"]["active"] = actives
+    results["gene"]["levels"] = levels
+    if control_type == "digital":
+        trn_actives = list()
+        trn_levels = list()
+        for i in range(len(actives)):
+            (active, level) = pyreg.gene_and_tf_levels(actives[i], levels[i])
+            trn_actives.append(active)
+            trn_levels.append(level)
+        results["gene"]["active"] = trn_actives
+        results["gene"]["levels"] = trn_levels
+    tu_actives = list()
+    tu_levels = list()
+    for i in range(len(actives)):
+        (active, level) = pyreg.tu_levels(actives[i], levels[i])
+        tu_actives.append(active)
+        tu_levels.append(level)
+    results["tu"]["active"] = tu_actives
+    results["tu"]["levels"] = tu_levels
+    op_actives = list()
+    op_levels = list()
+    for i in range(len(actives)):
+        (active, level) = pyreg.op_levels(actives[i], levels[i])
+        op_actives.append(active)
+        op_levels.append(level)
+    results["tu"]["active"] = op_actives
+    results["tu"]["levels"] = op_levels
     return results
 
-def rate_continuous(df, feature2gene):
-    df[df <= 0.0] = numpy.nan
-    df = df.apply(pyorg.norm_zero2unity, axis=1, raw=True)
-    results = dict()
-    results["time"] = list()
-    results["active"] = list()
-    results["levels"] = list()
-    num_cols = len(df.columns)
-    for i in range(num_cols - 1):
-        col_a = df.icol(i)
-        col_b = df.icol(i + 1)
-        # TODO: fix selection of names and values
-#        eligible = df.index[numpy.isfinite(col_a) & numpy.isfinite(col_b)]
-#        mask = [feature2gene[name] is not None for name in eligible.index]
-#        active = [feature2gene[name] for name in eligible[mask].index]
-#        levels = col_b[eligible[mask]] - col_a.loc[eligible[mask]]
-        LOGGER.info("        %s - %s min: %d active genes", col_a.name,
-                col_b.name, len(active))
-        results["time"].append(col_b.name)
-        results["active"].append(active)
-        results["levels"].append(levels)
-    return results
+#def rate_continuous(control_type, df, feature2gene):
+#    df[df <= 0.0] = np.nan
+#    df = df.apply(pyorg.norm_zero2unity, axis=1, raw=True)
+#    results = dict()
+#    results["time"] = list()
+#    results["active"] = list()
+#    results["levels"] = list()
+#    num_cols = len(df.columns)
+#    for i in range(num_cols - 1):
+#        col_a = df.icol(i)
+#        col_b = df.icol(i + 1)
+#        # TODO: fix selection of names and values
+##        eligible = df.index[np.isfinite(col_a) & np.isfinite(col_b)]
+##        mask = [feature2gene[name] is not None for name in eligible.index]
+##        active = [feature2gene[name] for name in eligible[mask].index]
+##        levels = col_b[eligible[mask]] - col_a.loc[eligible[mask]]
+#        LOGGER.info("        %s - %s min: %d active genes", col_a.name,
+#                col_b.name, len(active))
+#        results["time"].append(col_b.name)
+#        results["active"].append(active)
+#        results["levels"].append(levels)
+#    return results
 
 def shuffle(df, n_times=1, axis=0):
     df = df.copy()
     axis ^= 1 # make axes between numpy and pandas behave as expected (only 2D!)
     for _ in range(n_times):
-        for view in numpy.rollaxis(df.values, axis):
-            numpy.random.shuffle(view)
+        for view in np.rollaxis(df.values, axis):
+            np.random.shuffle(view)
     return df
 
 def randomised_continuous(df, feature2gene):
@@ -255,7 +308,7 @@ def continuous_jobs(organism, config):
                             spec["control_type"] = cntrl_name
                             spec["time"] = time_point
                             spec["experiment"] = exp_name
-                            spec["basis"] = basis
+                            spec["projection"] = basis
                             spec["setup"] = exp_setup
                             spec["control"] = control
                             spec["ctc"] = ctc
@@ -278,9 +331,9 @@ def continuous_worker(spec):
     net = global_vars["networks"][version][cntrl_type][spec["projection"]]
     prepared = global_vars["prepared"][version][cntrl_type][spec["experiment"]]
     index = prepared["time"].index(spec["time"])
-    active = prepared["active"][index]
+    active = prepared[spec["projection"]]["active"][index]
     LOGGER.debug(len(active))
-    levels = prepared["levels"][index]
+    levels = prepared[spec["projection"]]["levels"][index]
     res_cntrl = control(net, active, levels, measure=measure)
     res_ctc = ctc(net, active, levels, random_num=spec["random_num"], measure=measure)
     return (spec, res_cntrl, res_ctc)
@@ -288,7 +341,7 @@ def continuous_worker(spec):
 def continuous_result(manager, spec, res_cntrl, res_ctc):
     manager.append(version=spec["version"], control_type=spec["control_type"],
             continuous=spec["continuous"], strain=spec["experiment"],
-            projection=spec["basis"], setup=spec["setup"],
+            projection=spec["projection"], setup=spec["setup"],
             control_strength=res_cntrl, control_method=spec["control"],
             ctc=res_ctc, ctc_method=spec["ctc"],
             measure=spec["measure"], time=int(float(spec["time"])))
@@ -326,45 +379,39 @@ def main(remote_client, args):
     namespace["networks"] = dict()
     namespace["prepared"] = dict()
     for version in config["versions"]:
+        LOGGER.info("{0:*^78s}".format(version))
         namespace["genes"][version] = pyorg.read_pickle(os.path.join(
                 data["base"], version, data["gene_path"]))
         id2gene = pyorg.read_pickle(os.path.join(data["base"], version,
                 data["mapping_path"]))
         namespace["networks"][version] = dict()
-        for (net_name, net_file, projections) in izip(network["names"],
+        for (cntrl_type, net_file, projections) in izip(analysis["control_types"],
                 network["paths"], network["projections"]):
             net = pyorg.read_pickle(os.path.join(data["base"], version, net_file))
-            namespace["networks"][version][net_name] = dict()
+            namespace["networks"][version][cntrl_type] = dict()
             for basis in projections:
                 if basis == "gene":
-                    namespace["networks"][version][net_name][basis] = net
-                elif basis == "transcription_unit":
-                    namespace["networks"][version][net_name][basis] =\
+                    namespace["networks"][version][cntrl_type][basis] = net
+                elif basis == "tu":
+                    namespace["networks"][version][cntrl_type][basis] =\
                             pyreg.to_transcription_unit_based(net)
                 elif basis == "operon":
-                    namespace["networks"][version][net_name][basis] =\
+                    namespace["networks"][version][cntrl_type][basis] =\
                             pyreg.to_operon_based(net)
         namespace["prepared"][version] = dict()
         for (cntrl_type, experiments, setups) in izip(analysis["control_types"],
                  analysis["experimental_sets"], analysis["experimental_setups"]):
+            LOGGER.info("{0:*^78s}".format(cntrl_type))
             namespace["prepared"][version][cntrl_type] = dict()
             for (exp_name, exp_setup) in izip(experiments, setups):
-                # TODO: active nodes on projection (levels, too)
                 df = organism.activity[exp_name]
                 setup_func = glob_vars[exp_setup]
-                if exp_setup == "ratio_discrete":
-                    namespace["prepared"][version][cntrl_type][exp_name] = dict()
-                    namespace["prepared"][version][cntrl_type][exp_name]["up"] =\
-                            setup_func(df, id2gene, "up")
-                    namespace["prepared"][version][cntrl_type][exp_name]["down"] =\
-                            setup_func(df, id2gene, "down")
-                else:
-                    namespace["prepared"][version][cntrl_type][exp_name] =\
-                            setup_func(df, id2gene)
+                namespace["prepared"][version][cntrl_type][exp_name] =\
+                        setup_func(cntrl_type, df, id2gene)
     # general parallel setup using IPython.parallel
     LOGGER.info("Remote imports")
     d_view = remote_client.direct_view()
-    d_view.execute("import numpy; "\
+    d_view.execute("import numpy as np; "\
             "import pyorganism as pyorg; import pyorganism.regulation as pyreg;"\
             "import logging; from IPython.config import Application;"\
             "LOGGER = Application.instance().log;"\
@@ -372,16 +419,17 @@ def main(remote_client, args):
             block=True)
     LOGGER.info("Transfer data")
     d_view.push(namespace, block=True)
-    result_mngr = ResultManager(config["output"], table_key)
+    LOGGER.info("Generate job descriptions")
     jobs = job_gen(organism, config)
     l_view = remote_client.load_balanced_view()
     bar = ProgressBar(maxval=len(jobs), widgets=[Timer(), " ", Percentage(),
             " ", Bar(), " ", ETA()]).start()
+    result_mngr = ResultManager(config["output"], table_key)
     results_it = l_view.map(worker, jobs, ordered=False, block=False)
-    for (spec, res_cntrl, res_ctc) in results_it:
+    for (spec, res_cntrl, res_ctc, samples) in results_it:
         LOGGER.debug(res_cntrl)
         LOGGER.debug(res_ctc)
-        result(result_mngr, spec, res_cntrl, res_ctc)
+        result(result_mngr, spec, res_cntrl, res_ctc, samples)
         bar += 1
     result_mngr.finalize()
     bar.finish()
