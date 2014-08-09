@@ -157,18 +157,17 @@ class ResultManager(object):
             self.samples = root.samples
         except tables.NoSuchNodeError:
             self.samples = self.h5_file.create_table(root, "samples",
-                    title="Null Model Samples")
+                    SampleData, title="Null Model Samples")
         try:
             self.robustness = root.robustness
         except tables.NoSuchNodeError:
             self.robustness = self.h5_file.create_table(root, "robustness",
-                    title="Robustness Analysis Results")
+                    SampleData, title="Robustness Analysis Results")
         try:
             self.control = root.control
         except tables.NoSuchNodeError:
             self.control = self.h5_file.create_table(root, "control",
-                    ControlData,
-                    title="Summary for all control analysis results.")
+                    ControlData, title="Summary for all control analysis results.")
 
     def finalize(self):
         self.h5_file.close()
