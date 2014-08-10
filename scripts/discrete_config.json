@@ -2,16 +2,16 @@
     "versions":["5.2", "6.1", "6.3", "6.4", "6.7", "6.8", "7.0", "7.2", "7.3", "7.4", "7.5", "8.1", "8.2", "8.3", "8.5", "8.6"],
     "continuous":false,
     "organism":"E. coli K12",
-    "output":"control_analysis.h5",
+    "output":"discrete_analysis.h5",
     "experiments": {
-        "base":"../Expression/LZ41-LZ54_single_knockouts",
+        "base":"Expression/LZ41-LZ54_single_knockouts",
         "paths":["LZ41-LZ54.tsv", "LZ41_d_fis-LZ54_d_fis.tsv", "LZ41_d_hns-LZ54_d_hns.tsv", "LZ41-LZ41_d_fis.tsv", "LZ54-LZ54_d_fis.tsv", "LZ41-LZ41_d_hns.tsv", "LZ54-LZ54_d_hns.tsv"],
         "names":["wt", "fis", "hns", "wt-fis-low", "wt-fis-high", "wt-hns-low", "wt-hns-high"],
         "readers":["read_microarray", "read_microarray", "read_microarray", "read_microarray", "read_microarray", "read_microarray", "read_microarray"],
         "args":[[], [], [], [], [], [], []]
     },
     "data": {
-        "base":"../RegulonDBObjects",
+        "base":"RegulonDBObjects",
         "gene_path":"genes.pkl",
         "mapping_path":"corrected_name2gene.pkl"
     },
@@ -24,7 +24,7 @@
         "experimental_sets":[["wt", "fis", "hns", "wt-fis-low", "wt-fis-high", "wt-hns-low", "wt-hns-high"], ["wt-fis-low", "wt-fis-high", "wt-hns-low", "wt-hns-high"]],
         "experimental_setups":[["simple_discrete", "simple_discrete", "simple_discrete", "simple_discrete", "simple_discrete", "simple_discrete", "simple_discrete"], ["ratio_discrete", "ratio_discrete", "ratio_discrete", "ratio_discrete"]],
         "control":["digital_control", "analog_control"],
-        "ctc":["digital_ctc", "analog_ctc"],
+        "ctc":[["digital_ctc", "digital_ctc_fixed_regulators"], ["analog_ctc"]],
         "measures":[["discrete_marr_ratio", "discrete_total_ratio"], ["discrete_marr_ratio", "discrete_total_ratio"]],
         "random_num":[1E5, 1E5],
         "robustness_num": [0, 0],

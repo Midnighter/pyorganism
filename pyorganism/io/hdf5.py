@@ -32,7 +32,7 @@ from .. import miscellaneous as misc
 LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(misc.NullHandler())
 
-UUID_LENGTH = 35 # stripped dashes plus 'sim' prefix
+UUID_LENGTH = 32 # stripped dashes
 
 
 class ExpressionData(tables.IsDescription):
@@ -95,7 +95,7 @@ class ResultManager(object):
             setup, control_strength, control_method, ctc, ctc_method, measure,
             description=None, samples=None, robustness=None, direction=None,
             time=None, delay=None):
-        unique_id = "sim" + str(uuid.uuid4()).replace("-", "")
+        unique_id = str(uuid.uuid4()).replace("-", "")
         unique_id = unique_id[:UUID_LENGTH]
         if samples is not None:
             row = self.samples.row

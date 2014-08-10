@@ -108,11 +108,28 @@ def discrete_jobs(organism, config):
                 analysis["measures"], analysis["random_num"],
                 analysis["robustness_num"], analysis["robustness_args"],
                 config["network"]["projections"]):
-            for basis in projections:
-                for ms_name in measures:
-                    for (exp_name, exp_setup) in izip(experiments, setups):
-                        if exp_setup == "ratio_discrete":
-                            for direction in ["up", "down"]:
+            for method in ctc:
+                for basis in projections:
+                    for ms_name in measures:
+                        for (exp_name, exp_setup) in izip(experiments, setups):
+                            if exp_setup == "ratio_discrete":
+                                for direction in ["up", "down"]:
+                                    spec = dict()
+                                    spec["version"] = version
+                                    spec["continuous"] = config["continuous"]
+                                    spec["control_type"] = cntrl_name
+                                    spec["experiment"] = exp_name
+                                    spec["projection"] = basis
+                                    spec["setup"] = exp_setup
+                                    spec["direction"] = direction
+                                    spec["control"] = control
+                                    spec["ctc"] = method
+                                    spec["measure"] = ms_name
+                                    spec["random_num"] = random_num
+                                    spec["robustness_num"] = robustness_num
+                                    spec["robustness_args"] = rob_extra
+                                    jobs.append(spec)
+                            else:
                                 spec = dict()
                                 spec["version"] = version
                                 spec["continuous"] = config["continuous"]
@@ -120,29 +137,13 @@ def discrete_jobs(organism, config):
                                 spec["experiment"] = exp_name
                                 spec["projection"] = basis
                                 spec["setup"] = exp_setup
-                                spec["direction"] = direction
                                 spec["control"] = control
-                                spec["ctc"] = ctc
+                                spec["ctc"] = method
                                 spec["measure"] = ms_name
                                 spec["random_num"] = random_num
                                 spec["robustness_num"] = robustness_num
                                 spec["robustness_args"] = rob_extra
                                 jobs.append(spec)
-                        else:
-                            spec = dict()
-                            spec["version"] = version
-                            spec["continuous"] = config["continuous"]
-                            spec["control_type"] = cntrl_name
-                            spec["experiment"] = exp_name
-                            spec["projection"] = basis
-                            spec["setup"] = exp_setup
-                            spec["control"] = control
-                            spec["ctc"] = ctc
-                            spec["measure"] = ms_name
-                            spec["random_num"] = random_num
-                            spec["robustness_num"] = robustness_num
-                            spec["robustness_args"] = rob_extra
-                            jobs.append(spec)
     LOGGER.info("  %d jobs", len(jobs))
     return jobs
 
@@ -217,16 +218,18 @@ def simple_continuous(control_type, df, feature2gene):
         (active, level) = pyreg.tu_levels(actives[i], levels[i])
         tu_actives.append(active)
         tu_levels.append(level)
+    results["tu"] = dict()
     results["tu"]["active"] = tu_actives
     results["tu"]["levels"] = tu_levels
     op_actives = list()
     op_levels = list()
     for i in range(len(actives)):
-        (active, level) = pyreg.op_levels(actives[i], levels[i])
+        (active, level) = pyreg.operon_levels(actives[i], levels[i])
         op_actives.append(active)
         op_levels.append(level)
-    results["tu"]["active"] = op_actives
-    results["tu"]["levels"] = op_levels
+    results["operon"] = dict()
+    results["operon"]["active"] = op_actives
+    results["operon"]["levels"] = op_levels
     return results
 
 #def rate_continuous(control_type, df, feature2gene):
@@ -286,42 +289,39 @@ def continuous_jobs(organism, config):
     analysis = config["analysis"]
     for version in config["versions"]:
         for (cntrl_name, experiments, setups, control, ctc, measures, random_num,
-                robustness_num, rob_extra) in izip(analysis["control_types"],
+                robustness_num, rob_extra, projections) in izip(analysis["control_types"],
                 analysis["experimental_sets"], analysis["experimental_setups"],
                 analysis["control"], analysis["ctc"], analysis["measures"],
                 analysis["random_num"], analysis["robustness_num"],
-                analysis["robustness_args"]):
-            if cntrl_name == "digital":
-                index = config["network"]["names"].index("TRN")
-            elif cntrl_name == "analog":
-                index = config["network"]["names"].index("GPN")
-            projections = config["network"]["projections"][index]
-            for basis in projections:
-                for ms_name in measures:
-                    for (exp_name, exp_setup) in izip(experiments, setups):
-    # TODO: need to change this to use the actual times (for rate and delayed)
-                        times = organism.activity[exp_name].columns
-                        for time_point in times:
-                            spec = dict()
-                            spec["version"] = version
-                            spec["continuous"] = config["continuous"]
-                            spec["control_type"] = cntrl_name
-                            spec["time"] = time_point
-                            spec["experiment"] = exp_name
-                            spec["projection"] = basis
-                            spec["setup"] = exp_setup
-                            spec["control"] = control
-                            spec["ctc"] = ctc
-                            spec["measure"] = ms_name
-                            spec["random_num"] = random_num
-                            spec["robustness_num"] = robustness_num
-                            spec["robustness_args"] = rob_extra
-                            jobs.append(spec)
+                analysis["robustness_args"], config["network"]["projections"]):
+            for method in ctc:
+                for basis in projections:
+                    for ms_name in measures:
+                        for (exp_name, exp_setup) in izip(experiments, setups):
+        # TODO: need to change this to use the actual times (for rate and delayed)
+                            times = organism.activity[exp_name].columns
+                            for time_point in times:
+                                spec = dict()
+                                spec["version"] = version
+                                spec["continuous"] = config["continuous"]
+                                spec["control_type"] = cntrl_name
+                                spec["time"] = time_point
+                                spec["experiment"] = exp_name
+                                spec["projection"] = basis
+                                spec["setup"] = exp_setup
+                                spec["control"] = control
+                                spec["ctc"] = method
+                                spec["measure"] = ms_name
+                                spec["random_num"] = random_num
+                                spec["robustness_num"] = robustness_num
+                                spec["robustness_args"] = rob_extra
+                                jobs.append(spec)
     LOGGER.info("  %d jobs", len(jobs))
     return jobs
 
 @interactive
 def continuous_worker(spec):
+    LOGGER.debug(spec)
     version = spec["version"]
     cntrl_type = spec["control_type"]
     global_vars = globals()
@@ -332,19 +332,22 @@ def continuous_worker(spec):
     prepared = global_vars["prepared"][version][cntrl_type][spec["experiment"]]
     index = prepared["time"].index(spec["time"])
     active = prepared[spec["projection"]]["active"][index]
-    LOGGER.debug(len(active))
     levels = prepared[spec["projection"]]["levels"][index]
-    res_cntrl = control(net, active, levels, measure=measure)
-    res_ctc = ctc(net, active, levels, random_num=spec["random_num"], measure=measure)
-    return (spec, res_cntrl, res_ctc)
+    LOGGER.debug(len(active))
+    effective = pyreg.effective_network(net, active)
+    res_cntrl = control(effective, active, levels, measure=measure)
+    (res_ctc, samples) = ctc(effective, active, levels, random_num=spec["random_num"],
+            measure=measure, return_sample=True)
+    return (spec, res_cntrl, res_ctc, samples)
 
-def continuous_result(manager, spec, res_cntrl, res_ctc):
+def continuous_result(manager, spec, res_cntrl, res_ctc, samples):
     manager.append(version=spec["version"], control_type=spec["control_type"],
             continuous=spec["continuous"], strain=spec["experiment"],
             projection=spec["projection"], setup=spec["setup"],
             control_strength=res_cntrl, control_method=spec["control"],
             ctc=res_ctc, ctc_method=spec["ctc"],
-            measure=spec["measure"], time=int(float(spec["time"])))
+            measure=spec["measure"], time=int(float(spec["time"])),
+            samples=samples, delay=spec.get("delay"))
 
 
 ##############################################################################
@@ -404,6 +407,7 @@ def main(remote_client, args):
             LOGGER.info("{0:*^78s}".format(cntrl_type))
             namespace["prepared"][version][cntrl_type] = dict()
             for (exp_name, exp_setup) in izip(experiments, setups):
+                LOGGER.info("{0:*^78s}".format(exp_name))
                 df = organism.activity[exp_name]
                 setup_func = glob_vars[exp_setup]
                 namespace["prepared"][version][cntrl_type][exp_name] =\

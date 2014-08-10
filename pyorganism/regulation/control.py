@@ -18,7 +18,8 @@ Regulatory Control Measures
 
 
 __all__ = ["digital_control", "digital_ctc", "digital_ctc_fixed_regulators",
-        "continuous_digital_control", "continuous_digital_ctc_fixed_regulators",
+        "continuous_digital_control", "continuous_digital_ctc",
+        "continuous_digital_ctc_fixed_regulators",
         "delayed_continuous_digital_ctc",
         "analog_control", "analog_ctc",
         "continuous_analog_control", "continuous_analog_ctc",
@@ -216,7 +217,7 @@ def continuous_digital_ctc(trn, active, levels,
     if trn is None or trn.size() == 0:
         return np.nan
     node2level = {node: lvl for (node, lvl) in izip(active, levels)}
-    sample = [ms.continuous_sampling(trn, active, levels, evaluate=measure)\
+    sample = [ms.continuous_sample(trn, active, levels, evaluate=measure)\
             for i in xrange(random_num)]
     z_score = compute_zscore(measure(trn, node2level), sample)
     if return_sample:
@@ -267,7 +268,7 @@ def continuous_digital_ctc_fixed_regulators(trn, active, levels, random_num=1E04
     # in TRN structure the out-hubs and spokes differentiation matters
     reg_levels = [node2level[node] for node in regulators]
     slave_levels = [node2level[node] for node in slaves]
-    sample = [ms.continuous_fixed_regulator_sampling(trn, regulators, reg_levels,
+    sample = [ms.continuous_fixed_regulator_sample(trn, regulators, reg_levels,
             slaves, slave_levels, evaluate=measure) for i in xrange(random_num)]
     z_score = compute_zscore(measure(trn, node2level), sample)
     if return_sample:
@@ -313,12 +314,13 @@ def delayed_continuous_digital_ctc(trn, active, levels,
     ----------
     [1] 
     """
+    #TODO: complete and test
     random_num = int(random_num)
     if trn is None or trn.size() == 0:
         return np.nan
     node2level = {node: lvl for (node, lvl) in izip(active, levels)}
     node2delayed = {node: lvl for (node, lvl) in izip(active, delayed_levels)}
-    sample = [ms.continuous_sampling(trn, active, levels, evaluate=measure)\
+    sample = [ms.delayed_continuous_sample(trn, active, levels, evaluate=measure)\
             for i in xrange(random_num)]
     z_score = compute_zscore(measure(trn, node2level, node2delayed), sample)
     if return_sample:
@@ -453,7 +455,7 @@ def continuous_analog_ctc(gpn, active, levels, measure=ms.continuous_abs_coheren
     if gpn is None or gpn.size() == 0:
         return np.nan
     node2level = {node: lvl for (node, lvl) in izip(active, levels)}
-    sample = [ms.continuous_sampling(gpn, active, levels, evaluate=measure)\
+    sample = [ms.continuous_sample(gpn, active, levels, evaluate=measure)\
             for i in xrange(random_num)]
     z_score = compute_zscore(measure(gpn, node2level), sample)
     if return_sample:
