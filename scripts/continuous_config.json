@@ -3,6 +3,7 @@
     "continuous":true,
     "organism":"E. coli K12",
     "output":"continuous_analysis.h5",
+    "shelve":"/tmp/pyorg.ps",
     "experiments": {
         "base":"Expression/intra_strain",
         "paths":["time_course_wt_interpol.txt", "time_course_fis_interpol.txt", "time_course_hns_interpol.txt"],
@@ -26,6 +27,7 @@
         "control":["continuous_digital_control", "continuous_analog_control"],
         "ctc":[["continuous_digital_ctc", "continuous_digital_ctc_fixed_regulators"], ["continuous_analog_ctc"]],
         "measures":[["continuous_difference_coherence", "continuous_abs_coherence", "continuous_functional_coherence", "continuous_functional_comparison"], ["continuous_difference_coherence", "continuous_abs_coherence"]],
+        "delays": [1, 2, 3, 4, 5, 6],
         "random_num":[1E1, 1E1],
         "robustness_num": [0, 0],
         "robustness_args": [[0.1], [0.1]]

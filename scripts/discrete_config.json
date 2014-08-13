@@ -3,6 +3,7 @@
     "continuous":false,
     "organism":"E. coli K12",
     "output":"discrete_analysis.h5",
+    "shelve":"/tmp/pyorg.ps",
     "experiments": {
         "base":"Expression/LZ41-LZ54_single_knockouts",
         "paths":["LZ41-LZ54.tsv", "LZ41_d_fis-LZ54_d_fis.tsv", "LZ41_d_hns-LZ54_d_hns.tsv", "LZ41-LZ41_d_fis.tsv", "LZ54-LZ54_d_fis.tsv", "LZ41-LZ41_d_hns.tsv", "LZ54-LZ54_d_hns.tsv"],

@@ -20,6 +20,7 @@ Regulatory Control Measures
 __all__ = ["digital_control", "digital_ctc", "digital_ctc_fixed_regulators",
         "continuous_digital_control", "continuous_digital_ctc",
         "continuous_digital_ctc_fixed_regulators",
+        "delayed_continuous_digital_control",
         "delayed_continuous_digital_ctc",
         "analog_control", "analog_ctc",
         "continuous_analog_control", "continuous_analog_ctc",
@@ -276,6 +277,45 @@ def continuous_digital_ctc_fixed_regulators(trn, active, levels, random_num=1E04
     else:
         return z_score
 
+def delayed_continuous_digital_control(trn, active, levels,
+        delayed_levels, measure=ms.delayed_continuous_functional_coherence):
+    """
+    Compute the continuous digital control in a transcriptional regulatory
+    network (TRN).
+
+    This function computes the continuous digital control using
+    expression levels of nodes in a TRN as a simple null model. Expression
+    levels are considered at two different time points: if there is a link from
+    u to v then the expression level for u at time t is compared with the
+    expression level of v at time point t + 1.
+
+    Parameters
+    ----------
+    trn: TRN or nx.(Multi)DiGraph
+        Effective TRN.
+    active: list
+        Ordered collection of active nodes.
+    levels: list
+        Corresponding expression levels of active nodes (same shape and ordering
+        expected) at time point t.
+    delayed_levels: list
+        Corresponding expression levels of active nodes (same shape and ordering
+        expected) at time point t + 1.
+    measure: callable (optional)
+        Takes the effective network and expression level map and returns the
+        magnitude of control.
+
+    References
+    ----------
+    [1] 
+    """
+    #TODO: complete and test
+    if trn is None or trn.size() == 0:
+        return np.nan
+    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
+    node2delayed = {node: lvl for (node, lvl) in izip(active, delayed_levels)}
+    return measure(trn, node2level, node2delayed)
+
 def delayed_continuous_digital_ctc(trn, active, levels,
         delayed_levels, random_num=1E04, return_sample=False,
         measure=ms.delayed_continuous_functional_coherence):
@@ -320,8 +360,8 @@ def delayed_continuous_digital_ctc(trn, active, levels,
         return np.nan
     node2level = {node: lvl for (node, lvl) in izip(active, levels)}
     node2delayed = {node: lvl for (node, lvl) in izip(active, delayed_levels)}
-    sample = [ms.delayed_continuous_sample(trn, active, levels, evaluate=measure)\
-            for i in xrange(random_num)]
+    sample = [ms.delayed_continuous_sample(trn, active, levels, delayed_levels,
+            evaluate=measure) for i in xrange(random_num)]
     z_score = compute_zscore(measure(trn, node2level, node2delayed), sample)
     if return_sample:
         return (z_score, sample)
