@@ -44,7 +44,7 @@ def trn_stats(genes, trn, version):
     nodes = sorted(grn.nodes())
     regulating = set(node for (node, deg) in grn.out_degree_iter() if deg > 0)
     regulated = set(node for (node, deg) in grn.in_degree_iter() if deg > 0)
-    components = nx.weakly_connected_components(grn)
+    components = list(nx.weakly_connected_components(grn))
     data = dict()
     for (a, b) in itertools.product(("in", "out"), repeat=2):
         data["{a}_{b}_ass".format(a=a, b=b)] = nx.degree_assortativity_coefficient(grn, x=a, y=b)
@@ -84,7 +84,7 @@ def trn_stats(genes, trn, version):
 def gpn_stats(genes, gpn, version):
     LOGGER.info("Computing GPN statistics")
     nodes = sorted(gpn.nodes())
-    components = nx.connected_components(gpn)
+    components = list(nx.connected_components(gpn))
     ass = nx.degree_assortativity_coefficient(gpn)
     deg = [gpn.degree(node) for node in nodes]
     stats = pandas.DataFrame(data={
