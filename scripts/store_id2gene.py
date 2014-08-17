@@ -26,7 +26,6 @@ import warnings
 import pandas
 
 import pyorganism
-import pyorganism.regulation as pyreg # needed for gene object definition
 
 
 LOGGER = logging.getLogger()
