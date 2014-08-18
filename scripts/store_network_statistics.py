@@ -31,8 +31,8 @@ import pyorganism
 
 from numpy import mean
 
-from pyorganism.io.regulondb import RELEASE
 from pyorganism.regulation import TranscriptionFactor
+from pyorganism.io.regulondb import RELEASE
 from meb.utils.network.subgraphs import triadic_census
 
 
@@ -40,9 +40,11 @@ LOGGER = logging.getLogger()
 LOGGER.addHandler(logging.StreamHandler())
 LOGGER.setLevel(logging.INFO)
 
-def trn_stats(genes, trn, version):
+FIS_ID = "ECK120011186"
+HNS_ID = "ECK120011294"
+
+def trn_stats(genes, trn, t_factors, version):
     LOGGER.info("Computing TRN statistics")
-    t_factors = [node for node in trn if isinstance(node, TranscriptionFactor)]
     grn = trn.to_grn()
     nodes = sorted(grn.nodes_iter())
     regulating = {node for (node, deg) in grn.out_degree_iter() if deg > 0}
@@ -70,6 +72,8 @@ def trn_stats(genes, trn, version):
     data["largest_component"] = len(components[0]),
     data["feed_forward"] = forward,
     data["feedback"] = feedback,
+    data["fis_out"] = trn.out_degree(TranscriptionFactor[FIS_ID, version]),
+    data["hns_out"] = trn.out_degree(TranscriptionFactor[HNS_ID, version]),
     data["cycles"] = len(cycles),
     data["regulated_in_deg"] = mean(in_deg),
     data["regulating_out_deg"] = mean(out_deg),
@@ -133,6 +137,9 @@ def main(in_path, out_path, version=""):
     genes = pyorganism.read_pickle(os.path.join(in_path, "genes.pkl"))
     LOGGER.info("Loading TRN")
     trn = pyorganism.read_pickle(os.path.join(in_path, "trn.pkl"))
+    LOGGER.info("Loading TFs")
+    t_factors = pyorganism.read_pickle(os.path.join(in_path,
+            "transcription_factors.pkl"))
     LOGGER.info("Loading GPN")
     gpn = pyorganism.read_pickle(os.path.join(in_path, "gpn_5000.pkl"))
     version = os.path.basename(in_path)
@@ -141,7 +148,7 @@ def main(in_path, out_path, version=""):
     (stats, dists) = gpn_stats(genes, gpn, version)
     store_results(os.path.join(out_path, "gpn_5000_statistics.csv"), stats)
     store_results(os.path.join(out_path, "gpn_5000_distributions.csv"), dists)
-    (stats, dists) = trn_stats(genes, trn, version)
+    (stats, dists) = trn_stats(genes, trn, t_factors, version)
     store_results(os.path.join(out_path, "trn_statistics.csv"), stats)
     store_results(os.path.join(out_path, "trn_distributions.csv"), dists)
 
