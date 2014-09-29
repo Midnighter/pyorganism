@@ -65,7 +65,7 @@ def rewiring(lb_view, versions, args):
             bar += 1
         bar.finish()
         pyorg.write_pickle(rands, os.path.join(args.out_path, ver,
-                "trn_rewired_{0:f}.pkl".format(args.prob)))
+                "trn_rewired_{0:.1f}.pkl".format(args.prob)))
         lb_view.purge_results("all")
         del rands[:] # activate garbage collection in loop
 
@@ -182,9 +182,9 @@ def null_stats(base_dir, task):
         ver = os.path.basename(os.path.dirname(base_dir))
     if task == "rewired":
         nets = pyorg.read_pickle(os.path.join(base_dir,
-                "trn_rewired_{0:f}.pkl".format(prob)))
+                "trn_rewired_{0:.1f}.pkl".format(prob)))
         nets = [net.to_grn() for net in nets]
-        return pd.concat([stats(net, ver, "rewired {0:f}".format(prob)) for net in nets],
+        return pd.concat([stats(net, ver, "rewired {0:.1f}".format(prob)) for net in nets],
                 ignore_index=True)
     elif task == "null-model":
         nets = pyorg.read_pickle(os.path.join(base_dir, "trn_random.pkl"))
