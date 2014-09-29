@@ -24,6 +24,8 @@ Flux Balance Analysis Model
 __all__ = ["FBAModel"]
 
 
+# import numpy as np
+
 from .lpmodels import MetaLPModelFacade
 
 
@@ -553,7 +555,7 @@ class FBAModel(object):
 #    choices = [t for t in transporters if not t in minimal]
 #
 #    # select a random percentage of active transporters
-#    active = random.sample(choices, int(numpy.ceil(len(choices) *
+#    active = random.sample(choices, int(np.ceil(len(choices) *
 #            random.uniform(*percentage_range) / 100.0)))
 #
 #    # since bounds is a dictionary we do not care about duplicates

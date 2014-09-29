@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 
@@ -23,12 +24,14 @@ import os
 import logging
 import itertools
 # external
-import pandas
+import pandas as pd
 import networkx as nx
 # project
 import pyorganism
-import pyorganism.regulation as pyreg # needed for object definitions
 
+from numpy import mean
+
+from pyorganism.regulation import TranscriptionFactor
 from pyorganism.io.regulondb import RELEASE
 from meb.utils.network.subgraphs import triadic_census
 
@@ -37,13 +40,17 @@ LOGGER = logging.getLogger()
 LOGGER.addHandler(logging.StreamHandler())
 LOGGER.setLevel(logging.INFO)
 
-def trn_stats(genes, trn, version):
+FIS_ID = "ECK120011186"
+HNS_ID = "ECK120011294"
+
+def trn_stats(genes, trn, t_factors, version):
     LOGGER.info("Computing TRN statistics")
     grn = trn.to_grn()
-    nodes = sorted(grn.nodes())
-    regulating = set(node for (node, deg) in grn.out_degree_iter() if deg > 0)
-    regulated = set(node for (node, deg) in grn.in_degree_iter() if deg > 0)
-    components = nx.weakly_connected_components(grn)
+    nodes = sorted(grn.nodes_iter())
+    regulating = {node for (node, deg) in grn.out_degree_iter() if deg > 0}
+    regulated = set(nodes) - regulating
+    components = sorted(nx.weakly_connected_components(grn), key=len,
+            reverse=True)
     data = dict()
     for (a, b) in itertools.product(("in", "out"), repeat=2):
         data["{a}_{b}_ass".format(a=a, b=b)] = nx.degree_assortativity_coefficient(grn, x=a, y=b)
@@ -51,66 +58,74 @@ def trn_stats(genes, trn, version):
     forward = census["030T"]
     feedback = census["030C"]
     cycles = list(nx.simple_cycles(grn))
+    in_deg = [grn.in_degree(node) for node in regulated]
+    out_deg = [grn.out_degree(node) for node in regulating]
+    data["version"] = version,
+    data["release"] = pd.to_datetime(RELEASE[version]),
+    data["num_genes"] = len(genes),
+    data["num_tf"] = len(t_factors),
+    data["num_nodes"] = len(nodes),
+    data["num_regulating"] = len(regulating),
+    data["num_regulated"] = len(regulated),
+    data["num_links"] = grn.size(),
+    data["density"] = nx.density(grn),
+    data["num_components"] = len(components),
+    data["largest_component"] = len(components[0]),
+    data["feed_forward"] = forward,
+    data["feedback"] = feedback,
+    data["fis_out"] = trn.out_degree(TranscriptionFactor[FIS_ID, version]),
+    data["hns_out"] = trn.out_degree(TranscriptionFactor[HNS_ID, version]),
+    data["cycles"] = len(cycles),
+    data["regulated_in_deg"] = mean(in_deg),
+    data["regulating_out_deg"] = mean(out_deg),
+    data["hub_out_deg"] = max(out_deg)
+    stats = pd.DataFrame(data, index=[1])
     in_deg = [grn.in_degree(node) for node in nodes]
     out_deg = [grn.out_degree(node) for node in nodes]
     bc = nx.betweenness_centrality(grn)
     bc = [bc[node] for node in nodes]
-    data["version"] = version
-    data["release"] = RELEASE[version]
-    data["num_genes"] = len(genes)
-    data["num_regulating"] = len(regulating)
-    data["num_regulated"] = len(regulated)
-    data["num_links"] = grn.size()
-    data["num_components"] = len(components)
-    data["largest_component"] = len(components[0])
-    data["feed_forward"] = forward
-    data["feedback"] = feedback
-    data["cycles"] = len(cycles)
-    data["hub_out_deg"] = max(out_deg)
-    stats = pandas.DataFrame(data, index=[1])
-    stats["release"] = pandas.to_datetime(stats["release"])
-    dists = pandas.DataFrame({
-        "version": version,
-        "release": RELEASE[version],
-        "node": [node.unique_id for node in nodes],
-        "in_degree": in_deg,
-        "out_degree": out_deg,
-        "betweenness": bc
-    })
-    dists["release"] = stats["release"].copy()
+    dists = pd.DataFrame({
+            "version": version,
+            "release": [pd.to_datetime(RELEASE[version])] * len(nodes),
+            "node": [node.unique_id for node in nodes],
+            "regulated_in_degree": in_deg,
+            "regulating_out_degree": out_deg,
+            "betweenness": bc
+        })
     return (stats, dists)
 
 def gpn_stats(genes, gpn, version):
     LOGGER.info("Computing GPN statistics")
-    nodes = sorted(gpn.nodes())
-    components = nx.connected_components(gpn)
+    nodes = sorted(gpn.nodes_iter())
+    components = sorted(nx.connected_components(gpn), key=len, reverse=True)
     ass = nx.degree_assortativity_coefficient(gpn)
     deg = [gpn.degree(node) for node in nodes]
-    stats = pandas.DataFrame(data={
+    stats = pd.DataFrame(data={
             "version": version,
-            "release": RELEASE[version],
+            "release": pd.to_datetime(RELEASE[version]),
             "num_genes": len(genes),
-            "num_nodes": len(gpn),
+            "num_nodes": len(nodes),
             "num_links": gpn.size(),
+            "density": nx.density(gpn),
             "num_components": len(components),
             "largest_component": len(components[0]),
             "assortativity": ass,
+            "avg_deg": mean(deg),
             "hub_deg": max(deg)
-            }, index=[1])
-    stats["release"] = pandas.to_datetime(stats["release"])
-    dists = pandas.DataFrame(data={
+        }, index=[1])
+    stats["release"] = pd.to_datetime(stats["release"])
+    dists = pd.DataFrame(data={
             "version": version,
-            "release": RELEASE[version],
+            "release": [pd.to_datetime(RELEASE[version])] * len(nodes),
             "node": [node.unique_id for node in nodes],
             "degree": deg,
-            })
-    dists["release"] = stats["release"].copy()
+        })
     return (stats, dists)
 
 def store_results(filename, df):
     if os.path.exists(filename):
-        results = pandas.read_csv(filename, sep=";", header=0, index_col=False)
-        results = pandas.concat([results, df], ignore_index=True)
+        results = pd.read_csv(filename, sep=";", header=0, index_col=False)
+        results = pd.concat([results, df], ignore_index=True)
     else:
         results = df
     results.to_csv(filename, sep=";", header=True, index=False)
@@ -124,6 +139,9 @@ def main(in_path, out_path, version=""):
     genes = pyorganism.read_pickle(os.path.join(in_path, "genes.pkl"))
     LOGGER.info("Loading TRN")
     trn = pyorganism.read_pickle(os.path.join(in_path, "trn.pkl"))
+    LOGGER.info("Loading TFs")
+    t_factors = pyorganism.read_pickle(os.path.join(in_path,
+            "transcription_factors.pkl"))
     LOGGER.info("Loading GPN")
     gpn = pyorganism.read_pickle(os.path.join(in_path, "gpn_5000.pkl"))
     version = os.path.basename(in_path)
@@ -132,7 +150,7 @@ def main(in_path, out_path, version=""):
     (stats, dists) = gpn_stats(genes, gpn, version)
     store_results(os.path.join(out_path, "gpn_5000_statistics.csv"), stats)
     store_results(os.path.join(out_path, "gpn_5000_distributions.csv"), dists)
-    (stats, dists) = trn_stats(genes, trn, version)
+    (stats, dists) = trn_stats(genes, trn, t_factors, version)
     store_results(os.path.join(out_path, "trn_statistics.csv"), stats)
     store_results(os.path.join(out_path, "trn_distributions.csv"), dists)
 

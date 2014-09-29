@@ -22,8 +22,8 @@ Metabolic Network Generators
 __all__ = ["random_p_mn", "random_scale_free_mn", "random_normal_scale_free"]
 
 import logging
-import numpy
-import numpy.random
+import numpy as np
+import numpy.random as npr
 
 from . import elements as pymet
 from . import networks as pynets
@@ -45,7 +45,7 @@ def prune_network(network):
     network: MetabolicNetwork
         A MetabolicNetwork instance.
     """
-    rand_int = numpy.random.random_integers
+    rand_int = npr.random_integers
     num_rxns = len(network.reactions)
     num_cmpds = len(network.compounds)
     total = 0
@@ -129,10 +129,10 @@ def random_p_mn(num_compounds, num_reactions, num_reversible, p, seed=None):
     because isolated nodes are removed from the network.
     """
     # setup
-    rand_float = numpy.random.random_sample
-    rand_int = numpy.random.random_integers
+    rand_float = npr.random_sample
+    rand_int = npr.random_integers
     if seed:
-        numpy.random.seed(int(seed))
+        npr.seed(int(seed))
     num_compounds = int(num_compounds)
     num_reactions = int(num_reactions)
     num_reversible = int(num_reversible)
@@ -188,10 +188,10 @@ def random_scale_free_mn(num_compounds, num_reactions, num_reversible,
         A specific seed for the random number generator for reproducible runs.
     """
     # setup
-    rand_int = numpy.random.random_integers
-    rand_float = numpy.random.random_sample
+    rand_int = npr.random_integers
+    rand_float = npr.random_sample
     if seed:
-        numpy.random.seed(int(seed))
+        npr.seed(int(seed))
     num_compounds = int(num_compounds)
     num_reactions = int(num_reactions)
     num_reversible = int(num_reversible)
@@ -316,9 +316,9 @@ def random_normal_scale_free(num_compounds, num_reactions, num_reversible,
     deviation should be zero.
     """
     # setup
-    rand_float = numpy.random.random_sample
+    rand_float = npr.random_sample
     if seed:
-        numpy.random.seed(int(seed))
+        npr.seed(int(seed))
     num_compounds = int(num_compounds)
     num_reactions = int(num_reactions)
     num_reversible = int(num_reversible)
@@ -326,15 +326,15 @@ def random_normal_scale_free(num_compounds, num_reactions, num_reversible,
     if reaction_mean == 0.0 or diff == 0.0:
         raise PyOrganismError("please choose arguments that avoid"\
                 " ZeroDivisionError")
-    num_trials = int(round(numpy.power(reaction_mean, 2) / diff))
+    num_trials = int(round(np.power(reaction_mean, 2) / diff))
     prob = diff / float(reaction_mean)
     compound_exponent = float(compound_exponent)
     #norm_std = int(norm_std)
     options = misc.OptionsManager.get_instance()
     network = pynets.MetabolicNetwork()
-    cmpd_distr = numpy.random.zipf(compound_exponent, size=num_compounds)
+    cmpd_distr = npr.zipf(compound_exponent, size=num_compounds)
     cmpd_sum = sum(cmpd_distr)
-    rxn_distr = numpy.random.binomial(num_trials, prob, size=num_reactions)
+    rxn_distr = npr.binomial(num_trials, prob, size=num_reactions)
     rxn_sum = sum(rxn_distr)
     # make the sums of the 2 degree distributions equal
     i = 0
@@ -343,7 +343,7 @@ def random_normal_scale_free(num_compounds, num_reactions, num_reversible,
 #        LOGGER.debug("sum zipf = {0:d}, sum binomial = {1:d}".format(cmpd_sum,
 #                rxn_sum))
         samples.append(cmpd_sum)
-        cmpd_distr = numpy.random.zipf(compound_exponent, num_compounds)
+        cmpd_distr = npr.zipf(compound_exponent, num_compounds)
         cmpd_sum = sum(cmpd_distr)
         i += 1
     if sum(cmpd_distr) != sum(rxn_distr):
@@ -366,8 +366,8 @@ def random_normal_scale_free(num_compounds, num_reactions, num_reversible,
         network.add_node(new_react)
         b_stubs.extend([new_react] * rxn_distr[i])
     # shuffle lists
-    numpy.random.shuffle(a_stubs)
-    numpy.random.shuffle(b_stubs)
+    npr.shuffle(a_stubs)
+    npr.shuffle(b_stubs)
     # add edges
     for i in range(sum(cmpd_distr)):
         u = a_stubs[i]

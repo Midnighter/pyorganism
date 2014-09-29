@@ -18,7 +18,9 @@ Regulatory Control Measures
 
 
 __all__ = ["digital_control", "digital_ctc", "digital_ctc_fixed_regulators",
-        "continuous_digital_control", "continuous_digital_ctc_fixed_regulators",
+        "continuous_digital_control", "continuous_digital_ctc",
+        "continuous_digital_ctc_fixed_regulators",
+        "delayed_continuous_digital_control",
         "delayed_continuous_digital_ctc",
         "analog_control", "analog_ctc",
         "continuous_analog_control", "continuous_analog_ctc",
@@ -28,7 +30,7 @@ __all__ = ["digital_control", "digital_ctc", "digital_ctc_fixed_regulators",
 import logging
 import re
 
-import numpy
+import numpy as np
 
 from itertools import izip
 
@@ -65,7 +67,7 @@ def digital_control(effective, measure=ms.discrete_total_ratio):
         BMC Systems Biology 2, 18.
     """
     if effective is None or effective.size() == 0:
-        return numpy.nan
+        return np.nan
     return measure(effective)
 
 def digital_ctc(effective, reference, measure=ms.discrete_total_ratio,
@@ -99,7 +101,7 @@ def digital_ctc(effective, reference, measure=ms.discrete_total_ratio,
     """
     random_num = int(random_num)
     if effective is None or effective.size() == 0:
-        return numpy.nan
+        return np.nan
     size = len(effective)
     sample = [ms.active_sample(reference, size, evaluate=measure) for i in xrange(random_num)]
     z_score = compute_zscore(measure(effective), sample)
@@ -137,7 +139,7 @@ def digital_ctc_fixed_regulators(effective, reference, measure=ms.discrete_total
     """
     random_num = int(random_num)
     if effective is None or effective.size() == 0:
-        return numpy.nan
+        return np.nan
     (eff_regs, eff_slaves) = nets.split_regulators(effective)
     (regulators, slaves) = nets.split_regulators(reference)
     LOGGER.info("picked %d regulators", len(eff_regs))
@@ -176,7 +178,7 @@ def continuous_digital_control(trn, active, levels,
     [1] 
     """
     if trn is None or trn.size() == 0:
-        return numpy.nan
+        return np.nan
     node2level = {node: lvl for (node, lvl) in izip(active, levels)}
     return measure(trn, node2level)
 
@@ -214,9 +216,9 @@ def continuous_digital_ctc(trn, active, levels,
     """
     random_num = int(random_num)
     if trn is None or trn.size() == 0:
-        return numpy.nan
+        return np.nan
     node2level = {node: lvl for (node, lvl) in izip(active, levels)}
-    sample = [ms.continuous_sampling(trn, active, levels, evaluate=measure)\
+    sample = [ms.continuous_sample(trn, active, levels, evaluate=measure)\
             for i in xrange(random_num)]
     z_score = compute_zscore(measure(trn, node2level), sample)
     if return_sample:
@@ -261,19 +263,58 @@ def continuous_digital_ctc_fixed_regulators(trn, active, levels, random_num=1E04
     """
     random_num = int(random_num)
     if trn is None or trn.size() == 0:
-        return numpy.nan
+        return np.nan
     node2level = {node: lvl for (node, lvl) in izip(active, levels)}
     (regulators, slaves) = nets.split_regulators(trn)
     # in TRN structure the out-hubs and spokes differentiation matters
     reg_levels = [node2level[node] for node in regulators]
     slave_levels = [node2level[node] for node in slaves]
-    sample = [ms.continuous_fixed_regulator_sampling(trn, regulators, reg_levels,
+    sample = [ms.continuous_fixed_regulator_sample(trn, regulators, reg_levels,
             slaves, slave_levels, evaluate=measure) for i in xrange(random_num)]
     z_score = compute_zscore(measure(trn, node2level), sample)
     if return_sample:
         return (z_score, sample)
     else:
         return z_score
+
+def delayed_continuous_digital_control(trn, active, levels,
+        delayed_levels, measure=ms.delayed_continuous_functional_coherence):
+    """
+    Compute the continuous digital control in a transcriptional regulatory
+    network (TRN).
+
+    This function computes the continuous digital control using
+    expression levels of nodes in a TRN as a simple null model. Expression
+    levels are considered at two different time points: if there is a link from
+    u to v then the expression level for u at time t is compared with the
+    expression level of v at time point t + 1.
+
+    Parameters
+    ----------
+    trn: TRN or nx.(Multi)DiGraph
+        Effective TRN.
+    active: list
+        Ordered collection of active nodes.
+    levels: list
+        Corresponding expression levels of active nodes (same shape and ordering
+        expected) at time point t.
+    delayed_levels: list
+        Corresponding expression levels of active nodes (same shape and ordering
+        expected) at time point t + 1.
+    measure: callable (optional)
+        Takes the effective network and expression level map and returns the
+        magnitude of control.
+
+    References
+    ----------
+    [1] 
+    """
+    #TODO: complete and test
+    if trn is None or trn.size() == 0:
+        return np.nan
+    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
+    node2delayed = {node: lvl for (node, lvl) in izip(active, delayed_levels)}
+    return measure(trn, node2level, node2delayed)
 
 def delayed_continuous_digital_ctc(trn, active, levels,
         delayed_levels, random_num=1E04, return_sample=False,
@@ -313,13 +354,14 @@ def delayed_continuous_digital_ctc(trn, active, levels,
     ----------
     [1] 
     """
+    #TODO: complete and test
     random_num = int(random_num)
     if trn is None or trn.size() == 0:
-        return numpy.nan
+        return np.nan
     node2level = {node: lvl for (node, lvl) in izip(active, levels)}
     node2delayed = {node: lvl for (node, lvl) in izip(active, delayed_levels)}
-    sample = [ms.continuous_sampling(trn, active, levels, evaluate=measure)\
-            for i in xrange(random_num)]
+    sample = [ms.delayed_continuous_sample(trn, active, levels, delayed_levels,
+            evaluate=measure) for i in xrange(random_num)]
     z_score = compute_zscore(measure(trn, node2level, node2delayed), sample)
     if return_sample:
         return (z_score, sample)
@@ -345,7 +387,7 @@ def analog_control(effective, measure=ms.discrete_total_ratio):
         BMC Systems Biology 2, 18.
     """
     if effective is None or effective.size() == 0:
-        return numpy.nan
+        return np.nan
     return measure(effective)
 
 def analog_ctc(effective, reference, measure=ms.discrete_total_ratio,
@@ -379,7 +421,7 @@ def analog_ctc(effective, reference, measure=ms.discrete_total_ratio,
     """
     random_num = int(random_num)
     if effective is None or effective.size() == 0:
-        return numpy.nan
+        return np.nan
     size = len(effective)
     sample = [ms.active_sample(reference, size, evaluate=measure) for i in xrange(random_num)]
     z_score = compute_zscore(measure(effective), sample)
@@ -414,7 +456,7 @@ def continuous_analog_control(gpn, active, levels,
     [1] 
     """
     if gpn is None or gpn.size() == 0:
-        return numpy.nan
+        return np.nan
     node2level = {node: lvl for (node, lvl) in izip(active, levels)}
     return measure(gpn, node2level)
 
@@ -451,9 +493,9 @@ def continuous_analog_ctc(gpn, active, levels, measure=ms.continuous_abs_coheren
     """
     random_num = int(random_num)
     if gpn is None or gpn.size() == 0:
-        return numpy.nan
+        return np.nan
     node2level = {node: lvl for (node, lvl) in izip(active, levels)}
-    sample = [ms.continuous_sampling(gpn, active, levels, evaluate=measure)\
+    sample = [ms.continuous_sample(gpn, active, levels, evaluate=measure)\
             for i in xrange(random_num)]
     z_score = compute_zscore(measure(gpn, node2level), sample)
     if return_sample:
@@ -484,7 +526,7 @@ def metabolic_coherence_ratio(metabolic_network, active, bnumber2gene,
 
     """
     rxn_centric = nets.setup_metabolic(metabolic_network, rxn_centric)
-    if rxn_centric is numpy.nan:
+    if rxn_centric is np.nan:
         return rxn_centric
     bpattern = re.compile(r"b\d{4}")
     active_reactions = list()
@@ -503,7 +545,7 @@ def metabolic_coherence_ratio(metabolic_network, active, bnumber2gene,
     original = ms.effective_network(rxn_centric, active_reactions)
     if len(original) == 0:
         LOGGER.warn("empty effective network")
-        return numpy.nan
+        return np.nan
     return measure(original)
 
 def metabolic_coherence(metabolic_network, active, bnumber2gene, rxn_centric=None,
@@ -530,7 +572,7 @@ def metabolic_coherence(metabolic_network, active, bnumber2gene, rxn_centric=Non
     """
     random_num = int(random_num)
     rxn_centric = nets.setup_metabolic(metabolic_network, rxn_centric)
-    if rxn_centric is numpy.nan:
+    if rxn_centric is np.nan:
         return rxn_centric
     bpattern = re.compile(r"b\d{4}")
     active_reactions = list()
@@ -550,7 +592,7 @@ def metabolic_coherence(metabolic_network, active, bnumber2gene, rxn_centric=Non
     size = len(original)
     if size == 0:
         LOGGER.warn("empty effective network")
-        return numpy.nan
+        return np.nan
     sample = [ms.active_sample(rxn_centric, size, measure) for i in xrange(int(random_num))]
     z_score = compute_zscore(measure(original), sample)
     if return_sample:

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 
@@ -25,7 +26,6 @@ import warnings
 import pandas
 
 import pyorganism
-import pyorganism.regulation as pyreg # needed for gene object definition
 
 
 LOGGER = logging.getLogger()
@@ -70,7 +70,7 @@ def store_joint_ids(map_path, frame_path, version=""):
     LOGGER.info("{0:*^78s}".format(version))
     # load into memory
     LOGGER.info("Loading genes")
-    genes = pyorganism.read_pickle(os.path.join(base_path, "genes.pkl"))
+    pyorganism.read_pickle(os.path.join(base_path, "genes.pkl"))
     LOGGER.info("Loading feature map")
     id2gene = pyorganism.read_pickle(map_path)
     LOGGER.info("Creating data frame")

@@ -27,7 +27,7 @@ setup(
     version = "0.1",
     description = "analyse organisational principles in living organisms",
     author = "Moritz Emanuel Beber",
-    author_email = "moritz (dot) beber (at) googlemail (dot) com",
+    author_email = "moritz (dot) beber (at) gmail (dot) com",
     url = "http://github.com/Midnighter/pyorganism",
     packages = ["pyorganism",
             "pyorganism.io",
@@ -35,7 +35,6 @@ setup(
             "pyorganism.metabolism",
             "pyorganism.metabolism.tests",
             "pyorganism.regulation",
-            "pyorganism.parallel",
             "pyorganism.tests"],
 #    package_data = {"pyorganism": ["data/*.xml", "data/*.txt", "data/*.tsv"]},
     )

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 
@@ -43,7 +44,7 @@ def construct_trn(path):
         version = os.path.basename(os.path.dirname(path))
     LOGGER.info("{0:*^78s}".format(version))
     # load objects so that they are in memory
-    conformations = pyorganism.read_pickle(os.path.join(path, "conformations.pkl"))
+    pyorganism.read_pickle(os.path.join(path, "conformations.pkl"))
     t_units = pyorganism.read_pickle(os.path.join(path, "transcription_units.pkl"))
     interactions = pyorganism.read_pickle(os.path.join(path, "interactions.pkl"))
     assert all(pyreg.Conformation.has_key(triple[0], version) for triple in interactions),\

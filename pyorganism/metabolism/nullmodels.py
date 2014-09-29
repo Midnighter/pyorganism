@@ -24,6 +24,8 @@ __all__ = ["make_consistent_stoichiometry"]
 import logging
 import itertools
 
+#import numpy as np
+
 from operator import itemgetter
 from ..errors import PyOrganismError
 from .. import miscellaneous as misc
@@ -58,13 +60,13 @@ LOGGER.addHandler(misc.NullHandler())
 #    seed: int (optional)
 #        A specific seed for the random number generator for reproducible runs.
 #    """
-#    rand_int = numpy.random.random_integers
+#    rand_int = np.random.random_integers
 #    if seed:
-#        numpy.random.seed(int(seed))
+#        np.random.seed(int(seed))
 #    # a map that stores exact masses of metabolites, thus decimal type
 #    mass = defaultdict(dec.Decimal) # zero initialised decimal values
 #    # stoichiometric matrix
-#    stoichiometry = numpy.zeros(shape=(len(network.compounds),
+#    stoichiometry = np.zeros(shape=(len(network.compounds),
 #        len(network.reactions)), dtype=int)
 #    # breadth-first search containers
 #    disc = Queue() # queue for discovered nodes
@@ -109,7 +111,7 @@ LOGGER.addHandler(misc.NullHandler())
 #        A specific seed for the random number generator for reproducible runs.
 #    """
 #    if seed:
-#        numpy.random.seed(int(seed))
+#        np.random.seed(int(seed))
 #    if seed:
 #        rnd.seed(seed)
 #    # a map that stores exact masses of metabolites, thus decimal type

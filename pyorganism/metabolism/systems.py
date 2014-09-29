@@ -23,7 +23,7 @@ __all__ = ["MetabolicSystem", "read_metabolic_model", "generate_fba_model"]
 
 
 import logging
-#import numpy
+#import numpy as np
 
 from .. import miscellaneous as misc
 from ..errors import PyOrganismError
@@ -215,7 +215,7 @@ class MetabolicSystem(object):
 #        for cmpd in self.compounds:
 #            cmpd.reversible = False
 #        # first add all compound masses as variables to the model
-#        self._transpose.add_reaction(self.compounds, lb=1.0, ub=numpy.inf)
+#        self._transpose.add_reaction(self.compounds, lb=1.0, ub=np.inf)
 #        # constrain mass by stoichiometric coefficients
 #        for rxn in self.reactions:
 #            self._transpose.add_compound(rxn, list(rxn.compounds_iter(True)))
