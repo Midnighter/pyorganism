@@ -184,7 +184,7 @@ def null_stats(base_dir, task):
         try:
             nets = pyorg.read_pickle(os.path.join(base_dir,
                     "trn_rewired_{0:.1f}.pkl".format(prob)))
-        except OSError:
+        except IOError:
             return pd.DataFrame()
         nets = [net.to_grn() for net in nets]
         return pd.concat([stats(net, ver, "rewired {0:.1f}".format(prob)) for net in nets],
@@ -192,7 +192,7 @@ def null_stats(base_dir, task):
     elif task == "null-model":
         try:
             nets = pyorg.read_pickle(os.path.join(base_dir, "trn_random.pkl"))
-        except OSError:
+        except IOError:
             return pd.DataFrame()
         nets = [net.to_grn() for net in nets]
         return pd.concat([stats(net, ver, "random") for net in nets], ignore_index=True)
