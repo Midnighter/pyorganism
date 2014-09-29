@@ -256,12 +256,14 @@ if __name__ == "__main__":
     parser_rnd.add_argument("-f", "--flip-num", dest="flip_num",
             default=100, type=int,
             help="Number of attempts to switch each link (default: %(default)s)")
+    parser_rnd.set_defaults(func=main_random)
 # analysis
     parser_anal = subparsers.add_parser("analysis",
             help="Analyze the rewired or randomized TRNs")
     parser_anal.add_argument("-p", "--probability", dest="prob",
             default=0.1, type=float,
             help="Probability for rewiring a link to analyze (default: %(default)s)")
+    parser_anal.set_defaults(func=main_analysis)
     args = parser.parse_args()
     dictConfig({"version": 1, "incremental": True, "root": {"level": args.log_level}})
     remote_client = Client(profile=args.profile, cluster_id=args.cluster_id)
