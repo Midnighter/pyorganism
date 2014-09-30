@@ -18,7 +18,8 @@ PyOrganism Regulatory Networks
 
 
 __all__ = ["GRN", "TRN", "CouplonGenerator", "GPNGenerator",
-    "effective_network", "to_transcription_unit_based", "to_operon_based"]
+    "effective_network", "to_transcription_unit_based", "to_operon_based",
+    "trn2grn"]
 
 
 import logging
@@ -545,6 +546,25 @@ def to_operon_based(network):
             for (op_1, op_2) in product(u_ops, v_ops):
                 op_net.add_edge(op_1, op_2)
     return op_net
+
+def trn2grn(network):
+    grn = type(network)()
+    grn.graph.update(network.graph)
+    # do not add nodes since the procedure is ambiguous and
+    # trn is defined by regulatory interactions
+    if network.is_multigraph():
+        for (tf, gene, k, data) in network.edges_iter(keys=True, data=True):
+            for src_gene in tf.coded_from:
+                grn.add_edge(src_gene, gene, key=k, **data)
+                grn.node[src_gene].update(network.node[tf])
+                grn.node[gene].update(network.node[gene])
+    else:
+        for (tf, gene, data) in network.edges_iter(data=True):
+            for src_gene in tf.coded_from:
+                grn.add_edge(src_gene, gene, **data)
+                grn.node[src_gene].update(network.node[tf])
+                grn.node[gene].update(network.node[gene])
+    return grn
 
 def setup_metabolic(metabolic, rxn_centric):
     if rxn_centric is None:

@@ -19,6 +19,7 @@ from IPython.parallel import (interactive, Client)
 from progressbar import (ProgressBar, Timer, Bar, Percentage, ETA)
 
 import pyorganism as pyorg
+from pyorganism.regulation import trn2grn
 from meb.utils.network.randomisation import NetworkRewiring
 from meb.utils.network.subgraphs import triadic_census
 
@@ -186,7 +187,7 @@ def null_stats(base_dir, task):
                     "trn_rewired_{0:.1f}.pkl".format(prob)))
         except IOError:
             return pd.DataFrame()
-        nets = [net.to_grn() for net in nets]
+        nets = [trn2grn(net) for net in nets]
         return pd.concat([stats(net, ver, "rewired {0:.1f}".format(prob)) for net in nets],
                 ignore_index=True)
     elif task == "null-model":
@@ -194,7 +195,7 @@ def null_stats(base_dir, task):
             nets = pyorg.read_pickle(os.path.join(base_dir, "trn_random.pkl"))
         except IOError:
             return pd.DataFrame()
-        nets = [net.to_grn() for net in nets]
+        nets = [trn2grn(net) for net in nets]
         return pd.concat([stats(net, ver, "random") for net in nets], ignore_index=True)
 
 def main_analysis(rc, args):
