@@ -176,6 +176,7 @@ def stats(grn, version, description):
     stats = pd.DataFrame(data, index=[1])
     return stats
 
+@interactive
 def null_stats(base_dir, task):
     prob = globals()["prob"]
     ver = os.path.basename(base_dir)
@@ -209,6 +210,7 @@ def main_analysis(rc, args):
            "from meb.utils.network.subgraphs import triadic_census;"\
            "import pyorganism as pyorg;"\
            "import pandas as pd;", block=True)
+    dv.push({"stats": stats}, block=True)
     tasks = list()
     if args.run_rewire:
         dv.push({"prob": args.prob}, block=True)
