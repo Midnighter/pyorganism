@@ -205,11 +205,12 @@ def main_analysis(rc, args):
     LOGGER.info("remote preparation")
     dv = rc.direct_view()
     dv.execute("import os;"\
-           "import networkx as nx;"\
-           "from pyorganism.regulation import trn2grn;"\
-           "from meb.utils.network.subgraphs import triadic_census;"\
-           "import pyorganism as pyorg;"\
-           "import pandas as pd;", block=True)
+            "import numpy as np;"\
+            "import networkx as nx;"\
+            "from pyorganism.regulation import trn2grn;"\
+            "from meb.utils.network.subgraphs import triadic_census;"\
+            "import pyorganism as pyorg;"\
+            "import pandas as pd;", block=True)
     dv.push({"stats": stats}, block=True)
     tasks = list()
     if args.run_rewire:
