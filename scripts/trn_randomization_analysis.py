@@ -205,6 +205,7 @@ def main_analysis(rc, args):
     dv = rc.direct_view()
     dv.execute("import os;"\
            "import networkx as nx;"\
+           "from pyorganism.regulation import trn2grn;"\
            "from meb.utils.network.subgraphs import triadic_census;"\
            "import pyorganism as pyorg;"\
            "import pandas as pd;", block=True)
