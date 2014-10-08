@@ -53,23 +53,6 @@ def load_data(locations):
         locations.remove(path)
     return (tr_nets, versions)
 
-def rewiring(lb_view, versions, args):
-    bar = ProgressBar(maxval=args.rnd_num, widgets=[Timer(), " ", Percentage(),
-            " ", Bar(), " ", ETA()])
-    rands = list()
-    for ver in versions:
-        LOGGER.info(ver)
-        res_it = lb_view.map(rewire, [ver] * args.rnd_num, block=False, ordered=False)
-        bar.start()
-        for rng in res_it:
-            rands.append(rng)
-            bar += 1
-        bar.finish()
-        pyorg.write_pickle(rands, os.path.join(args.out_path, ver,
-                "trn_rewired_{0:.1f}.pkl".format(args.prob)))
-        lb_view.purge_results("all")
-        del rands[:] # activate garbage collection in loop
-
 @interactive
 def rewire(version):
     net = globals()["TRN"][version].copy()
@@ -88,6 +71,33 @@ def rewire(version):
             net.remove_edge(u, v, key)
             net.add_edge(u, new, key=key, **data)
     return net
+
+def rewiring(lb_view, versions, args):
+    bar = ProgressBar(maxval=args.rnd_num, widgets=[Timer(), " ", Percentage(),
+            " ", Bar(), " ", ETA()])
+    rands = list()
+    for ver in versions:
+        LOGGER.info(ver)
+        res_it = lb_view.map(rewire, [ver] * args.rnd_num, block=False, ordered=False)
+        bar.start()
+        for rng in res_it:
+            rands.append(rng)
+            bar += 1
+        bar.finish()
+        pyorg.write_pickle(rands, os.path.join(args.out_path, ver,
+                "trn_rewired_{0:.1f}.pkl".format(args.prob)))
+        lb_view.purge_results("all")
+        del rands[:] # activate garbage collection in loop
+
+@interactive
+def null_model(version):
+    net = nx.DiGraph(globals()["TRN"][version])
+    flips = globals()["flip_num"]
+    nx.convert_node_labels_to_integers(net, ordering="sorted",
+            label_attribute="element")
+    rewirer = NetworkRewiring()
+    (rnd_net, flip_rate) = rewirer.randomise(net, flip=flips, copy=False)
+    return (rnd_net, flip_rate)
 
 def randomisation(lb_view, versions, args):
     bar = ProgressBar(maxval=args.rnd_num, widgets=[Timer(), " ", Percentage(),
@@ -110,16 +120,6 @@ def randomisation(lb_view, versions, args):
                 "trn_random.pkl"))
         del rands[:] # activate garbage collection in loop
 
-@interactive
-def null_model(version):
-    net = nx.DiGraph(globals()["TRN"][version])
-    flips = globals()["flip_num"]
-    nx.convert_node_labels_to_integers(net, ordering="sorted",
-            label_attribute="element")
-    rewirer = NetworkRewiring()
-    (rnd_net, flip_rate) = rewirer.randomise(net, flip=flips, copy=False)
-    return (rnd_net, flip_rate)
-
 def main_random(rc, args):
     locations = sorted(glob(os.path.join(args.in_path, args.glob)))
     locations = [os.path.abspath(loc) for loc in locations]
@@ -132,7 +132,10 @@ def main_random(rc, args):
             "import numpy as np;"\
             "import networkx as nx;"\
             "import pyorganism as pyorg;"\
-            "from meb.utils.network.randomisation import NetworkRewiring",
+            "from meb.utils.network.randomisation import NetworkRewiring"\
+            "import logging; from IPython.config import Application;"\
+            "LOGGER = Application.instance().log;"\
+            "LOGGER.setLevel(logging.{level});".format(level=args.log_level),
             block=True)
     dv.push({"load_data": load_data, "locations": locations}, block=True)
     dv.execute("(TRN, versions) = load_data(locations);", block=True)
@@ -177,27 +180,50 @@ def stats(grn, version, description):
     return stats
 
 @interactive
+def err_stats(version, description):
+    data = dict()
+    data["version"] = version
+    data["num_components"] = None
+    data["largest_component"] = None
+    data["feed_forward"] = None
+    data["feedback"] = None
+    data["cycles"] = None
+    data["regulated_in_deg"] = None
+    data["regulating_out_deg"] = None
+    data["null_model"] = description
+    return pd.DataFrame(data, index=[1])
+
+@interactive
 def null_stats(base_dir, task):
     prob = globals()["prob"]
+    logger = globals()["LOGGER"]
     ver = os.path.basename(base_dir)
     if not ver:
         ver = os.path.basename(os.path.dirname(base_dir))
     if task == "rewired":
+        desc = "rewired {0:.1f}".format(prob)
         try:
             nets = pyorg.read_pickle(os.path.join(base_dir,
                     "trn_rewired_{0:.1f}.pkl".format(prob)))
-        except IOError:
-            return pd.DataFrame()
+        except (OSError, IOError, EOFError):
+            (err, msg, trace) = sys.exc_info()
+            logger.error("Version: '%s' Task: '%s'", ver, task)
+            logger.error(str(msg))
+            return err_stats(ver, desc)
         nets = [trn2grn(net) for net in nets]
-        return pd.concat([stats(net, ver, "rewired {0:.1f}".format(prob)) for net in nets],
+        return pd.concat([stats(net, ver, desc) for net in nets],
                 ignore_index=True)
     elif task == "null-model":
+        desc = "random"
         try:
             nets = pyorg.read_pickle(os.path.join(base_dir, "trn_random.pkl"))
-        except IOError:
-            return pd.DataFrame()
+        except (OSError, IOError, EOFError):
+            (err, msg, trace) = sys.exc_info()
+            logger.error("Version: '%s' Task: '%s'", ver, task)
+            logger.error(str(msg))
+            return err_stats(ver, desc)
         nets = [trn2grn(net) for net in nets]
-        return pd.concat([stats(net, ver, "random") for net in nets], ignore_index=True)
+        return pd.concat([stats(net, ver, desc) for net in nets], ignore_index=True)
 
 def main_analysis(rc, args):
     locations = sorted(glob(os.path.join(args.in_path, args.glob)))
@@ -205,13 +231,18 @@ def main_analysis(rc, args):
     LOGGER.info("remote preparation")
     dv = rc.direct_view()
     dv.execute("import os;"\
+            "import sys;"\
             "import numpy as np;"\
             "import networkx as nx;"\
+            "import pandas as pd;"\
             "from pyorganism.regulation import trn2grn;"\
             "from meb.utils.network.subgraphs import triadic_census;"\
             "import pyorganism as pyorg;"\
-            "import pandas as pd;", block=True)
-    dv.push({"stats": stats}, block=True)
+            "import logging; from IPython.config import Application;"\
+            "LOGGER = Application.instance().log;"\
+            "LOGGER.setLevel(logging.{level});".format(level=args.log_level),
+            block=True)
+    dv.push({"stats": stats, "err_stats": err_stats}, block=True)
     tasks = list()
     if args.run_rewire:
         dv.push({"prob": args.prob}, block=True)
@@ -230,7 +261,7 @@ def main_analysis(rc, args):
     bar.finish()
     result = pd.concat(frames, ignore_index=True)
     result.to_csv(os.path.join(args.out_path, "trn_random_stats.csv"),
-            header=True, index=False, sep=";", encoding=args.encoding)
+            header=True, index=False, sep=str(";"), encoding=args.encoding)
 
 
 if __name__ == "__main__":
