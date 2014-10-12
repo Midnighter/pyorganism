@@ -205,6 +205,7 @@ def null_stats(base_dir, task):
         try:
             nets = pyorg.read_pickle(os.path.join(base_dir,
                     "trn_rewired_{0:.1f}.pkl".format(prob)))
+            logger.info("%d random networks", len(nets))
         except (OSError, IOError, EOFError):
             (err, msg, trace) = sys.exc_info()
             logger.error("Version: '%s' Task: '%s'", ver, task)
