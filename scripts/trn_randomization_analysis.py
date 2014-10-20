@@ -214,8 +214,8 @@ def null_stats(base_dir, task):
         nets = [trn2grn(net) for net in nets]
         return pd.concat([stats(net, ver, desc) for net in nets],
                 ignore_index=True)
-    elif task == "null-model":
-        desc = "random"
+    elif task == "switch":
+        desc = "switch"
         try:
             nets = pyorg.read_pickle(os.path.join(base_dir, "trn_random.pkl"))
         except (OSError, IOError, EOFError):
@@ -225,6 +225,24 @@ def null_stats(base_dir, task):
             return err_stats(ver, desc)
         nets = [trn2grn(net) for net in nets]
         return pd.concat([stats(net, ver, desc) for net in nets], ignore_index=True)
+
+def filter_tasks(locations, tasks, results, num_expect=1000):
+    if results.empty:
+        return ([loc for loc in locations for method in tasks],
+                [method for loc in locations for method in tasks])
+    paths = list()
+    methods = list()
+    for loc in locations:
+        ver = os.path.basename(loc)
+        if not ver:
+            ver = os.path.basename(os.path.dirname(loc))
+        mask = (results["version"] == ver)
+        for t in tasks:
+            if sum(t in dscr for dscr in results.loc[mask,
+                "description"]) != num_expect:
+                paths.append(loc)
+                methods.append(t)
+    return (paths, methods)
 
 def main_analysis(rc, args):
     locations = sorted(glob(os.path.join(args.in_path, args.glob)))
@@ -249,20 +267,25 @@ def main_analysis(rc, args):
         dv.push({"prob": args.prob}, block=True)
         tasks.append("rewired")
     if args.run_rnd:
-        tasks.append("null-model")
+        tasks.append("switch")
+    filename = os.path.join(args.out_path, "trn_random_stats.csv")
+    if os.path.exists(filename):
+        result = pd.read_csv(filename, sep=str(";"), encoding=args.encoding)
+    else:
+        result = pd.DataFrame(columns=["version", "num_components",
+            "largest_component", "feed_forward", "feedback", "cycles",
+            "regulated_in_deg", "regulating_out_deg", "null_model"])
+    (locations, methods) = filter_tasks(locations, tasks, result)
     lv = rc.load_balanced_view()
-    res_it = lv.map(null_stats, [loc for loc in locations for method in tasks],
-                [method for loc in locations for method in tasks], block=False, ordered=False)
-    frames = list()
+    res_it = lv.map(null_stats, locations, methods, block=False, ordered=False)
     bar = ProgressBar(maxval=len(locations) * 2, widgets=[Timer(), " ", Percentage(),
                 " ", Bar(), " ", ETA()]).start()
     for df in res_it:
-        frames.append(df)
+        result = result.append(df, ignore_index=True)
+        result.to_csv(filename, header=True, index=False,
+                sep=str(";"), encoding=args.encoding)
         bar += 1
     bar.finish()
-    result = pd.concat(frames, ignore_index=True)
-    result.to_csv(os.path.join(args.out_path, "trn_random_stats.csv"),
-            header=True, index=False, sep=str(";"), encoding=args.encoding)
 
 
 if __name__ == "__main__":
