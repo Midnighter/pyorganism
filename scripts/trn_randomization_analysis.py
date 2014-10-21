@@ -239,7 +239,7 @@ def filter_tasks(locations, tasks, results, num_expect=1000):
         mask = (results["version"] == ver)
         for t in tasks:
             if sum(t in dscr for dscr in results.loc[mask,
-                "description"]) != num_expect:
+                "null_model"]) != num_expect:
                 paths.append(loc)
                 methods.append(t)
     return (paths, methods)
@@ -270,7 +270,8 @@ def main_analysis(rc, args):
         tasks.append("switch")
     filename = os.path.join(args.out_path, "trn_random_stats.csv")
     if os.path.exists(filename):
-        result = pd.read_csv(filename, sep=str(";"), encoding=args.encoding)
+        result = pd.read_csv(filename, sep=str(";"), dtype={"version": str},
+                encoding=args.encoding)
     else:
         result = pd.DataFrame(columns=["version", "num_components",
             "largest_component", "feed_forward", "feedback", "cycles",
