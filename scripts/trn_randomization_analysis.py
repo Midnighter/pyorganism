@@ -16,7 +16,7 @@ import numpy as np
 import networkx as nx
 import pandas as pd
 from IPython.parallel import (interactive, Client)
-from progressbar import (ProgressBar, Timer, Bar, Percentage, ETA)
+from progressbar import (ProgressBar, Timer, SimpleProgress, Bar, Percentage, ETA)
 
 import pyorganism as pyorg
 from pyorganism.regulation import trn2grn
@@ -73,8 +73,8 @@ def rewire(version):
     return net
 
 def rewiring(lb_view, versions, args):
-    bar = ProgressBar(maxval=args.rnd_num, widgets=[Timer(), " ", Percentage(),
-            " ", Bar(), " ", ETA()])
+    bar = ProgressBar(maxval=args.rnd_num, widgets=[Timer(), " ",
+        SimpleProgress(), " ", Percentage(), " ", Bar(), " ", ETA()])
     rands = list()
     for ver in versions:
         LOGGER.info(ver)
@@ -100,8 +100,8 @@ def null_model(version):
     return (rnd_net, flip_rate)
 
 def randomisation(lb_view, versions, args):
-    bar = ProgressBar(maxval=args.rnd_num, widgets=[Timer(), " ", Percentage(),
-            " ", Bar(), " ", ETA()])
+    bar = ProgressBar(maxval=args.rnd_num, widgets=[Timer(), " ",
+        SimpleProgress(), " ", Percentage(), " ", Bar(), " ", ETA()])
     for ver in versions:
         LOGGER.info(ver)
         res_it = lb_view.map(null_model, [ver] * args.rnd_num, block=False, ordered=False)
@@ -278,8 +278,8 @@ def main_analysis(rc, args):
     (locations, methods) = filter_tasks(locations, tasks, result)
     lv = rc.load_balanced_view()
     res_it = lv.map(null_stats, locations, methods, block=False, ordered=False)
-    bar = ProgressBar(maxval=len(locations) * 2, widgets=[Timer(), " ", Percentage(),
-                " ", Bar(), " ", ETA()]).start()
+    bar = ProgressBar(maxval=len(locations) * 2, widgets=[Timer(), " ",
+        SimpleProgress(), " ", Percentage(), " ", Bar(), " ", ETA()]).start()
     for df in res_it:
         result = result.append(df, ignore_index=True)
         result.to_csv(filename, header=True, index=False,
