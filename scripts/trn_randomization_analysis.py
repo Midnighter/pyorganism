@@ -195,36 +195,30 @@ def err_stats(version, description):
 
 @interactive
 def null_stats(base_dir, task):
-    prob = globals()["prob"]
-    logger = globals()["LOGGER"]
+    glbls = globals()
+    prob = glbls["prob"]
+    choose = glbls["choose"]
+    logger = glbls["LOGGER"]
     ver = os.path.basename(base_dir)
     if not ver:
         ver = os.path.basename(os.path.dirname(base_dir))
     if task == "rewired":
         desc = "rewired {0:.1f}".format(prob)
-        try:
-            nets = pyorg.read_pickle(os.path.join(base_dir,
-                    "trn_rewired_{0:.1f}.pkl".format(prob)))
-            logger.info("%d random networks", len(nets))
-        except (OSError, IOError, EOFError):
-            (err, msg, trace) = sys.exc_info()
-            logger.error("Version: '%s' Task: '%s'", ver, task)
-            logger.error(str(msg))
-            return err_stats(ver, desc)
-        nets = [trn2grn(net) for net in nets]
-        return pd.concat([stats(net, ver, desc) for net in nets],
-                ignore_index=True)
+        filename = "trn_rewired_{0:.1f}.pkl".format(prob)
     elif task == "switch":
         desc = "switch"
-        try:
-            nets = pyorg.read_pickle(os.path.join(base_dir, "trn_random.pkl"))
-        except (OSError, IOError, EOFError):
-            (err, msg, trace) = sys.exc_info()
-            logger.error("Version: '%s' Task: '%s'", ver, task)
-            logger.error(str(msg))
-            return err_stats(ver, desc)
-        nets = [trn2grn(net) for net in nets]
-        return pd.concat([stats(net, ver, desc) for net in nets], ignore_index=True)
+        filename = "trn_random.pkl"
+    try:
+        nets = pyorg.read_pickle(os.path.join(base_dir, filename))
+    except (OSError, IOError, EOFError):
+        (err, msg, trace) = sys.exc_info()
+        logger.error("Version: '%s' Task: '%s'", ver, task)
+        logger.error(str(msg))
+        return err_stats(ver, desc)
+    chosen = random.sample(nets, choose)
+    logger.info("%d/%d random networks", len(chosen), len(nets))
+    nets = [trn2grn(net) for net in chosen]
+    return pd.concat([stats(net, ver, desc) for net in nets], ignore_index=True)
 
 def filter_tasks(locations, tasks, results, num_expect=1000):
     if results.empty:
@@ -251,6 +245,7 @@ def main_analysis(rc, args):
     dv = rc.direct_view()
     dv.execute("import os;"\
             "import sys;"\
+            "import random;"\
             "import numpy as np;"\
             "import networkx as nx;"\
             "import pandas as pd;"\
@@ -261,14 +256,14 @@ def main_analysis(rc, args):
             "LOGGER = Application.instance().log;"\
             "LOGGER.setLevel(logging.{level});".format(level=args.log_level),
             block=True)
-    dv.push({"stats": stats, "err_stats": err_stats}, block=True)
+    dv.push({"stats": stats, "err_stats": err_stats, "choose": args.choose}, block=True)
     tasks = list()
     if args.run_rewire:
         dv.push({"prob": args.prob}, block=True)
         tasks.append("rewired")
     if args.run_rnd:
         tasks.append("switch")
-    filename = os.path.join(args.out_path, "trn_random_stats.csv")
+    filename = os.path.join(args.out_path, args.file)
     if os.path.exists(filename):
         result = pd.read_csv(filename, sep=str(";"), dtype={"version": str},
                 encoding=args.encoding)
@@ -321,7 +316,7 @@ if __name__ == "__main__":
             default=0.1, type=float,
             help="Probability for rewiring a link (default: %(default)s)")
     parser_rnd.add_argument("-f", "--flip-num", dest="flip_num",
-            default=100, type=int,
+            default=int(1E02), type=int,
             help="Number of attempts to switch each link (default: %(default)s)")
     parser_rnd.set_defaults(func=main_random)
 # analysis
@@ -330,6 +325,12 @@ if __name__ == "__main__":
     parser_anal.add_argument("-p", "--probability", dest="prob",
             default=0.1, type=float,
             help="Probability for rewiring a link to analyze (default: %(default)s)")
+    parser_anal.add_argument("-f", "--filename", dest="file",
+            default="trn_random_stats.csv",
+            help="Name of the file that statistics are written to (default: %(default)s)")
+    parser_anal.add_argument("-c", "--choose", dest="choose",
+            default=int(1E02), type=int,
+            help="Size of the subset of random networks to evaluate (default: %(default)s)")
     parser_anal.set_defaults(func=main_analysis)
     args = parser.parse_args()
     dictConfig({"version": 1, "incremental": True, "root": {"level": args.log_level}})
