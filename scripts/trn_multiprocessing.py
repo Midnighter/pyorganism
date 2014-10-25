@@ -8,6 +8,8 @@ import os
 import sys
 import logging
 import argparse
+import multiprocessing
+import random
 from logging.config import dictConfig
 from glob import glob
 from random import choice
@@ -153,7 +155,6 @@ def main_random(rc, args):
 # Analysis
 ###############################################################################
 
-@interactive
 def stats(grn, version, description):
     nodes = sorted(grn.nodes_iter())
     regulating = {node for (node, deg) in grn.out_degree_iter() if deg > 0}
@@ -179,7 +180,6 @@ def stats(grn, version, description):
     stats = pd.DataFrame(data, index=[1])
     return stats
 
-@interactive
 def err_stats(version, description):
     data = dict()
     data["version"] = version
@@ -193,16 +193,14 @@ def err_stats(version, description):
     data["null_model"] = description
     return pd.DataFrame(data, index=[1])
 
-@interactive
-def null_stats(base_dir, task):
-    glbls = globals()
-    prob = glbls["prob"]
-    choose = glbls["choose"]
-    logger = glbls["LOGGER"]
+def null_stats(parameters):
+    (base_dir, task, choose) = parameters[:3]
+    logger = multiprocessing.get_logger()
     ver = os.path.basename(base_dir)
     if not ver:
         ver = os.path.basename(os.path.dirname(base_dir))
     if task == "rewired":
+        prob = parameters[3]
         desc = "rewired {0:.1f}".format(prob)
         filename = "trn_rewired_{0:.1f}.pkl".format(prob)
     elif task == "switch":
@@ -220,61 +218,37 @@ def null_stats(base_dir, task):
     nets = [trn2grn(net) for net in chosen]
     return pd.concat([stats(net, ver, desc) for net in nets], ignore_index=True)
 
-def filter_tasks(locations, tasks, results, num_expect=1000):
-    if results.empty:
-        return ([loc for loc in locations for method in tasks],
-                [method for loc in locations for method in tasks])
-    paths = list()
-    methods = list()
-    for loc in locations:
-        ver = os.path.basename(loc)
-        if not ver:
-            ver = os.path.basename(os.path.dirname(loc))
-        mask = (results["version"] == ver)
-        for t in tasks:
-            if sum(t in dscr for dscr in results.loc[mask,
-                "null_model"]) != num_expect:
-                paths.append(loc)
-                methods.append(t)
-    return (paths, methods)
+def do_task(task, results):
+    loc = task[0]
+    ver = os.path.basename(loc)
+    if not ver:
+        ver = os.path.basename(os.path.dirname(loc))
+    mask = (results["version"] == ver)
+    method = task[1]
+    choose = task[2]
+    return sum(method in descr for descr in results.loc[mask, "null_model"]) < choose
 
-def main_analysis(rc, args):
+def main_analysis(args):
     locations = sorted(glob(os.path.join(args.in_path, args.glob)))
     locations = [os.path.abspath(loc) for loc in locations]
-    LOGGER.info("remote preparation")
-    dv = rc.direct_view()
-    dv.execute("import os;"\
-            "import sys;"\
-            "import random;"\
-            "import numpy as np;"\
-            "import networkx as nx;"\
-            "import pandas as pd;"\
-            "from pyorganism.regulation import trn2grn;"\
-            "from meb.utils.network.subgraphs import triadic_census;"\
-            "import pyorganism as pyorg;"\
-            "import logging; from IPython.config import Application;"\
-            "LOGGER = Application.instance().log;"\
-            "LOGGER.setLevel(logging.{level});".format(level=args.log_level),
-            block=True)
-    dv.push({"stats": stats, "err_stats": err_stats, "choose": args.choose}, block=True)
     tasks = list()
     if args.run_rewire:
-        dv.push({"prob": args.prob}, block=True)
-        tasks.append("rewired")
+        tasks.extend([(loc, "rewired", args.choose, args.prob) for loc in locations])
     if args.run_rnd:
-        tasks.append("switch")
+        tasks.extend([(loc, "switch", args.choose) for loc in locations])
     filename = os.path.join(args.out_path, args.file)
     if os.path.exists(filename):
         result = pd.read_csv(filename, sep=str(";"), dtype={"version": str},
                 encoding=args.encoding)
+        tasks = [task for task in tasks if do_task(task, result)]
     else:
         result = pd.DataFrame(columns=["version", "num_components",
             "largest_component", "feed_forward", "feedback", "cycles",
             "regulated_in_deg", "regulating_out_deg", "null_model"])
-    (locations, methods) = filter_tasks(locations, tasks, result, args.choose)
-    lv = rc.load_balanced_view()
-    res_it = lv.map(null_stats, locations, methods, block=False, ordered=False)
-    bar = ProgressBar(maxval=len(locations) * 2, widgets=[Timer(), " ",
+    pool = multiprocessing.Pool(args.nproc)
+    res_it = pool.imap_unordered(null_stats, tasks)
+    pool.close()
+    bar = ProgressBar(maxval=len(tasks), widgets=[Timer(), " ",
         SimpleProgress(), " ", Percentage(), " ", Bar(), " ", ETA()]).start()
     for df in res_it:
         result = result.append(df, ignore_index=True)
@@ -287,10 +261,6 @@ def main_analysis(rc, args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=None)
     parser.add_argument("-v", "--version", action="version", version="0.1")
-    parser.add_argument("--profile", dest="profile", default="default",
-            help="IPython profile to connect to cluster (default: %(default)s)")
-    parser.add_argument("--cluster-id", dest="cluster_id", default=None,
-            help="IPython cluster-id to connect to (default: %(default)s)")
     parser.add_argument("--log-level", dest="log_level", default="INFO",
             help="Log level, i.e., DEBUG, INFO, WARN, ERROR, CRITICAL (default: %(default)s)")
     parser.add_argument("--encoding", dest="encoding", default="utf-8",
@@ -307,18 +277,18 @@ if __name__ == "__main__":
             help="Base directory for data output (default: %(default)s)")
     subparsers = parser.add_subparsers(help="sub-command help")
 # randomization
-    parser_rnd = subparsers.add_parser("randomization",
-            help="Rewire or randomize the TRN as a statistical null model")
-    parser_rnd.add_argument("-r", "--rnd-num", dest="rnd_num",
-            default=int(1E03), type=int,
-            help="Number of rewired or randomized TRNs to generate (default: %(default)s)")
-    parser_rnd.add_argument("-p", "--probability", dest="prob",
-            default=0.1, type=float,
-            help="Probability for rewiring a link (default: %(default)s)")
-    parser_rnd.add_argument("-f", "--flip-num", dest="flip_num",
-            default=int(1E02), type=int,
-            help="Number of attempts to switch each link (default: %(default)s)")
-    parser_rnd.set_defaults(func=main_random)
+#    parser_rnd = subparsers.add_parser("randomization",
+#            help="Rewire or randomize the TRN as a statistical null model")
+#    parser_rnd.add_argument("-r", "--rnd-num", dest="rnd_num",
+#            default=int(1E03), type=int,
+#            help="Number of rewired or randomized TRNs to generate (default: %(default)s)")
+#    parser_rnd.add_argument("-p", "--probability", dest="prob",
+#            default=0.1, type=float,
+#            help="Probability for rewiring a link (default: %(default)s)")
+#    parser_rnd.add_argument("-f", "--flip-num", dest="flip_num",
+#            default=int(1E02), type=int,
+#            help="Number of attempts to switch each link (default: %(default)s)")
+#    parser_rnd.set_defaults(func=main_random)
 # analysis
     parser_anal = subparsers.add_parser("analysis",
             help="Analyze the rewired or randomized TRNs")
@@ -331,12 +301,16 @@ if __name__ == "__main__":
     parser_anal.add_argument("-c", "--choose", dest="choose",
             default=int(1E02), type=int,
             help="Size of the subset of random networks to evaluate (default: %(default)s)")
+    parser_anal.add_argument("-n", "--nproc", dest="nproc",
+            default=multiprocessing.cpu_count(), type=int,
+            help="Number of processors to use (default: %(default)s)")
     parser_anal.set_defaults(func=main_analysis)
     args = parser.parse_args()
-    dictConfig({"version": 1, "incremental": True, "root": {"level": args.log_level}})
-    remote_client = Client(profile=args.profile, cluster_id=args.cluster_id)
+    logger = multiprocessing.log_to_stderr()
+    dictConfig({"version": 1, "incremental": True, "root": {"level":
+        args.log_level}, logger.name: {"level": args.log_level}})
     try:
-        sys.exit(args.func(remote_client, args))
+        sys.exit(args.func(args))
     except: # we want to catch everything
         (err, msg, trace) = sys.exc_info()
         # interrupt remote kernels and clear job queue
