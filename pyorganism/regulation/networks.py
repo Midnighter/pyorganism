@@ -87,6 +87,20 @@ class GRN(nx.MultiDiGraph):
             trn.node[gene_v].update(self.node[gene_v])
         return trn
 
+    def to_simple(self):
+        """
+        Convert the GRN into a simple DiGraph with integer labels.
+        """
+        nodes = sorted(self.nodes_iter())
+        node2id = {n: i for (i, n) in enumerate(nodes)}
+        t_factors = sorted(node for node in self if isinstance(node,
+                TranscriptionFactor))
+        simple = nx.DiGraph()
+        for tf in t_factors:
+            for target in self.successors_iter(tf):
+                simple.add_edge(node2id[tf], node2id[target])
+        return simple
+
 
 class TRN(nx.MultiDiGraph):
     """
@@ -129,6 +143,20 @@ class TRN(nx.MultiDiGraph):
         couplon_gen = CouplonGenerator(self)
         couplon_gen.add_edges_from(sf_links)
         return couplon_gen
+
+    def to_simple(self):
+        """
+        Convert the TRN into a simple DiGraph with integer labels.
+        """
+        nodes = sorted(self.nodes_iter())
+        node2id = {n: i for (i, n) in enumerate(nodes)}
+        t_factors = sorted(node for node in self if isinstance(node,
+                TranscriptionFactor))
+        simple = nx.DiGraph()
+        for tf in t_factors:
+            for target in self.successors_iter(tf):
+                simple.add_edge(node2id[tf], node2id[target])
+        return simple
 
 
 class CouplonGenerator(nx.DiGraph):

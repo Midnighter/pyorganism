@@ -17,11 +17,9 @@ from random import choice
 import numpy as np
 import networkx as nx
 import pandas as pd
-from IPython.parallel import (interactive, Client)
 from progressbar import (ProgressBar, Timer, SimpleProgress, Bar, Percentage, ETA)
 
 import pyorganism as pyorg
-from pyorganism.regulation import trn2grn
 from meb.utils.network.randomisation import NetworkRewiring
 from meb.utils.network.subgraphs import triadic_census
 
@@ -34,122 +32,82 @@ LOGGER.addHandler(logging.StreamHandler())
 # Randomisation
 ###############################################################################
 
-def load_data(locations):
-    tr_nets = dict()
-    versions = list()
-    drop = list()
-    for path in locations:
-        ver = os.path.basename(path)
-        if not ver:
-            ver = os.path.basename(os.path.dirname(path))
-        try:
-            pyorg.read_pickle(os.path.join(path, "genes.pkl"))
-            pyorg.read_pickle(os.path.join(path, "transcription_factors.pkl"))
-            trn = pyorg.read_pickle(os.path.join(path, "trn.pkl"))
-            tr_nets[ver] = trn
-            versions.append(ver)
-        except IOError:
-            drop.append(path)
-            continue
-    for path in drop:
-        locations.remove(path)
-    return (tr_nets, versions)
-
-@interactive
-def rewire(version):
-    net = globals()["TRN"][version].copy()
-    prob = globals()["prob"]
+def rewire((net, prob)):
     rnd = np.random.sample
+    max_tries = 200
     nodes = sorted(net.nodes_iter())
     regulating = {node for (node, deg) in net.out_degree_iter() if deg > 0}
     regulated = set(nodes) - regulating
-    edges = net.edges(data=True, keys=True)
-    for (u, v, key, data) in edges:
+    edges = net.edges()
+    for (u, v) in edges:
         if rnd() < prob:
-            targets = list(regulated - set(net.successors(u)))
+            targets = list(regulated - set(net.successors_iter(u)))
             new = choice(targets)
-            while net.has_edge(u, new, key):
+            tries = 0
+            while (net.has_edge(u, new) or net.has_edge(new, u)) and max_tries < tries:
+                max_tries += 1
                 new = choice(targets)
-            net.remove_edge(u, v, key)
-            net.add_edge(u, new, key=key, **data)
+            if tries == max_tries:
+                continue
+            net.remove_edge(u, v)
+            net.add_edge(u, new)
     return net
 
-def rewiring(lb_view, versions, args):
-    bar = ProgressBar(maxval=args.rnd_num, widgets=[Timer(), " ",
-        SimpleProgress(), " ", Percentage(), " ", Bar(), " ", ETA()])
-    rands = list()
-    for ver in versions:
-        LOGGER.info(ver)
-        res_it = lb_view.map(rewire, [ver] * args.rnd_num, block=False, ordered=False)
-        bar.start()
-        for rng in res_it:
-            rands.append(rng)
-            bar += 1
-        bar.finish()
-        pyorg.write_pickle(rands, os.path.join(args.out_path, ver,
-                "trn_rewired_{0:.1f}.pkl".format(args.prob)))
-        lb_view.purge_results("all")
-        del rands[:] # activate garbage collection in loop
-
-@interactive
-def null_model(version):
-    net = nx.DiGraph(globals()["TRN"][version])
-    flips = globals()["flip_num"]
-    nx.convert_node_labels_to_integers(net, ordering="sorted",
-            label_attribute="element")
+def switch((net, flips)):
     rewirer = NetworkRewiring()
     (rnd_net, flip_rate) = rewirer.randomise(net, flip=flips, copy=False)
     return (rnd_net, flip_rate)
 
-def randomisation(lb_view, versions, args):
-    bar = ProgressBar(maxval=args.rnd_num, widgets=[Timer(), " ",
-        SimpleProgress(), " ", Percentage(), " ", Bar(), " ", ETA()])
-    for ver in versions:
-        LOGGER.info(ver)
-        res_it = lb_view.map(null_model, [ver] * args.rnd_num, block=False, ordered=False)
-        bar.start()
-        rands = list()
-        success = list()
-        for (rnd_net, flip_rate) in res_it:
-            rands.append(rnd_net)
-            success.append(flip_rate)
-            bar +=1
-        bar.finish()
-        lb_view.purge_results("all")
-        LOGGER.info("mean flip success rate: %.3G +/- %.3G", np.mean(success),
-                np.std(success))
-        pyorg.write_pickle(rands, os.path.join(args.out_path, ver,
-                "trn_random.pkl"))
-        del rands[:] # activate garbage collection in loop
-
-def main_random(rc, args):
+def main_random(args):
     locations = sorted(glob(os.path.join(args.in_path, args.glob)))
     locations = [os.path.abspath(loc) for loc in locations]
-    LOGGER.info("loading data")
-    (tr_nets, versions) = load_data(locations)
-    LOGGER.info("remote preparation")
-    dv = rc.direct_view()
-    dv.execute("import os;"\
-            "from random import choice;"\
-            "import numpy as np;"\
-            "import networkx as nx;"\
-            "import pyorganism as pyorg;"\
-            "from meb.utils.network.randomisation import NetworkRewiring"\
-            "import logging; from IPython.config import Application;"\
-            "LOGGER = Application.instance().log;"\
-            "LOGGER.setLevel(logging.{level});".format(level=args.log_level),
-            block=True)
-    dv.push({"load_data": load_data, "locations": locations}, block=True)
-    dv.execute("(TRN, versions) = load_data(locations);", block=True)
-    lv = rc.load_balanced_view()
-    if args.run_rewire:
-        LOGGER.info("rewiring")
-        dv.push({"rewire": rewire, "prob": args.prob}, block=True)
-        rewiring(lv, versions, args)
-    if args.run_rnd:
-        LOGGER.info("randomisation")
-        dv.push({"null_model": null_model, "flip_num": args.flip_num}, block=True)
-        randomisation(lv, versions, args)
+    pool = multiprocessing.Pool(args.nproc)
+    bar = ProgressBar(maxval=args.rnd_num, widgets=[Timer(), " ",
+        SimpleProgress(), " ", Percentage(), " ", Bar(), " ", ETA()])
+    rewire_name = "grn_rewired_{0:.1f}.pkl".format(args.prob)
+    switch_name = "grn_switched_{0:d}.pkl".format(args.flip_num)
+    for path in locations:
+        filename = os.path.join(path, "trn.pkl")
+        if not os.path.exists(filename):
+            continue
+        ver = os.path.basename(path)
+        if not ver:
+            ver = os.path.basename(os.path.dirname(path))
+        base_path = os.path.join(args.out_path, ver)
+        if not os.path.isdir(base_path):
+            os.makedirs(base_path)
+        LOGGER.info(ver)
+        trn = pyorg.read_pickle(filename)
+        # we consider null-models on the projected level since that is the level
+        # on which we evaluate topological quantities
+        net = trn.to_grn().to_simple()
+        if args.run_rewire:
+            LOGGER.info("Rewiring with probability %.1f", args.prob)
+            tasks = [(net, args.prob)] * args.rnd_num
+            res_it = pool.imap_unordered(rewire, tasks)
+            rands = list()
+            bar.start()
+            for rnd in res_it:
+                rands.append(rnd)
+                bar += 1
+            bar.finish()
+            pyorg.write_pickle(rands, os.path.join(base_path, rewire_name))
+        if args.run_switch:
+            LOGGER.info("Switch-randomizing each edge %d times", args.flip_num)
+            tasks = [(net, args.flip_num)] * args.rnd_num
+            res_it = pool.imap_unordered(switch, tasks)
+            success = list()
+            rands = list()
+            bar.start()
+            for (rnd, rate) in res_it:
+                rands.append(rnd)
+                success.append(rate)
+                bar += 1
+            bar.finish()
+            pyorg.write_pickle(rands, os.path.join(base_path, switch_name))
+            LOGGER.info("mean flip success rate: %.3G +/- %.3G", np.mean(success),
+                    np.std(success))
+    pool.close()
 
 ###############################################################################
 # Analysis
@@ -215,7 +173,6 @@ def null_stats(parameters):
         return err_stats(ver, desc)
     chosen = random.sample(nets, choose)
     logger.info("%d/%d random networks", len(chosen), len(nets))
-    nets = [trn2grn(net) for net in chosen]
     return pd.concat([stats(net, ver, desc) for net in nets], ignore_index=True)
 
 def do_task(task, results):
@@ -234,7 +191,7 @@ def main_analysis(args):
     tasks = list()
     if args.run_rewire:
         tasks.extend([(loc, "rewired", args.choose, args.prob) for loc in locations])
-    if args.run_rnd:
+    if args.run_switch:
         tasks.extend([(loc, "switch", args.choose) for loc in locations])
     filename = os.path.join(args.out_path, args.file)
     if os.path.exists(filename):
@@ -267,28 +224,31 @@ if __name__ == "__main__":
             help="File encoding to assume (default: %(default)s)")
     parser.add_argument("--no-rewire", dest="run_rewire", action="store_false",
             default=True, help="Avoid creation or analysis of rewired TRNs")
-    parser.add_argument("--no-randomize", dest="run_rnd", action="store_false",
-            default=True, help="Avoid creation or analysis of randomized TRNs")
+    parser.add_argument("--no-switch", dest="run_switch", action="store_false",
+            default=True, help="Avoid creation or analysis of switch-randomized TRNs")
     parser.add_argument("-g", "--glob", dest="glob", default="[0-9].[0-9]",
             help="Glob pattern for RegulonDB version directories (default: %(default)s)")
     parser.add_argument("-i", "--input", dest="in_path", default="RegulonDBObjects",
             help="Base directory for data input (default: %(default)s)")
     parser.add_argument("-o", "--output", dest="out_path", default="RegulonDBObjects",
             help="Base directory for data output (default: %(default)s)")
+    parser.add_argument("-n", "--nproc", dest="nproc",
+            default=multiprocessing.cpu_count(), type=int,
+            help="Number of processors to use (default: %(default)s)")
     subparsers = parser.add_subparsers(help="sub-command help")
 # randomization
-#    parser_rnd = subparsers.add_parser("randomization",
-#            help="Rewire or randomize the TRN as a statistical null model")
-#    parser_rnd.add_argument("-r", "--rnd-num", dest="rnd_num",
-#            default=int(1E03), type=int,
-#            help="Number of rewired or randomized TRNs to generate (default: %(default)s)")
-#    parser_rnd.add_argument("-p", "--probability", dest="prob",
-#            default=0.1, type=float,
-#            help="Probability for rewiring a link (default: %(default)s)")
-#    parser_rnd.add_argument("-f", "--flip-num", dest="flip_num",
-#            default=int(1E02), type=int,
-#            help="Number of attempts to switch each link (default: %(default)s)")
-#    parser_rnd.set_defaults(func=main_random)
+    parser_rnd = subparsers.add_parser("randomization",
+            help="Rewire or randomize the TRN as a statistical null model")
+    parser_rnd.add_argument("-r", "--rnd-num", dest="rnd_num",
+            default=int(1E03), type=int,
+            help="Number of rewired or randomized TRNs to generate (default: %(default)s)")
+    parser_rnd.add_argument("-p", "--probability", dest="prob",
+            default=0.1, type=float,
+            help="Probability for rewiring a link (default: %(default)s)")
+    parser_rnd.add_argument("-f", "--flip-num", dest="flip_num",
+            default=int(1E02), type=int,
+            help="Number of attempts to switch each link (default: %(default)s)")
+    parser_rnd.set_defaults(func=main_random)
 # analysis
     parser_anal = subparsers.add_parser("analysis",
             help="Analyze the rewired or randomized TRNs")
@@ -301,9 +261,6 @@ if __name__ == "__main__":
     parser_anal.add_argument("-c", "--choose", dest="choose",
             default=int(1E02), type=int,
             help="Size of the subset of random networks to evaluate (default: %(default)s)")
-    parser_anal.add_argument("-n", "--nproc", dest="nproc",
-            default=multiprocessing.cpu_count(), type=int,
-            help="Number of processors to use (default: %(default)s)")
     parser_anal.set_defaults(func=main_analysis)
     args = parser.parse_args()
     logger = multiprocessing.log_to_stderr()

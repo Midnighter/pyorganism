@@ -35,6 +35,7 @@ import numpy as np
 from itertools import izip
 
 from . import measures as ms
+from . import shuffling as shuff
 from . import networks as nets
 from .. import miscellaneous as misc
 #from ..errors import PyOrganismError
@@ -103,7 +104,7 @@ def digital_ctc(effective, reference, measure=ms.discrete_total_ratio,
     if effective is None or effective.size() == 0:
         return np.nan
     size = len(effective)
-    sample = [ms.active_sample(reference, size, evaluate=measure) for i in xrange(random_num)]
+    sample = [shuff.active_sample(reference, size, evaluate=measure) for i in xrange(random_num)]
     z_score = compute_zscore(measure(effective), sample)
     if return_sample:
         return (z_score, sample)
@@ -143,7 +144,7 @@ def digital_ctc_fixed_regulators(effective, reference, measure=ms.discrete_total
     (eff_regs, eff_slaves) = nets.split_regulators(effective)
     (regulators, slaves) = nets.split_regulators(reference)
     LOGGER.info("picked %d regulators", len(eff_regs))
-    sample = [ms.fixed_regulator_sample(reference, regulators, len(eff_regs),
+    sample = [shuff.fixed_regulator_sample(reference, regulators, len(eff_regs),
             slaves, len(eff_slaves), evaluate=measure) for i in range(random_num)]
     z_score = compute_zscore(measure(effective), sample)
     if return_sample:
@@ -218,7 +219,7 @@ def continuous_digital_ctc(trn, active, levels,
     if trn is None or trn.size() == 0:
         return np.nan
     node2level = {node: lvl for (node, lvl) in izip(active, levels)}
-    sample = [ms.continuous_sample(trn, active, levels, evaluate=measure)\
+    sample = [shuff.continuous_sample(trn, active, levels, evaluate=measure)\
             for i in xrange(random_num)]
     z_score = compute_zscore(measure(trn, node2level), sample)
     if return_sample:
@@ -269,7 +270,7 @@ def continuous_digital_ctc_fixed_regulators(trn, active, levels, random_num=1E04
     # in TRN structure the out-hubs and spokes differentiation matters
     reg_levels = [node2level[node] for node in regulators]
     slave_levels = [node2level[node] for node in slaves]
-    sample = [ms.continuous_fixed_regulator_sample(trn, regulators, reg_levels,
+    sample = [shuff.continuous_fixed_regulator_sample(trn, regulators, reg_levels,
             slaves, slave_levels, evaluate=measure) for i in xrange(random_num)]
     z_score = compute_zscore(measure(trn, node2level), sample)
     if return_sample:
@@ -360,7 +361,7 @@ def delayed_continuous_digital_ctc(trn, active, levels,
         return np.nan
     node2level = {node: lvl for (node, lvl) in izip(active, levels)}
     node2delayed = {node: lvl for (node, lvl) in izip(active, delayed_levels)}
-    sample = [ms.delayed_continuous_sample(trn, active, levels, delayed_levels,
+    sample = [shuff.delayed_continuous_sample(trn, active, levels, delayed_levels,
             evaluate=measure) for i in xrange(random_num)]
     z_score = compute_zscore(measure(trn, node2level, node2delayed), sample)
     if return_sample:
@@ -423,7 +424,7 @@ def analog_ctc(effective, reference, measure=ms.discrete_total_ratio,
     if effective is None or effective.size() == 0:
         return np.nan
     size = len(effective)
-    sample = [ms.active_sample(reference, size, evaluate=measure) for i in xrange(random_num)]
+    sample = [shuff.active_sample(reference, size, evaluate=measure) for i in xrange(random_num)]
     z_score = compute_zscore(measure(effective), sample)
     if return_sample:
         return (z_score, sample)
@@ -495,7 +496,7 @@ def continuous_analog_ctc(gpn, active, levels, measure=ms.continuous_abs_coheren
     if gpn is None or gpn.size() == 0:
         return np.nan
     node2level = {node: lvl for (node, lvl) in izip(active, levels)}
-    sample = [ms.continuous_sample(gpn, active, levels, evaluate=measure)\
+    sample = [shuff.continuous_sample(gpn, active, levels, evaluate=measure)\
             for i in xrange(random_num)]
     z_score = compute_zscore(measure(gpn, node2level), sample)
     if return_sample:
@@ -593,7 +594,7 @@ def metabolic_coherence(metabolic_network, active, bnumber2gene, rxn_centric=Non
     if size == 0:
         LOGGER.warn("empty effective network")
         return np.nan
-    sample = [ms.active_sample(rxn_centric, size, measure) for i in xrange(int(random_num))]
+    sample = [shuff.active_sample(rxn_centric, size, measure) for i in xrange(int(random_num))]
     z_score = compute_zscore(measure(original), sample)
     if return_sample:
         return (z_score, sample)
