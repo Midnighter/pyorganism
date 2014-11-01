@@ -19,7 +19,7 @@ PyOrganism Regulatory Networks
 
 __all__ = ["GRN", "TRN", "CouplonGenerator", "GPNGenerator",
     "effective_network", "to_transcription_unit_based", "to_operon_based",
-    "trn2grn"]
+    "to_simple"]
 
 
 import logging
@@ -35,6 +35,7 @@ from .elements import TranscriptionFactor
 from ..io.generic import open_file, parser_warning
 from .. import miscellaneous as misc
 from ..errors import PyOrganismError
+from ..special import SpecialDiGraph
 
 
 LOGGER = logging.getLogger(__name__)
@@ -87,20 +88,6 @@ class GRN(nx.MultiDiGraph):
             trn.node[gene_v].update(self.node[gene_v])
         return trn
 
-    def to_simple(self):
-        """
-        Convert the GRN into a simple DiGraph with integer labels.
-        """
-        nodes = sorted(self.nodes_iter())
-        node2id = {n: i for (i, n) in enumerate(nodes)}
-        t_factors = sorted(node for node in self if isinstance(node,
-                TranscriptionFactor))
-        simple = nx.DiGraph()
-        for tf in t_factors:
-            for target in self.successors_iter(tf):
-                simple.add_edge(node2id[tf], node2id[target])
-        return simple
-
 
 class TRN(nx.MultiDiGraph):
     """
@@ -143,20 +130,6 @@ class TRN(nx.MultiDiGraph):
         couplon_gen = CouplonGenerator(self)
         couplon_gen.add_edges_from(sf_links)
         return couplon_gen
-
-    def to_simple(self):
-        """
-        Convert the TRN into a simple DiGraph with integer labels.
-        """
-        nodes = sorted(self.nodes_iter())
-        node2id = {n: i for (i, n) in enumerate(nodes)}
-        t_factors = sorted(node for node in self if isinstance(node,
-                TranscriptionFactor))
-        simple = nx.DiGraph()
-        for tf in t_factors:
-            for target in self.successors_iter(tf):
-                simple.add_edge(node2id[tf], node2id[target])
-        return simple
 
 
 class CouplonGenerator(nx.DiGraph):
@@ -575,24 +548,30 @@ def to_operon_based(network):
                 op_net.add_edge(op_1, op_2)
     return op_net
 
-def trn2grn(network):
-    grn = type(network)()
-    grn.graph.update(network.graph)
-    # do not add nodes since the procedure is ambiguous and
-    # trn is defined by regulatory interactions
-    if network.is_multigraph():
-        for (tf, gene, k, data) in network.edges_iter(keys=True, data=True):
-            for src_gene in tf.coded_from:
-                grn.add_edge(src_gene, gene, key=k, **data)
-                grn.node[src_gene].update(network.node[tf])
-                grn.node[gene].update(network.node[gene])
-    else:
-        for (tf, gene, data) in network.edges_iter(data=True):
-            for src_gene in tf.coded_from:
-                grn.add_edge(src_gene, gene, **data)
-                grn.node[src_gene].update(network.node[tf])
-                grn.node[gene].update(network.node[gene])
-    return grn
+class AttrFactory(object):
+
+    def __init__(self, attr, **kw_args):
+        super(AttrFactory, self).__init__(**kw_args)
+        self._attr = attr
+
+    def __call__(self):
+        return self._attr
+
+def to_simple(net):
+    """
+    Convert network to a simple ThinDiGraph with integer labels and no
+    self-loops.
+    """
+    nodes = sorted(net.nodes_iter())
+    node2id = {n: i for (i, n) in enumerate(nodes)}
+    simple = SpecialDiGraph(edge_attr_dict_factory=AttrFactory(dict()))
+    for node in net:
+        simple.add_node(node2id[node])
+    for (u, v) in net.edges_iter():
+        if u == v:
+            continue
+        simple.add_edge(node2id[u], node2id[v])
+    return simple
 
 def setup_metabolic(metabolic, rxn_centric):
     if rxn_centric is None:
