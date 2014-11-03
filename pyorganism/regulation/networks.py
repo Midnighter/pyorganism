@@ -18,7 +18,8 @@ PyOrganism Regulatory Networks
 
 
 __all__ = ["GRN", "TRN", "CouplonGenerator", "GPNGenerator",
-    "effective_network", "to_transcription_unit_based", "to_operon_based"]
+    "effective_network", "to_transcription_unit_based", "to_operon_based",
+    "to_simple"]
 
 
 import logging
@@ -34,6 +35,7 @@ from .elements import TranscriptionFactor
 from ..io.generic import open_file, parser_warning
 from .. import miscellaneous as misc
 from ..errors import PyOrganismError
+from ..special import SpecialDiGraph
 
 
 LOGGER = logging.getLogger(__name__)
@@ -545,6 +547,31 @@ def to_operon_based(network):
             for (op_1, op_2) in product(u_ops, v_ops):
                 op_net.add_edge(op_1, op_2)
     return op_net
+
+class AttrFactory(object):
+
+    def __init__(self, attr, **kw_args):
+        super(AttrFactory, self).__init__(**kw_args)
+        self._attr = attr
+
+    def __call__(self):
+        return self._attr
+
+def to_simple(net):
+    """
+    Convert network to a simple ThinDiGraph with integer labels and no
+    self-loops.
+    """
+    nodes = sorted(net.nodes_iter())
+    node2id = {n: i for (i, n) in enumerate(nodes)}
+    simple = SpecialDiGraph(edge_attr_dict_factory=AttrFactory(dict()))
+    for node in net:
+        simple.add_node(node2id[node])
+    for (u, v) in net.edges_iter():
+        if u == v:
+            continue
+        simple.add_edge(node2id[u], node2id[v])
+    return simple
 
 def setup_metabolic(metabolic, rxn_centric):
     if rxn_centric is None:
