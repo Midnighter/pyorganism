@@ -1,0 +1,5 @@
+ipython[zmq]
+networkx
+numpy
+pandas
+fuzzywuzzy
