@@ -518,6 +518,7 @@ def to_transcription_unit_based(network):
                 tu_net.add_edge(op_1, op_2)
     return tu_net
 
+# TODO: handle edge attributes for non-multigraph
 def to_operon_based(network):
     op_net = type(network)()
     for node in network:
@@ -557,13 +558,14 @@ class AttrFactory(object):
     def __call__(self):
         return self._attr
 
-def to_simple(net):
+def to_simple(net, node2id=None, return_map=False):
     """
     Convert network to a simple ThinDiGraph with integer labels and no
     self-loops.
     """
     nodes = sorted(net.nodes_iter())
-    node2id = {n: i for (i, n) in enumerate(nodes)}
+    if node2id is None:
+        node2id = {n: i for (i, n) in enumerate(nodes)}
     simple = SpecialDiGraph(edge_attr_dict_factory=AttrFactory(dict()))
     for node in net:
         simple.add_node(node2id[node])
@@ -571,7 +573,10 @@ def to_simple(net):
         if u == v:
             continue
         simple.add_edge(node2id[u], node2id[v])
-    return simple
+    if return_map:
+        return (simple, node2id)
+    else:
+        return simple
 
 def setup_metabolic(metabolic, rxn_centric):
     if rxn_centric is None:

@@ -18,12 +18,12 @@ Regulatory Control Measures
 
 
 __all__ = ["digital_control", "digital_ctc", "digital_ctc_fixed_regulators",
-        "continuous_digital_control", "continuous_digital_ctc",
-        "continuous_digital_ctc_fixed_regulators",
-        "delayed_continuous_digital_control",
-        "delayed_continuous_digital_ctc",
+#        "continuous_digital_control", "continuous_digital_ctc",
+#        "continuous_digital_ctc_fixed_regulators",
+#        "delayed_continuous_digital_control",
+#        "delayed_continuous_digital_ctc",
         "analog_control", "analog_ctc",
-        "continuous_analog_control", "continuous_analog_ctc",
+#        "continuous_analog_control", "continuous_analog_ctc",
         "metabolic_coherence_ratio", "metabolic_coherence"]
 
 
@@ -32,7 +32,7 @@ import re
 
 import numpy as np
 
-from itertools import izip
+#from itertools import izip
 
 from . import measures as ms
 from . import shuffling as shuff
@@ -152,222 +152,222 @@ def digital_ctc_fixed_regulators(effective, reference, measure=ms.discrete_total
     else:
         return z_score
 
-def continuous_digital_control(trn, active, levels,
-        measure=ms.continuous_functional_coherence):
-    """
-    Compute the continuous digital control of a transcriptional regulatory
-    network (TRN).
-
-    Uses expression levels of nodes in a TRN in order to evaluate the magnitude of
-    control.
-
-    Parameters
-    ----------
-    trn: TRN or nx.(Multi)DiGraph
-        Effective TRN.
-    active: list
-        Ordered collection of active nodes.
-    levels: list
-        Corresponding expression levels of active nodes (same shape and ordering
-        expected).
-    measure: callable (optional)
-        Takes the effective network and expression level map and returns the
-        magnitude of control.
-
-    References
-    ----------
-    [1] 
-    """
-    if trn is None or trn.size() == 0:
-        return np.nan
-    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
-    return measure(trn, node2level)
-
-def continuous_digital_ctc(trn, active, levels,
-        measure=ms.continuous_functional_coherence, random_num=1E04,
-        return_sample=False):
-    """
-    Compute the continuous digital control type confidence (CTC) in a
-    transcriptional regulatory network (TRN).
-
-    This function computes a Z-score of continuous digital control using
-    expression levels of nodes in a TRN as a simple null model.
-
-    Parameters
-    ----------
-    trn: TRN or nx.(Multi)DiGraph
-        Effective TRN.
-    active: list
-        Ordered collection of active nodes.
-    levels: list
-        Corresponding expression levels of active nodes (same shape and ordering
-        expected).
-    measure: callable (optional)
-        Takes the effective network and expression level map and returns the
-        magnitude of control.
-    random_num: int (optional)
-        Size of the sample distribution of continuous digital control in the
-        null model.
-    return_sample: bool (optional)
-        Whether or not to return the sample distribution.
-
-    References
-    ----------
-    [1] 
-    """
-    random_num = int(random_num)
-    if trn is None or trn.size() == 0:
-        return np.nan
-    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
-    sample = [shuff.continuous_sample(trn, active, levels, evaluate=measure)\
-            for i in xrange(random_num)]
-    z_score = compute_zscore(measure(trn, node2level), sample)
-    if return_sample:
-        return (z_score, sample)
-    else:
-        return z_score
-
-def continuous_digital_ctc_fixed_regulators(trn, active, levels, random_num=1E04,
-        return_sample=False, measure=ms.continuous_functional_coherence):
-    """
-    Compute the continuous digital control type confidence (CTC) in a
-    transcriptional regulatory network (TRN).
-
-    This function computes a Z-score of continuous digital control using
-    expression levels of nodes in a TRN and considering expression levels of
-    regulating nodes (out-degree > 0) and regulated nodes (out-degree = 0)
-    separately.
-
-    Parameters
-    ----------
-    trn: TRN or nx.(Multi)DiGraph
-        Effective TRN.
-    active: list
-        Ordered collection of active nodes.
-    levels: list
-        Corresponding expression levels of active nodes (same shape and ordering
-        expected).
-    measure: callable (optional)
-        Takes the effective network and expression level map and returns the
-        magnitude of control.
-    random_num: int (optional)
-        Size of the sample distribution of continuous digital control in the
-        null model.
-    return_sample: bool (optional)
-        Whether or not to return the sample distribution.
-
-    References
-    ----------
-    [1] Marr, C., Geertz, M., Hütt, M.-T., Muskhelishvili, G., 2008.
-        Dissecting the logical types of network control in gene expression profiles.
-        BMC Systems Biology 2, 18.
-    """
-    random_num = int(random_num)
-    if trn is None or trn.size() == 0:
-        return np.nan
-    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
-    (regulators, slaves) = nets.split_regulators(trn)
-    # in TRN structure the out-hubs and spokes differentiation matters
-    reg_levels = [node2level[node] for node in regulators]
-    slave_levels = [node2level[node] for node in slaves]
-    sample = [shuff.continuous_fixed_regulator_sample(trn, regulators, reg_levels,
-            slaves, slave_levels, evaluate=measure) for i in xrange(random_num)]
-    z_score = compute_zscore(measure(trn, node2level), sample)
-    if return_sample:
-        return (z_score, sample)
-    else:
-        return z_score
-
-def delayed_continuous_digital_control(trn, active, levels,
-        delayed_levels, measure=ms.delayed_continuous_functional_coherence):
-    """
-    Compute the continuous digital control in a transcriptional regulatory
-    network (TRN).
-
-    This function computes the continuous digital control using
-    expression levels of nodes in a TRN as a simple null model. Expression
-    levels are considered at two different time points: if there is a link from
-    u to v then the expression level for u at time t is compared with the
-    expression level of v at time point t + 1.
-
-    Parameters
-    ----------
-    trn: TRN or nx.(Multi)DiGraph
-        Effective TRN.
-    active: list
-        Ordered collection of active nodes.
-    levels: list
-        Corresponding expression levels of active nodes (same shape and ordering
-        expected) at time point t.
-    delayed_levels: list
-        Corresponding expression levels of active nodes (same shape and ordering
-        expected) at time point t + 1.
-    measure: callable (optional)
-        Takes the effective network and expression level map and returns the
-        magnitude of control.
-
-    References
-    ----------
-    [1] 
-    """
-    #TODO: complete and test
-    if trn is None or trn.size() == 0:
-        return np.nan
-    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
-    node2delayed = {node: lvl for (node, lvl) in izip(active, delayed_levels)}
-    return measure(trn, node2level, node2delayed)
-
-def delayed_continuous_digital_ctc(trn, active, levels,
-        delayed_levels, random_num=1E04, return_sample=False,
-        measure=ms.delayed_continuous_functional_coherence):
-    """
-    Compute the continuous digital control type confidence (CTC) in a
-    transcriptional regulatory network (TRN).
-
-    This function computes a Z-score of continuous digital control using
-    expression levels of nodes in a TRN as a simple null model. Expression
-    levels are considered at two different time points: if there is a link from
-    u to v then the expression level for u at time t is compared with the
-    expression level of v at time point t + 1.
-
-    Parameters
-    ----------
-    trn: TRN or nx.(Multi)DiGraph
-        Effective TRN.
-    active: list
-        Ordered collection of active nodes.
-    levels: list
-        Corresponding expression levels of active nodes (same shape and ordering
-        expected) at time point t.
-    delayed_levels: list
-        Corresponding expression levels of active nodes (same shape and ordering
-        expected) at time point t + 1.
-    measure: callable (optional)
-        Takes the effective network and expression level map and returns the
-        magnitude of control.
-    random_num: int (optional)
-        Size of the sample distribution of continuous digital control in the
-        null model.
-    return_sample: bool (optional)
-        Whether or not to return the sample distribution.
-
-    References
-    ----------
-    [1] 
-    """
-    #TODO: complete and test
-    random_num = int(random_num)
-    if trn is None or trn.size() == 0:
-        return np.nan
-    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
-    node2delayed = {node: lvl for (node, lvl) in izip(active, delayed_levels)}
-    sample = [shuff.delayed_continuous_sample(trn, active, levels, delayed_levels,
-            evaluate=measure) for i in xrange(random_num)]
-    z_score = compute_zscore(measure(trn, node2level, node2delayed), sample)
-    if return_sample:
-        return (z_score, sample)
-    else:
-        return z_score
+#def continuous_digital_control(trn, active, levels,
+#        measure=ms.continuous_functional_coherence):
+#    """
+#    Compute the continuous digital control of a transcriptional regulatory
+#    network (TRN).
+#
+#    Uses expression levels of nodes in a TRN in order to evaluate the magnitude of
+#    control.
+#
+#    Parameters
+#    ----------
+#    trn: TRN or nx.(Multi)DiGraph
+#        Effective TRN.
+#    active: list
+#        Ordered collection of active nodes.
+#    levels: list
+#        Corresponding expression levels of active nodes (same shape and ordering
+#        expected).
+#    measure: callable (optional)
+#        Takes the effective network and expression level map and returns the
+#        magnitude of control.
+#
+#    References
+#    ----------
+#    [1] 
+#    """
+#    if trn is None or trn.size() == 0:
+#        return np.nan
+#    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
+#    return measure(trn, node2level)
+#
+#def continuous_digital_ctc(trn, active, levels,
+#        measure=ms.continuous_functional_coherence, random_num=1E04,
+#        return_sample=False):
+#    """
+#    Compute the continuous digital control type confidence (CTC) in a
+#    transcriptional regulatory network (TRN).
+#
+#    This function computes a Z-score of continuous digital control using
+#    expression levels of nodes in a TRN as a simple null model.
+#
+#    Parameters
+#    ----------
+#    trn: TRN or nx.(Multi)DiGraph
+#        Effective TRN.
+#    active: list
+#        Ordered collection of active nodes.
+#    levels: list
+#        Corresponding expression levels of active nodes (same shape and ordering
+#        expected).
+#    measure: callable (optional)
+#        Takes the effective network and expression level map and returns the
+#        magnitude of control.
+#    random_num: int (optional)
+#        Size of the sample distribution of continuous digital control in the
+#        null model.
+#    return_sample: bool (optional)
+#        Whether or not to return the sample distribution.
+#
+#    References
+#    ----------
+#    [1] 
+#    """
+#    random_num = int(random_num)
+#    if trn is None or trn.size() == 0:
+#        return np.nan
+#    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
+#    sample = [shuff.continuous_sample(trn, active, levels, evaluate=measure)\
+#            for i in xrange(random_num)]
+#    z_score = compute_zscore(measure(trn, node2level), sample)
+#    if return_sample:
+#        return (z_score, sample)
+#    else:
+#        return z_score
+#
+#def continuous_digital_ctc_fixed_regulators(trn, active, levels, random_num=1E04,
+#        return_sample=False, measure=ms.continuous_functional_coherence):
+#    """
+#    Compute the continuous digital control type confidence (CTC) in a
+#    transcriptional regulatory network (TRN).
+#
+#    This function computes a Z-score of continuous digital control using
+#    expression levels of nodes in a TRN and considering expression levels of
+#    regulating nodes (out-degree > 0) and regulated nodes (out-degree = 0)
+#    separately.
+#
+#    Parameters
+#    ----------
+#    trn: TRN or nx.(Multi)DiGraph
+#        Effective TRN.
+#    active: list
+#        Ordered collection of active nodes.
+#    levels: list
+#        Corresponding expression levels of active nodes (same shape and ordering
+#        expected).
+#    measure: callable (optional)
+#        Takes the effective network and expression level map and returns the
+#        magnitude of control.
+#    random_num: int (optional)
+#        Size of the sample distribution of continuous digital control in the
+#        null model.
+#    return_sample: bool (optional)
+#        Whether or not to return the sample distribution.
+#
+#    References
+#    ----------
+#    [1] Marr, C., Geertz, M., Hütt, M.-T., Muskhelishvili, G., 2008.
+#        Dissecting the logical types of network control in gene expression profiles.
+#        BMC Systems Biology 2, 18.
+#    """
+#    random_num = int(random_num)
+#    if trn is None or trn.size() == 0:
+#        return np.nan
+#    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
+#    (regulators, slaves) = nets.split_regulators(trn)
+#    # in TRN structure the out-hubs and spokes differentiation matters
+#    reg_levels = [node2level[node] for node in regulators]
+#    slave_levels = [node2level[node] for node in slaves]
+#    sample = [shuff.continuous_fixed_regulator_sample(trn, regulators, reg_levels,
+#            slaves, slave_levels, evaluate=measure) for i in xrange(random_num)]
+#    z_score = compute_zscore(measure(trn, node2level), sample)
+#    if return_sample:
+#        return (z_score, sample)
+#    else:
+#        return z_score
+#
+#def delayed_continuous_digital_control(trn, active, levels,
+#        delayed_levels, measure=ms.delayed_continuous_functional_coherence):
+#    """
+#    Compute the continuous digital control in a transcriptional regulatory
+#    network (TRN).
+#
+#    This function computes the continuous digital control using
+#    expression levels of nodes in a TRN as a simple null model. Expression
+#    levels are considered at two different time points: if there is a link from
+#    u to v then the expression level for u at time t is compared with the
+#    expression level of v at time point t + 1.
+#
+#    Parameters
+#    ----------
+#    trn: TRN or nx.(Multi)DiGraph
+#        Effective TRN.
+#    active: list
+#        Ordered collection of active nodes.
+#    levels: list
+#        Corresponding expression levels of active nodes (same shape and ordering
+#        expected) at time point t.
+#    delayed_levels: list
+#        Corresponding expression levels of active nodes (same shape and ordering
+#        expected) at time point t + 1.
+#    measure: callable (optional)
+#        Takes the effective network and expression level map and returns the
+#        magnitude of control.
+#
+#    References
+#    ----------
+#    [1] 
+#    """
+#    #TODO: complete and test
+#    if trn is None or trn.size() == 0:
+#        return np.nan
+#    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
+#    node2delayed = {node: lvl for (node, lvl) in izip(active, delayed_levels)}
+#    return measure(trn, node2level, node2delayed)
+#
+#def delayed_continuous_digital_ctc(trn, active, levels,
+#        delayed_levels, random_num=1E04, return_sample=False,
+#        measure=ms.delayed_continuous_functional_coherence):
+#    """
+#    Compute the continuous digital control type confidence (CTC) in a
+#    transcriptional regulatory network (TRN).
+#
+#    This function computes a Z-score of continuous digital control using
+#    expression levels of nodes in a TRN as a simple null model. Expression
+#    levels are considered at two different time points: if there is a link from
+#    u to v then the expression level for u at time t is compared with the
+#    expression level of v at time point t + 1.
+#
+#    Parameters
+#    ----------
+#    trn: TRN or nx.(Multi)DiGraph
+#        Effective TRN.
+#    active: list
+#        Ordered collection of active nodes.
+#    levels: list
+#        Corresponding expression levels of active nodes (same shape and ordering
+#        expected) at time point t.
+#    delayed_levels: list
+#        Corresponding expression levels of active nodes (same shape and ordering
+#        expected) at time point t + 1.
+#    measure: callable (optional)
+#        Takes the effective network and expression level map and returns the
+#        magnitude of control.
+#    random_num: int (optional)
+#        Size of the sample distribution of continuous digital control in the
+#        null model.
+#    return_sample: bool (optional)
+#        Whether or not to return the sample distribution.
+#
+#    References
+#    ----------
+#    [1] 
+#    """
+#    #TODO: complete and test
+#    random_num = int(random_num)
+#    if trn is None or trn.size() == 0:
+#        return np.nan
+#    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
+#    node2delayed = {node: lvl for (node, lvl) in izip(active, delayed_levels)}
+#    sample = [shuff.delayed_continuous_sample(trn, active, levels, delayed_levels,
+#            evaluate=measure) for i in xrange(random_num)]
+#    z_score = compute_zscore(measure(trn, node2level, node2delayed), sample)
+#    if return_sample:
+#        return (z_score, sample)
+#    else:
+#        return z_score
 
 def analog_control(effective, measure=ms.discrete_total_ratio):
     """
@@ -431,78 +431,78 @@ def analog_ctc(effective, reference, measure=ms.discrete_total_ratio,
     else:
         return z_score
 
-def continuous_analog_control(gpn, active, levels,
-        measure=ms.continuous_abs_coherence):
-    """
-    Compute the continuous analog control of a gene proximity network (GPN).
-
-    Uses expression levels of nodes in a GPN in order to evaluate the magnitude of
-    control.
-
-    Parameters
-    ----------
-    gpn: GPN or nx.(Multi)Graph
-        Effective GPN.
-    active: list
-        Ordered collection of active nodes.
-    levels: list
-        Corresponding expression levels of active nodes (same shape and ordering
-        as active expected).
-    measure: callable (optional)
-        Takes the effective network and expression level map and returns the
-        magnitude of control.
-
-    References
-    ----------
-    [1] 
-    """
-    if gpn is None or gpn.size() == 0:
-        return np.nan
-    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
-    return measure(gpn, node2level)
-
-def continuous_analog_ctc(gpn, active, levels, measure=ms.continuous_abs_coherence,
-        random_num=1E04, return_sample=False):
-    """
-    Compute the continuous analog control type confidence (CTC) in a gene
-    proximity network (GPN).
-
-    This function computes a Z-score of continuous analog control using
-    expression levels of nodes in a GPN as a simple null model.
-
-    Parameters
-    ----------
-    gpn: GPN or nx.(Multi)Graph
-        Effective GPN.
-    active: list
-        Ordered collection of active nodes.
-    levels: list
-        Corresponding expression levels of active nodes (same shape and ordering
-        as active expected).
-    measure: callable (optional)
-        Takes the effective network and expression level map and returns the
-        magnitude of control.
-    random_num: int (optional)
-        Size of the sample distribution of continuous analog control in the
-        null model.
-    return_sample: bool (optional)
-        Whether or not to return the sample distribution.
-
-    References
-    ----------
-    [1] 
-    """
-    random_num = int(random_num)
-    if gpn is None or gpn.size() == 0:
-        return np.nan
-    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
-    sample = [shuff.continuous_sample(gpn, active, levels, evaluate=measure)\
-            for i in xrange(random_num)]
-    z_score = compute_zscore(measure(gpn, node2level), sample)
-    if return_sample:
-        return (z_score, sample)
-    else:
-        return z_score
+#def continuous_analog_control(gpn, active, levels,
+#        measure=ms.continuous_abs_coherence):
+#    """
+#    Compute the continuous analog control of a gene proximity network (GPN).
+#
+#    Uses expression levels of nodes in a GPN in order to evaluate the magnitude of
+#    control.
+#
+#    Parameters
+#    ----------
+#    gpn: GPN or nx.(Multi)Graph
+#        Effective GPN.
+#    active: list
+#        Ordered collection of active nodes.
+#    levels: list
+#        Corresponding expression levels of active nodes (same shape and ordering
+#        as active expected).
+#    measure: callable (optional)
+#        Takes the effective network and expression level map and returns the
+#        magnitude of control.
+#
+#    References
+#    ----------
+#    [1] 
+#    """
+#    if gpn is None or gpn.size() == 0:
+#        return np.nan
+#    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
+#    return measure(gpn, node2level)
+#
+#def continuous_analog_ctc(gpn, active, levels, measure=ms.continuous_abs_coherence,
+#        random_num=1E04, return_sample=False):
+#    """
+#    Compute the continuous analog control type confidence (CTC) in a gene
+#    proximity network (GPN).
+#
+#    This function computes a Z-score of continuous analog control using
+#    expression levels of nodes in a GPN as a simple null model.
+#
+#    Parameters
+#    ----------
+#    gpn: GPN or nx.(Multi)Graph
+#        Effective GPN.
+#    active: list
+#        Ordered collection of active nodes.
+#    levels: list
+#        Corresponding expression levels of active nodes (same shape and ordering
+#        as active expected).
+#    measure: callable (optional)
+#        Takes the effective network and expression level map and returns the
+#        magnitude of control.
+#    random_num: int (optional)
+#        Size of the sample distribution of continuous analog control in the
+#        null model.
+#    return_sample: bool (optional)
+#        Whether or not to return the sample distribution.
+#
+#    References
+#    ----------
+#    [1] 
+#    """
+#    random_num = int(random_num)
+#    if gpn is None or gpn.size() == 0:
+#        return np.nan
+#    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
+#    sample = [shuff.continuous_sample(gpn, active, levels, evaluate=measure)\
+#            for i in xrange(random_num)]
+#    z_score = compute_zscore(measure(gpn, node2level), sample)
+#    if return_sample:
+#        return (z_score, sample)
+#    else:
+#        return z_score
 
 def metabolic_coherence_ratio(metabolic_network, active, bnumber2gene,
         rxn_centric=None, measure=ms.discrete_total_ratio):

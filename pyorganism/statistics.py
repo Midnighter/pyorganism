@@ -61,7 +61,8 @@ def compute_zscore(obs, random_stats):
 
 def norm_zero2unity(vec):
     """
-    Normalise a np.array to values between zero and unity.
+    Normalise a np.array to values between zero and unity. Except when all
+    values are equal or NaN.
 
     Warning
     -------
@@ -70,7 +71,13 @@ def norm_zero2unity(vec):
     mask = np.isfinite(vec)
     if len(vec[mask]) == 0:
         return vec
-    min_num = vec[mask].min()
-    max_num = vec[mask].max()
-    return (vec - min_num) / (max_num - min_num)
+    elif (vec == 0).all():
+        return vec
+    min_val = vec[mask].min()
+    max_val = vec[mask].max()
+    if min_val == max_val:
+        return np.zeros_like(vec)
+    res = vec - min_val
+    res /= max_val - min_val
+    return res
 

@@ -31,7 +31,7 @@ import pyorganism
 
 from numpy import mean
 
-from pyorganism.regulation import TranscriptionFactor
+from pyorganism.regulation import (TranscriptionFactor, to_simple)
 from pyorganism.io.regulondb import RELEASE
 from meb.utils.network.subgraphs import triadic_census
 
@@ -45,7 +45,10 @@ HNS_ID = "ECK120011294"
 
 def trn_stats(genes, trn, t_factors, version):
     LOGGER.info("Computing TRN statistics")
-    grn = trn.to_grn()
+    nodes = sorted(trn.nodes_iter())
+    node2id = {n: i for (i, n) in enumerate(nodes)}
+    id2node = {i: n for (i, n) in enumerate(nodes)}
+    (grn, node2id) = to_simple(trn.to_grn(), return_map=True)
     nodes = sorted(grn.nodes_iter())
     regulating = {node for (node, deg) in grn.out_degree_iter() if deg > 0}
     regulated = set(nodes) - regulating
@@ -57,7 +60,7 @@ def trn_stats(genes, trn, t_factors, version):
     census = triadic_census(grn)
     forward = census["030T"]
     feedback = census["030C"]
-    cycles = list(nx.simple_cycles(grn))
+    num_cycles = sum(1 for cyc in nx.simple_cycles(grn) if len(cyc) > 2)
     in_deg = [grn.in_degree(node) for node in regulated]
     out_deg = [grn.out_degree(node) for node in regulating]
     data["version"] = version,
@@ -75,7 +78,7 @@ def trn_stats(genes, trn, t_factors, version):
     data["feedback"] = feedback,
     data["fis_out"] = trn.out_degree(TranscriptionFactor[FIS_ID, version]),
     data["hns_out"] = trn.out_degree(TranscriptionFactor[HNS_ID, version]),
-    data["cycles"] = len(cycles),
+    data["cycles"] = num_cycles,
     data["regulated_in_deg"] = mean(in_deg),
     data["regulating_out_deg"] = mean(out_deg),
     data["hub_out_deg"] = max(out_deg)
@@ -87,7 +90,7 @@ def trn_stats(genes, trn, t_factors, version):
     dists = pd.DataFrame({
             "version": version,
             "release": [pd.to_datetime(RELEASE[version])] * len(nodes),
-            "node": [node.unique_id for node in nodes],
+            "node": [id2node[node].unique_id for node in nodes],
             "regulated_in_degree": in_deg,
             "regulating_out_degree": out_deg,
             "betweenness": bc

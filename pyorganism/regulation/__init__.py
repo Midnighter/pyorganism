@@ -23,4 +23,5 @@ from .networks import *
 from .measures import *
 from .shuffling import *
 from .control import *
+from .continuous import *
 

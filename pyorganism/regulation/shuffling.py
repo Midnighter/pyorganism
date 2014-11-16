@@ -90,8 +90,8 @@ def delayed_continuous_sample(net, active, levels, delayed_levels, evaluate):
     return evaluate(net, node2level, node2delayed)
 
 def timeline_sample(series, num):
-    row_i = np.arange(series.shape[0])
+    rnd_cols = np.arange(series.shape[1])
     for i in range(num):
-        np.random.shuffle(row_i)
-        yield series[row_i, :]
+        shuffle(rnd_cols)
+        yield np.ascontiguousarray(series[:, rnd_cols])
 

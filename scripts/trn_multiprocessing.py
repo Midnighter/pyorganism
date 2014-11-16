@@ -266,7 +266,6 @@ if __name__ == "__main__":
         sys.exit(args.func(args))
     except: # we want to catch everything
         (err, msg, trace) = sys.exc_info()
-        # interrupt remote kernels and clear job queue
         raise err, msg, trace
     finally:
         logging.shutdown()

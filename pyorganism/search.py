@@ -21,6 +21,7 @@ __all__ = ["FindObject"]
 
 
 import logging
+import warnings
 
 import numpy as np
 
@@ -31,8 +32,10 @@ LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(misc.NullHandler())
 
 try:
-    from fuzzywuzzy import process
-    from fuzzywuzzy import fuzz
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        from fuzzywuzzy import process
+        from fuzzywuzzy import fuzz
 except ImportError:
     LOGGER.warn("fuzzy search requires 'fuzzywuzzy'"\
             " (https://github.com/seatgeek/fuzzywuzzy)")

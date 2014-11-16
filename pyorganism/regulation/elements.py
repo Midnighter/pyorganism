@@ -18,7 +18,7 @@ PyOrganism Regulatory Elements
 """
 
 
-__all__ = ["Gene", "Product", "TranscriptionFactor", "SigmaFactor",
+__all__ = ["Gene", "Product", "Regulator", "TranscriptionFactor", "SigmaFactor",
         "NucleoidAssociatedProtein", "Promoter", "TranscriptionUnit", "Operon",
         "Conformation", "clear_memory"]
 
