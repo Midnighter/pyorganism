@@ -31,7 +31,7 @@ __all__ = [
 import logging
 
 from sqlalchemy import (Table, Column, ForeignKey, Integer, String, Sequence,
-        Float, Boolean, select)
+        Float, Boolean, select, and_)
 from sqlalchemy.orm import (sessionmaker, relationship)
 from sqlalchemy.ext.declarative import declarative_base
 from pandas import DataFrame
@@ -139,6 +139,7 @@ class RandomSample(Base):
     control = Column(Float)
     result_id = Column(Integer, ForeignKey("result.id"))
 
+
 class Result(Base):
     __tablename__ = "result"
     id = Column(Integer, Sequence("result_id_seq"), primary_key=True)
@@ -147,4 +148,29 @@ class Result(Base):
     control = Column(Float)
     ctc = Column(Float)
     point = Column(String(30)) # describe the point in a series
+
+    @classmethod
+    def load_frame(cls, session, preparation):
+        """
+        Load part of the table into a well-formatted pandas.DataFrame.
+
+        session can be any object with the execute method.
+        """
+        result = cls.__table__
+        job = Job.__table__
+        analysis = AnalysisConfiguration.__table__
+        control = ControlConfiguration.__table__
+        experiment = Experiment.__table__
+        stmt = select([result.c.id, result.c.control, result.c.ctc,
+                result.c.point, control.c.type, experiment.c.strain,
+                job.c.preparation, job.c.projection, job.c.measure,
+                job.c.delay, analysis.c.version]).where(and_(
+                result.c.job_id == job.c.id,
+                job.c.analysis_id == analysis.c.id,
+                job.c.control_id == control.c.id,
+                job.c.experiment_id == experiment.c.id))
+        result = session.execute(stmt)
+        df = DataFrame(iter(result), columns=result.keys())
+        df.set_index("id", inplace=True)
+        return df
 
