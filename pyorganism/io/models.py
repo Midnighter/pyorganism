@@ -129,6 +129,7 @@ class Job(Base):
     measure = Column(String()) # absolute, functional, fixed_tf and so on
     random_num = Column(Integer) # often 1E05
     delay = Column(Integer) # usually between 1 and 6 with delay measures
+    selection = Column(Integer) # how many elements to store of the random_num
     complete = Column(Boolean, default=False, nullable=False)
 
 

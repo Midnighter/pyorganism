@@ -300,11 +300,13 @@ def main_continuous(args):
             res = pymodels.Result(control=cntrl_scores[i], ctc=z_scores[i],
                     point=name, job=job)
             session.add(res)
-            if args.store:
+            session.commit()
+            if job.selection > 0:
                 # use a more low-level insert for speed
                 session.execute(pymodels.RandomSample.__table__.insert(),
                         [{"control": val, "result_id": res.id}\
-                        for val in samples[i]])
+                        for val in np.random.choice(samples[i], job.selection,
+                        replace=False)])
         job.complete = True
         session.commit()
         # something
@@ -328,8 +330,6 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--nproc", dest="nproc",
             default=multiprocessing.cpu_count(), type=int,
             help="Number of processors to use (default: %(default)s)")
-    parser.add_argument("-s", "--store-samples", dest="store", action="store_true",
-            help="Store control strength of random null-models")
     parser.add_argument("engine",
             help="Database connection string, e.g., 'sqlite+pysqlite:///file.db'")
     subparsers = parser.add_subparsers(help="sub-command help")
