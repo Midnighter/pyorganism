@@ -165,6 +165,8 @@ class ContinuousControl(object):
             raise ValueError("'{0}' is an unknown control measure."\
                     " Please try one of:\n{1}".format(measure,
                     "\n* ".join(self._measures.keys())))
+        if "comparison" in measure:
+            expression = np.diff(expression, axis=0) # expression was transposed for C code
         num_points = expression.shape[0]
         num_features = expression.shape[1]
         assert num_features == self.num_nodes

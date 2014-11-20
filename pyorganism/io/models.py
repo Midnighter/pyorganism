@@ -150,7 +150,7 @@ class Result(Base):
     point = Column(String(30)) # describe the point in a series
 
     @classmethod
-    def load_frame(cls, session, preparation):
+    def load_frame(cls, session):
         """
         Load part of the table into a well-formatted pandas.DataFrame.
 

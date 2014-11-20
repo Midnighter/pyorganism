@@ -10,12 +10,10 @@ import os
 import logging
 import argparse
 import multiprocessing
-from itertools import (izip, chain)
 from logging.config import dictConfig
 
 import numpy as np
-from pandas import DataFrame
-from sqlalchemy import (create_engine, select)
+from sqlalchemy import (create_engine,)
 from sqlalchemy.orm import joinedload
 from progressbar import (ProgressBar, Timer, SimpleProgress, Bar, Percentage, ETA)
 
@@ -220,7 +218,6 @@ def shuffle_all(session, experiment):
 
 def continuous_exec((control, expression, points, measure, random_num, delay, job_id)):
     if "comparison" in measure:
-        expression = np.diff(expression, axis=0) # expression was transposed for C code
         points = points[1:]
     # include points somehow in the results
     (z_scores, ctrl_scores, samples) = control.series_ctc(expression, measure,
