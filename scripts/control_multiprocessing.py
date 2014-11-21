@@ -292,21 +292,33 @@ def main_continuous(args):
             SimpleProgress(), " ", Percentage(), " ", Bar(), " ",
             ETA()]).start()
     for (job_id, z_scores, cntrl_scores, samples, points) in result_it:
-        job = session.query(pymodels.Job).filter_by(id=job_id).one()
-        for (i, name) in enumerate(points):
-            res = pymodels.Result(control=cntrl_scores[i], ctc=z_scores[i],
-                    point=name, job=job)
-            session.add(res)
+        results = list()
+        try:
+            job = session.query(pymodels.Job).filter_by(id=job_id).one()
+            for (i, name) in enumerate(points):
+                res = pymodels.Result(control=cntrl_scores[i], ctc=z_scores[i],
+                        point=name, job=job)
+                session.add(res)
+                results.append(res)
+            job.complete = True
             session.commit()
-            if job.selection > 0:
-                # use a more low-level insert for speed
-                session.execute(pymodels.RandomSample.__table__.insert(),
-                        [{"control": val, "result_id": res.id}\
-                        for val in np.random.choice(samples[i], job.selection,
-                        replace=False)])
-        job.complete = True
-        session.commit()
-        # something
+        except Exception:
+            session.rollback()
+            bar += 1
+            continue
+        if job.selection > 0:
+            try:
+                for (i, res) in enumerate(results):
+                    # use a more low-level insert for speed
+                    session.execute(pymodels.RandomSample.__table__.insert(),
+                            [{"control": val, "result_id": res.id}\
+                            for val in np.random.choice(samples[i], job.selection,
+                            replace=False)])
+                session.commit()
+            except Exception:
+                session.rollback()
+                bar += 1
+                continue
         bar += 1
     bar.finish()
     session.close()

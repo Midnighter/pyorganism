@@ -162,9 +162,9 @@ class Result(Base):
         control = ControlConfiguration.__table__
         experiment = Experiment.__table__
         stmt = select([result.c.id, result.c.control, result.c.ctc,
-                result.c.point, control.c.type, experiment.c.strain,
-                job.c.preparation, job.c.projection, job.c.measure,
-                job.c.delay, analysis.c.version]).where(and_(
+                result.c.point, control.c.type, control.c.direction,
+                experiment.c.strain, job.c.preparation, job.c.projection,
+                job.c.measure, job.c.delay, analysis.c.version]).where(and_(
                 result.c.job_id == job.c.id,
                 job.c.analysis_id == analysis.c.id,
                 job.c.control_id == control.c.id,
