@@ -196,19 +196,6 @@ class ContinuousControl(object):
         z_scores /= np.nanstd(random, ddof=1, axis=1)
         return (z_scores, control, random)
 
-#    def ctc(self, expression, measure, random_num=1E04, return_samples=False):
-#        """
-#        Compute control type confidence for a vector of expression levels.
-#
-#        Parameters
-#        ----------
-#        expression: numpy.ndarray
-#            One dimensional expression levels in the same order as nodes.
-#        """
-#        original = con.control(self.sources, self.targets, self.functions,
-#                self.num_links, expression, measure)
-#        return original
-
 def form_series(net, df, feature2node, node2feature=None, nodes=None):
     """
     Convert a pandas DataFrame to an expression matrix.

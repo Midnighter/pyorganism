@@ -88,6 +88,17 @@ class Expression(Base):
         return series
 
 
+class ExpressionRatio(Base):
+    __tablename__ = "expressionratio"
+    id = Column(Integer, Sequence("expressionratio_id_seq"), primary_key=True)
+    control_id = Column(Integer, ForeignKey("expression.id"))
+    control = relationship("Expression", uselist=False)
+    treatment_id = Column(Integer, ForeignKey("expression.id"))
+    treatment = relationship("Expression", uselist=False)
+    log2_ratio = Column(Float)
+    p_value = Column(Float)
+
+
 class Experiment(Base):
     __tablename__ = "experiment"
     id = Column(Integer, Sequence("experiment_id_seq"), primary_key=True)
