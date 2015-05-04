@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
 
+from __future__ import (absolute_import, unicode_literals)
+
+
 """
 ===================
 Library Miscellanea
@@ -106,7 +109,7 @@ class ProgressHandler(logging.Handler):
                     self.stream.write(self.head)
                     self.stream.write(msg.encode("UTF-8"))
             self.flush()
-        except StandardError:
+        except Exception:
             self.handleError(record)
 
 
@@ -137,13 +140,13 @@ def load_module(module, name=False, url=False):
         if not name:
             name = module
         msg = list()
-        msg.append(u"{0} is required for this functionality.".format(name))
-        msg.append(u"Please specify a different external dependency in the")
-        msg.append(u"options or double-check your installation and necessary")
-        msg.append(u"Python bindings.")
+        msg.append("{0} is required for this functionality.".format(name))
+        msg.append("Please specify a different external dependency in the")
+        msg.append("options or double-check your installation and necessary")
+        msg.append("Python bindings.")
         if url:
-            msg.append(u"Please see {0} for detailed installation".format(url))
-            msg.append(u"instructions.")
+            msg.append("Please see {0} for detailed installation".format(url))
+            msg.append("instructions.")
         raise ImportError(" ".join(msg))
     return mod
 

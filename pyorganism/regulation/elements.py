@@ -1,5 +1,7 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
+
+from __future__ import (absolute_import, unicode_literals, print_function)
 
 
 """
@@ -26,7 +28,6 @@ import sys
 import logging
 
 from .. import miscellaneous as misc
-#from ..errors import PyOrganismError
 from ..base import UniqueBase
 
 
@@ -74,11 +75,11 @@ class Gene(UniqueBase):
         return self.operons
 
     def print_info(self, stream=sys.stdout):
-        print >> stream, "ECK12:", self.unique_id
-        print >> stream, "name:", self.name
-        print >> stream, "bnumber:", self.bnumber
-        print >> stream, "synonyms:", self.synonyms
-        print >> stream, "position:", self.position
+        print("ECK12:", self.unique_id, file=stream)
+        print("name:", self.name, file=stream)
+        print("bnumber:", self.bnumber, file=stream)
+        print("synonyms:", self.synonyms, file=stream)
+        print("position:", self.position, file=stream)
 
 
 class Product(UniqueBase):
@@ -113,10 +114,10 @@ class Product(UniqueBase):
         return set(op for gene in self.coded_from for op in gene.operons)
 
     def print_info(self, stream=sys.stdout):
-        print >> stream, "ECK12:", self.unique_id
-        print >> stream, "name:", self.name
-        print >> stream, "synonyms:", self.synonyms
-        print >> stream, self.go
+        print("ECK12:", self.unique_id, file=stream)
+        print("name:", self.name, file=stream)
+        print("synonyms:", self.synonyms, file=stream)
+        print(self.go, file=stream)
 
 
 class Regulator(UniqueBase):
@@ -150,10 +151,10 @@ class Regulator(UniqueBase):
         return set(op for gene in self.coded_from for op in gene.operons)
 
     def print_info(self, stream=sys.stdout):
-        print >> stream, "ECK12:", self.unique_id
-        print >> stream, "name:", self.name
-        print >> stream, "synonyms:", self.synonyms
-        print >> stream, self.go
+        print("ECK12:", self.unique_id, file=stream)
+        print("name:", self.name, file=stream)
+        print("synonyms:", self.synonyms, file=stream)
+        print(self.go, file=stream)
 
 
 class TranscriptionFactor(Regulator):
@@ -203,8 +204,8 @@ class Promoter(UniqueBase):
         self.note = note
 
     def print_info(self, stream=sys.stdout):
-        print >> stream, "ECK12:", self.unique_id
-        print >> stream, "name:", self.name
+        print("ECK12:", self.unique_id, file=stream)
+        print("name:", self.name, file=stream)
 
 
 class TranscriptionUnit(UniqueBase):
@@ -222,9 +223,9 @@ class TranscriptionUnit(UniqueBase):
         return len(self.genes)
 
     def print_info(self, stream=sys.stdout):
-        print >> stream, "ECK12:", self.unique_id
-        print >> stream, "name:", self.name
-        print >> stream, "Genes:", ", ".join([gene.name if gene.name else "?" for gene in self.genes])
+        print("ECK12:", self.unique_id, file=stream)
+        print("name:", self.name, file=stream)
+        print("Genes:", ", ".join([gene.name if gene.name else "?" for gene in self.genes]), file=stream)
 
 
 class Operon(UniqueBase):
@@ -247,9 +248,9 @@ class Operon(UniqueBase):
         return len(self.genes)
 
     def print_info(self, stream=sys.stdout):
-        print >> stream, "ECK12:", self.unique_id
-        print >> stream, "name:", self.name
-        print >> stream, "Genes:", ", ".join([gene.name if gene.name else "?" for gene in self.genes])
+        print("ECK12:", self.unique_id, file=stream)
+        print("name:", self.name, file=stream)
+        print("Genes:", ", ".join([gene.name if gene.name else "?" for gene in self.genes]), file=stream)
 
 
 def clear_memory():

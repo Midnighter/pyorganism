@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
 
+from __future__ import (absolute_import, unicode_literals)
+
+
 """
 ==============================
 PyOrganism Regulatory Networks
@@ -23,13 +26,13 @@ __all__ = ["GRN", "TRN", "CouplonGenerator", "GPNGenerator",
 
 
 import logging
+from itertools import product
+from operator import (itemgetter, attrgetter)
+from datetime import date
+from builtins import (zip, range)
 
 import numpy as np
 import networkx as nx
-
-from itertools import (product, izip)
-from operator import itemgetter, attrgetter
-from datetime import date
 
 from .elements import TranscriptionFactor
 from ..io.generic import open_file, parser_warning
@@ -330,8 +333,8 @@ class GPNGenerator(object):
         gpn = nx.Graph(name=name, window=proximity_threshold, **kw_args)
         gpn.add_nodes_from(self.i2name.itervalues())
         valid = self.distances > -1
-        for i in xrange(length - 1):
-            for j in xrange(i + 1, length):
+        for i in range(length - 1):
+            for j in range(i + 1, length):
                 if valid[i, j] and self.distances[i, j] <= proximity_threshold:
                     gpn.add_edge(self.i2name[i], self.i2name[j])
         return gpn
@@ -341,17 +344,17 @@ class GPNGenerator(object):
         # assume the maximal end position of the genes is the total length
         genome_length = end(max(genes, key=end))
         length = len(genes)
-        self.i2name = dict(izip(xrange(length), genes))
+        self.i2name = dict(zip(range(length), genes))
         self.distances = np.zeros((length, length), dtype=int)
         self.distances.fill(-1)
         diffs = np.zeros(4, dtype=int)
         no_position = set()
-        for i in xrange(length - 1):
+        for i in range(length - 1):
             gene_u = genes[i]
             if gene_u.position is None or None in gene_u.position:
                 no_position.add(gene_u)
                 continue
-            for j in xrange(i + 1, length):
+            for j in range(i + 1, length):
                 gene_v = genes[j]
                 if gene_v.position is None or None in gene_v.position:
                     no_position.add(gene_v)
@@ -435,14 +438,14 @@ class GPNGenerator(object):
         # assume the maximal end position of the genes is the total length
         genome_length = end(max(genes, key=end))
         length = len(genes)
-        self.i2name = dict(izip(xrange(length),
+        self.i2name = dict(zip(range(length),
             (name(gene) for gene in genes)))
         self.distances = np.zeros((length, length), dtype=int)
-        for i in xrange(length - 1):
+        for i in range(length - 1):
             gene_u = genes[i]
             start_u = start(gene_u)
             end_u = end(gene_u)
-            for j in xrange(i + 1, length):
+            for j in range(i + 1, length):
                 gene_v = genes[j]
                 start_v = start(gene_v)
                 end_v = end(gene_v)

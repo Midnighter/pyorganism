@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
 
+from __future__ import (absolute_import, unicode_literals, division)
+
+
 """
 =====================
 PyOrganism Statistics
@@ -21,10 +24,10 @@ __all__ = ["compute_zscore", "norm_zero2unity"]
 
 
 import logging
+
 import numpy as np
 
 from . import miscellaneous as misc
-#from .errors import PyOrganismError
 
 
 LOGGER = logging.getLogger(__name__)

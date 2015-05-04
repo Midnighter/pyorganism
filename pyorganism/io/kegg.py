@@ -218,7 +218,7 @@ def parse_reaction_descriptions(descriptions):
                     line = line.split()
                     rpair[line[2]].append(tuple(line[1].split("_")))
             except IndexError:
-                print rpairs
+                print(rpairs)
             rxn["rpair"] = dict(rpair)
         reactions.append(KEGGReaction(unique_id=name, **rxn))
     return reactions

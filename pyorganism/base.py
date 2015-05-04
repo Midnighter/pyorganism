@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
 
+from __future__ import (absolute_import, unicode_literals)
+
+
 """
 =======================
 PyOrganism Base Classes
@@ -21,6 +24,9 @@ __all__ = ["UniqueBase"]
 
 
 import logging
+
+from builtins import str
+from future.utils import (python_2_unicode_compatible, with_metaclass)
 
 from . import miscellaneous as misc
 
@@ -92,7 +98,8 @@ class MetaBase(type):
         return unique_id in cls._memory[name_space]
 
 
-class UniqueBase(object):
+@python_2_unicode_compatible
+class UniqueBase(with_metaclass(MetaBase, object)):
     """
     Base class for all objects that should be unique based on an identifier.
 
@@ -140,9 +147,9 @@ class UniqueBase(object):
         super(UniqueBase, self).__init__(**kw_args)
         self._index = self.__class__._counter
         if unique_id:
-            self.unique_id = unique_id
+            self.unique_id = str(unique_id)
         else:
-            self.unique_id = u"{0}_{1:d}".format(self.__class__.__name__,
+            self.unique_id = "{0}_{1:d}".format(self.__class__.__name__,
                     self._index)
         self._name_space = name_space
         self._skip_setstate = False
@@ -190,13 +197,10 @@ class UniqueBase(object):
         self.__dict__.update(state)
 
     def __str__(self):
-        return str(self.unique_id)
-
-    def __unicode__(self):
-        return unicode(self.unique_id)
+        return self.unique_id
 
     def __repr__(self):
-        return u"<{0}.{1} {2:d}>".format(self.__module__, self.__class__.__name__, id(self))
+        return "<{0}.{1} {2:d}>".format(self.__module__, self.__class__.__name__, id(self))
 
 
 def _unpickle_call(cls, unique_id, name_space):

@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
 
+from __future__ import (absolute_import, unicode_literals)
+
+
 """
 ===========================
 Regulatory Control Measures
@@ -32,13 +35,10 @@ import re
 
 import numpy as np
 
-#from itertools import izip
-
 from . import measures as ms
 from . import shuffling as shuff
 from . import networks as nets
 from .. import miscellaneous as misc
-#from ..errors import PyOrganismError
 from ..statistics import compute_zscore
 
 

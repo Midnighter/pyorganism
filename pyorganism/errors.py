@@ -1,5 +1,7 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
+
+from __future__ import (absolute_import, unicode_literals)
 
 
 """
@@ -21,7 +23,7 @@ Exceptions
 __all__ = ["PyOrganismError"]
 
 
-class PyOrganismError(StandardError):
+class PyOrganismError(Exception):
     """
     An error for all exceptions that occur in the usage of the pymetabolism
     package.

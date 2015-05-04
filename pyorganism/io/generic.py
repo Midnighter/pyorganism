@@ -1,5 +1,7 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
+
+from __future__ import (absolute_import, unicode_literals)
 
 
 """
@@ -25,9 +27,10 @@ import os
 import codecs
 import logging
 import csv
-import cPickle as pickle
 
+import six.moves.cPickle as pickle
 from contextlib import contextmanager
+
 from .. import miscellaneous as misc
 
 

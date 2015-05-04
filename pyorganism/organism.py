@@ -1,5 +1,7 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
+
+from __future__ import (absolute_import, unicode_literals)
 
 
 """
@@ -23,6 +25,9 @@ __all__ = ["Organism"]
 
 import logging
 
+from builtins import str
+from future.utils import python_2_unicode_compatible
+
 from . import miscellaneous as misc
 
 
@@ -32,6 +37,7 @@ LOGGER.addHandler(misc.NullHandler())
 OPTIONS = misc.OptionsManager.get_instance()
 
 
+@python_2_unicode_compatible
 class Organism(object):
     """
     A representation of a living organism with multiple layers of organisation.
@@ -57,7 +63,7 @@ class Organism(object):
             requirement.
         """
         super(Organism, self).__init__(**kw_args)
-        self.name = name
+        self.name = str(name)
         self.genes = None
         self.trn = None
         self.gpn = None
@@ -69,8 +75,5 @@ class Organism(object):
         self.significant = dict()
 
     def __str__(self):
-        return str(self.name)
-
-    def __unicode__(self):
-        return unicode(self.name)
+        return self.name
 

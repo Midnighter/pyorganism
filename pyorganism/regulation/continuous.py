@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
 
+from __future__ import (absolute_import, unicode_literals, division)
+
+
 """
 ===========================
 Regulatory Control Measures
@@ -17,15 +20,12 @@ Regulatory Control Measures
 """
 
 
-from __future__ import division
-
-
 import logging
 import warnings
 
 import numpy as np
 
-import _continuous as con
+from . import _continuous as con
 from .elements import (Gene, Regulator, TranscriptionUnit, Operon)
 from .shuffling import timeline_sample
 from .. import miscellaneous as misc

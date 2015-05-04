@@ -73,7 +73,7 @@ class ThreadedWSDLFetcher(threading.Thread):
             (function, item, output) = self._queue.get()
             try:
                 info = eval("self._srvr.%s(item)" % function)
-            except StandardError:
+            except Exception:
                 LOGGER.debug("psssst:", exc_info=True)
             else:
                 if info:

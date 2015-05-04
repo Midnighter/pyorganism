@@ -24,21 +24,13 @@ import logging
 import warnings
 
 import numpy as np
+from future.utils import reraise
 
 from . import miscellaneous as misc
 
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(misc.NullHandler())
-
-try:
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        from fuzzywuzzy import process
-        from fuzzywuzzy import fuzz
-except ImportError:
-    LOGGER.warn("fuzzy search requires 'fuzzywuzzy'"\
-            " (https://github.com/seatgeek/fuzzywuzzy)")
 
 
 class FindObject(object):
@@ -86,7 +78,17 @@ class FindObject(object):
             raise IndexError("not found '%s'" % value)
         return self.collection[self.indeces[index]]
 
-    def fuzzy_search(self, value, threshold=80, scorer=fuzz.QRatio):
+    def fuzzy_search(self, value, threshold=80, scorer=None):
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                from fuzzywuzzy import process
+                from fuzzywuzzy import fuzz
+        except ImportError:
+            reraise(ImportError, "fuzzy search requires 'fuzzywuzzy'"\
+                    " (https://github.com/seatgeek/fuzzywuzzy)")
+        if scorer is None:
+            scorer = fuzz.QRatio
         match = process.extractOne(value, self.targets, scorer=scorer, score_cutoff=threshold)
         if match is None:
             raise IndexError("'%s' not found" % value)

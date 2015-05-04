@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+
+
+from __future__ import (absolute_import, unicode_literals)
+
+
 """
 A Python Singleton mixin class that makes use of some of the ideas
 found at http://c2.com/cgi/wiki?PythonSingleton. Just inherit
@@ -87,7 +93,7 @@ own risk.
 
 import threading
 
-class SingletonException(StandardError):
+class SingletonException(Exception):
     pass
 
 _st_singletons = set()

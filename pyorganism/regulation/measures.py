@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
 
+from __future__ import (absolute_import, unicode_literals, division)
+
+
 """
 ===========================
 Regulatory Control Measures
@@ -17,15 +20,11 @@ Regulatory Control Measures
 """
 
 
-from __future__ import division
-
-
 import logging
+from collections import defaultdict
 
 import numpy as np
-
-from itertools import izip
-from collections import defaultdict
+from builtins import zip
 
 from .. import miscellaneous as misc
 from .elements import TranscriptionFactor
@@ -68,7 +67,7 @@ def gene_and_tf_levels(active, levels):
     t_factors = list({gene.regulatory_product for gene in active if\
             isinstance(gene.regulatory_product, TranscriptionFactor)})
     orig_levels = np.zeros(len(t_factors) + len(active), dtype=float)
-    gene2level = dict(izip(active, levels))
+    gene2level = dict(zip(active, levels))
     for (i, tf) in enumerate(t_factors):
         orig_levels[i] = np.mean([gene2level[gene] for gene in\
                 tf.coded_from if gene in gene2level])
@@ -90,7 +89,7 @@ def tu_levels(active, levels):
     units with their mean levels.
     """
     active = list(active)
-    gene2level = dict(izip(active, levels))
+    gene2level = dict(zip(active, levels))
     tu2level = defaultdict(list)
     for gene in active:
         # genes without associated TU are their own TU
@@ -117,7 +116,7 @@ def operon_levels(active, levels):
     with their mean levels.
     """
     active = list(active)
-    gene2level = dict(izip(active, levels))
+    gene2level = dict(zip(active, levels))
     op2level = defaultdict(list)
     for gene in active:
         # genes without associated operons are their own operon

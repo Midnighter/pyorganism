@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
 
+from __future__ import (absolute_import, unicode_literals)
+
+
 """
 ==============================
 Regulatory Control Null Models
@@ -17,17 +20,12 @@ Regulatory Control Null Models
 """
 
 
-from __future__ import division
-
-
 import logging
 import random
 
 import numpy as np
-
-from itertools import izip
-
 from numpy.random import shuffle
+from builtins import zip
 
 from .. import miscellaneous as misc
 
@@ -69,7 +67,7 @@ def fixed_regulator_sample(reference, regulators, reg_num, slaves, slave_num,
 
 def continuous_sample(net, active, levels, evaluate):
     shuffle(levels)
-    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
+    node2level = {node: lvl for (node, lvl) in zip(active, levels)}
     return evaluate(net, node2level)
 
 def continuous_fixed_regulator_sample(net, regulators, reg_levels, slaves,
@@ -78,15 +76,15 @@ def continuous_fixed_regulator_sample(net, regulators, reg_levels, slaves,
     # null-models
     shuffle(reg_levels)
     shuffle(slave_levels)
-    node2level = {node: lvl for (node, lvl) in izip(regulators, reg_levels)}
-    node2level.update(izip(slaves, slave_levels))
+    node2level = {node: lvl for (node, lvl) in zip(regulators, reg_levels)}
+    node2level.update(zip(slaves, slave_levels))
     return evaluate(net, node2level)
 
 def delayed_continuous_sample(net, active, levels, delayed_levels, evaluate):
     shuffle(levels)
     shuffle(delayed_levels)
-    node2level = {node: lvl for (node, lvl) in izip(active, levels)}
-    node2delayed = {node: lvl for (node, lvl) in izip(active, delayed_levels)}
+    node2level = {node: lvl for (node, lvl) in zip(active, levels)}
+    node2delayed = {node: lvl for (node, lvl) in zip(active, delayed_levels)}
     return evaluate(net, node2level, node2delayed)
 
 def timeline_sample(series, num):
