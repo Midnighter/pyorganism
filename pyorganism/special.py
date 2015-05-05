@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
 
+from __future__ import (absolute_import, unicode_literals)
+
+
 """Special classes to allow for dict-like storage within graph classes.
 
 The Graph class uses a dict-of-dict-of-dict data structure.
@@ -32,7 +35,6 @@ extension to dict-of-dict-of-dict-of-dict.
 #    All rights reserved.
 #    BSD license.
 from copy import deepcopy
-import networkx as nx
 from networkx.classes.graph import Graph
 from networkx.classes.digraph import DiGraph
 from networkx.classes.multigraph import MultiGraph

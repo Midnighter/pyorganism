@@ -24,11 +24,12 @@ __all__ = ["open_file", "read_pickle", "write_pickle"]
 
 
 import os
-import codecs
 import logging
 import csv
+import io
 
 import six.moves.cPickle as pickle
+from builtins import str
 from contextlib import contextmanager
 
 from .. import miscellaneous as misc
@@ -45,7 +46,7 @@ def parser_warning(msg):
 def _open_tar(path, **kw_args):
     import tarfile
     kw_args["mode"] = kw_args["mode"].strip("b")
-    if isinstance(path, basestring):
+    if isinstance(path, str):
         return tarfile.TarFile(name=path, mode=kw_args["mode"],
                 encoding=kw_args["encoding"])
     else:
@@ -54,7 +55,7 @@ def _open_tar(path, **kw_args):
 
 def _open_gz(path, **kw_args):
     import gzip
-    if isinstance(path, basestring):
+    if isinstance(path, str):
         return gzip.GzipFile(filename=path, mode=kw_args["mode"])
     else:
         return gzip.GzipFile(fileobj=path, mode=kw_args["mode"])
@@ -69,15 +70,10 @@ def _open_zip(path, **kw_args):
     return zipfile.ZipFile(path, mode=kw_args["mode"])
 
 def _open_file(path, **kw_args):
-    if isinstance(path, basestring):
-        return codecs.open(path, mode=kw_args["mode"],
-                encoding=kw_args["encoding"])
+    if isinstance(path, str):
+        return io.open(path, mode=kw_args["mode"], encoding=kw_args["encoding"])
     elif kw_args["encoding"]:
-        if "w" in kw_args["mode"] or "a" in kw_args["mode"]:
-            handle = codecs.getwriter(kw_args["encoding"])
-        else:
-            handle = codecs.getreader(kw_args["encoding"])
-        return handle(path)
+        return io.TextIOWrapper(path, encoding=kw_args["encoding"])
     else:
         return path
 

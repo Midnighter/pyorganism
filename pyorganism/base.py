@@ -202,6 +202,25 @@ class UniqueBase(with_metaclass(MetaBase, object)):
     def __repr__(self):
         return "<{0}.{1} {2:d}>".format(self.__module__, self.__class__.__name__, id(self))
 
+    def __hash__(self):
+        return hash((self.__class__, self.unique_id))
+
+    def __eq__(self, other):
+        if type(self) is type(other):
+            return self.unique_id == other.unique_id
+
+    def __ne__(self, other):
+        if type(self) is type(other):
+            return self.unique_id != other.unique_id
+
+    def __lt__(self, other):
+        if type(self) is type(other):
+            return self.unique_id < other.unique_id
+
+    def __gt__(self, other):
+        if type(self) is type(other):
+            return self.unique_id > other.unique_id
+
 
 def _unpickle_call(cls, unique_id, name_space):
     """
