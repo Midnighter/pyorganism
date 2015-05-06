@@ -1,5 +1,7 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
+
+from __future__ import (absolute_import, unicode_literals)
 
 
 """
@@ -27,7 +29,8 @@ __all__ = ["SBMLParser", "ARABIDOPSIS_THALIANA", "ARABIDOPSIS_THALIANA_AraGEM",
 import warnings
 import os
 import logging
-#import re
+
+from builtins import range
 
 from .. import miscellaneous as misc
 from ..metabolism import elements as pyel
@@ -80,18 +83,18 @@ class SBMLParser(object):
         """
         Parse a document in SBML format.
         """
-        if isinstance(model, basestring):
+        if isinstance(model, str):
             if os.path.exists(model):
                 # might want to read file on our own to determine encoding
                 self.document = libsbml.readSBMLFromFile(model)
             else:
                 self.document = libsbml.readSBMLFromString(model)
-        elif isinstance(model, file):
+        else:
             self.document = libsbml.readSBMLFromString(model.read())
         num_err = self.document.getNumErrors()
         fatal = False
         if num_err > 0:
-            for i in xrange(num_err):
+            for i in range(num_err):
                 sbml_err = self.document.getError(i)
 #                warnings.warn(sbml_err.getShortMessage())
                 warnings.warn(sbml_err.getMessage())

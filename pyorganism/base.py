@@ -132,8 +132,6 @@ class UniqueBase(with_metaclass(MetaBase, object)):
     --------
     """
 
-    # metaclass adds mutable subclass-specific attribute
-    __metaclass__ = MetaBase
     # immutable class attribute is subclass-specific automatically
     _counter = 0
 

@@ -1,5 +1,7 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
+
+from __future__ import (absolute_import, unicode_literals, division)
 
 
 """
@@ -24,13 +26,15 @@ __all__ = ["MetabolicNetwork",
         "read_edgelist", "write_edgelist"]
 
 import logging
-import itertools
 import networkx as nx
-
+from itertools import count
 from collections import defaultdict
+
+from builtins import (str, zip)
+
 from ..errors import PyOrganismError
 from .. import miscellaneous as misc
-from ..io.generic import open_file, read_tabular
+from ..io.generic import (open_file, read_tabular)
 from . import elements as pymet
 
 
@@ -176,7 +180,7 @@ class MetabolicNetwork(nx.DiGraph):
                 a_total += a_freq
                 d_total += d_freq
                 scl += min(a_freq, d_freq)
-            return float(scl) / float(max(a_total, d_total))
+            return scl / max(a_total, d_total)
 
         no_info = set()
         connections = dict()
@@ -467,12 +471,11 @@ class MetabolicNetwork(nx.DiGraph):
         node_attr= dict()
         link_attr= dict()
         # add compound nodes
-        indeces = dict(itertools.izip(self.compounds, itertools.count()))
+        indeces = dict(zip(self.compounds, count()))
         for (cmpd, i) in indeces.iteritems():
             net.add_node(i, label=str(cmpd), shape="ellipse", **node_attr)
         # add reactions
-        indeces.update(itertools.izip(self.reactions,
-                itertools.count(len(self.compounds))))
+        indeces.update(zip(self.reactions, count(len(self.compounds))))
         i = len(self.compounds) + len(self.reactions)
         for rxn in self.reactions:
             net.add_node(indeces[rxn], label=str(rxn), shape="box", **node_attr)

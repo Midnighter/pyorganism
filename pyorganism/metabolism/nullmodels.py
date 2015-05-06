@@ -1,5 +1,7 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
+
+from __future__ import (absolute_import, unicode_literals, division)
 
 
 """
@@ -22,11 +24,11 @@ __all__ = ["make_consistent_stoichiometry"]
 
 
 import logging
-import itertools
-
-#import numpy as np
-
+from itertools import chain
 from operator import itemgetter
+
+from builtins import str
+
 from ..errors import PyOrganismError
 from .. import miscellaneous as misc
 from .fba import FBAModel
@@ -175,7 +177,7 @@ def make_consistent_stoichiometry(network, coefficients, mass_vector=None):
         Balance a single reaction by adjusting the stoichiometric coefficients in a
         way that leads to mass conservation.
         """
-        compounds = [cmpd for cmpd in itertools.chain(network.pred[reaction],
+        compounds = [cmpd for cmpd in chain(network.pred[reaction],
                 network.succ[reaction])]
         # modify the coefficients for the current reaction
         temp_coeff = list()
@@ -257,5 +259,5 @@ def make_consistent_stoichiometry(network, coefficients, mass_vector=None):
     total = float(len(network.reactions))
     for (i, rxn) in enumerate(network.reactions):
         balance_reaction_by_mass(rxn)
-        LOGGER.info("%.2f %% complete.", float(i + 1) / total * 100.)
+        LOGGER.info("%.2f %% complete.", (i + 1) / total * 100.)
 

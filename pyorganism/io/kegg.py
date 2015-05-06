@@ -1,5 +1,7 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
+
+from __future__ import (absolute_import, unicode_literals, print_function)
 
 
 """
@@ -24,6 +26,8 @@ __all__ = ["find_organism", "read_reaction_information",
 
 import logging
 import re
+
+from builtins import input
 
 from .. import miscellaneous as misc
 from ..metabolism.elements import KEGGReaction
@@ -83,7 +87,7 @@ def find_organism(self, organism, wsdl="http://soap.genome.jp/KEGG.wsdl",
                     % min(length - end, browse))
         msg.append("")
         try:
-            selection = int(raw_input("\n".join(msg)))
+            selection = int(input("\n".join(msg)))
         except ValueError:
             start = end
             end = min(length, end + browse)
@@ -93,7 +97,7 @@ def find_organism(self, organism, wsdl="http://soap.genome.jp/KEGG.wsdl",
                     choice = choices[selection]
                 except IndexError:
                     try:
-                        selection = int(raw_input("Chosen index is outside"\
+                        selection = int(input("Chosen index is outside"\
                                 " the allowed range, try again:\n"))
                     except ValueError:
                         pass

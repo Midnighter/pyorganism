@@ -1,5 +1,7 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
+
+from __future__ import (absolute_import, unicode_literals)
 
 
 """
@@ -42,10 +44,4 @@ try:
 except ImportError:
     warnings.warn("You do not have the required SOAPpy package: KEGG interface\
             is disabled.")
-
-def clear():
-    """
-    Clear all memories of elements' classes.
-    """
-    pass
 

@@ -1,5 +1,7 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
+
+from __future__ import (absolute_import, unicode_literals)
 
 
 """
@@ -31,6 +33,7 @@ from .generic import open_file, read_tabular
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(misc.NullHandler())
+
 
 class MetRxnCompoundIDParser(Singleton):
     """

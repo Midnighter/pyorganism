@@ -1,5 +1,7 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
+
+from __future__ import (absolute_import, unicode_literals)
 
 
 """
@@ -27,6 +29,8 @@ __all__ = ["BasicCompound", "BasicReaction", "BasicCompartment",
 import logging
 import itertools
 import re
+
+from builtins import str
 
 from .. import miscellaneous as misc
 from ..errors import PyOrganismError
@@ -210,7 +214,7 @@ class BasicCompartment(UniqueBase):
         elif isinstance(element, BasicReaction):
             return all(cmpd in self for cmpd in element.compounds_iter())
         else:
-            raise PyOrganismError(u"unrecognised metabolic component '{0}'",
+            raise PyOrganismError("unrecognised metabolic component '{0}'",
                     element)
 
     def __len__(self):

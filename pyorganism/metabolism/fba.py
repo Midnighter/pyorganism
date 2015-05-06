@@ -1,5 +1,7 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
+
+from __future__ import (absolute_import, unicode_literals)
 
 
 """
@@ -24,7 +26,7 @@ Flux Balance Analysis Model
 __all__ = ["FBAModel"]
 
 
-# import numpy as np
+from future.utils import (python_2_unicode_compatible, with_metaclass)
 
 from .lpmodels import MetaLPModelFacade
 
@@ -51,11 +53,11 @@ from .lpmodels import MetaLPModelFacade
 #        "cbl1_b"]
 
 
-class FBAModel(object):
+@python_2_unicode_compatible
+class FBAModel(with_metaclass(MetaLPModelFacade, object)):
     """
     """
 
-    __metaclass__ = MetaLPModelFacade
     _error = NotImplementedError("method not available for the chosen solver")
 
     def __copy__(self):

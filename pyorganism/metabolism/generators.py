@@ -1,5 +1,7 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
+
+from __future__ import (absolute_import, unicode_literals, division)
 
 
 """
@@ -22,6 +24,8 @@ Metabolic Network Generators
 __all__ = ["random_p_mn", "random_scale_free_mn", "random_normal_scale_free"]
 
 import logging
+
+from builtins import (str, range)
 import numpy as np
 import numpy.random as npr
 
@@ -327,7 +331,7 @@ def random_normal_scale_free(num_compounds, num_reactions, num_reversible,
         raise PyOrganismError("please choose arguments that avoid"\
                 " ZeroDivisionError")
     num_trials = int(round(np.power(reaction_mean, 2) / diff))
-    prob = diff / float(reaction_mean)
+    prob = diff / reaction_mean
     compound_exponent = float(compound_exponent)
     #norm_std = int(norm_std)
     options = misc.OptionsManager.get_instance()

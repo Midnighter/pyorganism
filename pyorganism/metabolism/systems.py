@@ -1,5 +1,7 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
+
+from __future__ import (absolute_import, unicode_literals)
 
 
 """
@@ -23,7 +25,9 @@ __all__ = ["MetabolicSystem", "read_metabolic_model", "generate_fba_model"]
 
 
 import logging
-#import numpy as np
+
+from builtins import str
+from future.utils import python_2_unicode_compatible
 
 from .. import miscellaneous as misc
 from ..errors import PyOrganismError
@@ -41,6 +45,7 @@ PARSERS = {".xml": SBMLParser,
         ".sbml": SBMLParser}
 
 
+@python_2_unicode_compatible
 class MetabolicSystem(object):
     """
     Basically a container for reactions and compounds with some useful
@@ -65,7 +70,7 @@ class MetabolicSystem(object):
             added to the system.
         """
         super(MetabolicSystem, self).__init__(**kw_args)
-        self.name = name
+        self.name = str(name)
         self.compartments = misc.convert(compartments, set, set())
         self.reactions = misc.convert(reactions, set, set())
         self.compounds = misc.convert(compounds, set, set())
@@ -75,16 +80,13 @@ class MetabolicSystem(object):
         self._modified = True
 
     def __str__(self):
-        return str(self.name)
-
-    def __unicode(self):
-        return unicode(self.name)
+        return self.name
 
     def __eq__(self, other):
-        raise NotImplementedError
+        return NotImplemented
 
     def __ne__(self, other):
-        raise NotImplementedError
+        return NotImplemented
 
     def __contains__(self, element):
         if isinstance(element, pymet.BasicReaction):
@@ -199,105 +201,6 @@ class MetabolicSystem(object):
                 else:
                     members[cmpd] = factor
         self.compartments = set()
-
-# TODO: verification methods should be part of FBAModel
-#    def _setup_transpose(self):
-#        """
-#        Sets up a linear programming model where the transpose of the
-#        stoichiometric matrix is right multiplied a vector of compound masses
-#        and the system is expected to conform with mass conservation laws.
-#        """
-#        from .fba import FBAModel
-#        if self._transpose and not self._modified:
-#            return
-#        self._transpose = FBAModel("transpose")
-#        # add missing reversible attribute
-#        for cmpd in self.compounds:
-#            cmpd.reversible = False
-#        # first add all compound masses as variables to the model
-#        self._transpose.add_reaction(self.compounds, lb=1.0, ub=np.inf)
-#        # constrain mass by stoichiometric coefficients
-#        for rxn in self.reactions:
-#            self._transpose.add_compound(rxn, list(rxn.compounds_iter(True)))
-##            LOGGER.debug(list(self._transpose.iter_reactions(rxn, True)))
-#        # objective is over all compound masses
-#        self._transpose.set_objective_reaction(self.compounds, 1.0)
-#
-#    def verify_consistency(self, masses=False):
-#        """
-#        Verify the stoichiometric consistency of the system.
-#
-#        Parameters
-#        ----------
-#        masses: bool (optional)
-#            If the system is consistent the minimal masses of the compounds
-#            should be returned.
-#
-#        Returns
-#        -------
-#        bool:
-#            Consistent metabolic system returns True, otherwise False.
-#        dict:
-#            Optional dictionary mapping compounds to minimal masses.
-#
-#        References
-#        ----------
-#        1. A. Gevorgyan, M. G Poolman, and D. A Fell, "Detection of stoichiometric
-#           inconsistencies in biomolecular models,"
-#           Bioinformatics 24, no. 19 (2008): 2245.
-#        """
-#        self._setup_transpose()
-#        self._transpose.fba(maximize=False)
-#        try:
-#            weights = dict(self._transpose.iter_flux())
-#            result = all(mass > 0.0 for mass in weights.itervalues())
-#        except PyOrganismError:
-#            LOGGER.debug(u"pssst:", exc_info=True)
-#            weights = dict()
-#            result = False
-#        if masses:
-#            return (result, weights)
-#        else:
-#            return result
-#
-#    def detect_unconserved_metabolites(self):
-#        """
-#        Find those metabolites that violate the consistency of the metabolic
-#        system.
-#
-#        Returns
-#        -------
-#        list:
-#            Conserved compounds in the inconsistent system.
-#        list:
-#            Unconserved compounds in the inconsistent system.
-#
-#        Notes
-#        -----
-#        Before using this method make sure to verify the consistency of the
-#        system as this method will give wrong results for a consistent system.
-#
-#        References
-#        ----------
-#        1. A. Gevorgyan, M. G Poolman, and D. A Fell, "Detection of stoichiometric
-#           inconsistencies in biomolecular models,"
-#           Bioinformatics 24, no. 19 (2008): 2245.
-#        """
-#        self._setup_transpose()
-#        # objective is to maximize all compound masses while they're binary
-#        self._transpose.make_binary(self.compounds)
-#        self._transpose.optimize(maximize=True)
-#        # sort compounds by positive or zero mass
-#        consistent = list()
-#        inconsistent = list()
-#        for (cmpd, value) in self._transpose.iter_flux():
-#            if value > 0.0:
-#                consistent.append(cmpd)
-#            else:
-#                inconsistent.append(cmpd)
-#            LOGGER.debug("%s: %f", cmpd, value)
-#        return (consistent, inconsistent)
-
 
     def generate_network(self, disjoint_reversible=False,
             stoichiometric_coefficients=False):

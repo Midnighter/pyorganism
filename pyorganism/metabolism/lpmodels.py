@@ -1,5 +1,7 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
+
+from __future__ import (absolute_import, unicode_literals)
 
 
 """
@@ -21,10 +23,11 @@ LP Solver Interfaces
 
 
 import os
-import itertools
-#import copy
 import logging
 import tempfile
+from itertools import (repeat, chain)
+
+from builtins import (str, range, zip)
 
 from .. import miscellaneous as misc
 from ..errors import PyOrganismError
@@ -192,13 +195,13 @@ def _grb_add_compound(self, compound, coefficients=None):
     if hasattr(compound, "__iter__"):
     # we really add multiple compounds
         if hasattr(coefficients, "__iter__"):
-            coefficients = itertools.repeat(coefficients)
+            coefficients = repeat(coefficients)
         changes = [self._add_compound(cmpd) for cmpd in compound]
         if any(changes):
             self._model.update()
         if coefficients is None:
             return
-        for (cmpd, coeff_iter) in itertools.izip(compound, coefficients):
+        for (cmpd, coeff_iter) in zip(compound, coefficients):
             if self._model.getRow(self._cmpd2cnstrnt[cmpd]).size() > 0:
                 # compound participates in existing reactions thus was added before
                 continue
@@ -225,8 +228,8 @@ def _grb_iter_compounds(self, reaction=None, coefficients=False):
 def _grb_modify_compound_coefficients(self, compound, coefficients):
     if hasattr(compound, "__iter__"):
         if hasattr(coefficients, "__iter__"):
-            coefficients = itertools.repeat(coefficients)
-        for (cmpd, coeff_iter) in itertools.izip(compound, coefficients):
+            coefficients = repeat(coefficients)
+        for (cmpd, coeff_iter) in zip(compound, coefficients):
             self._change_participation(cmpd, coeff_iter)
     else:
         self._change_participation(compound, coefficients)
@@ -343,13 +346,13 @@ def _grb_add_reaction(self, reaction, coefficients=None, lb=None, ub=None):
         if hasattr(lb, "__iter__"):
             lb_iter = lb
         else:
-            lb_iter = itertools.repeat(lb)
+            lb_iter = repeat(lb)
         if hasattr(ub, "__iter__"):
             ub_iter = ub
         else:
-            ub_iter = itertools.repeat(ub)
+            ub_iter = repeat(ub)
         changes = [self._add_reaction(rxn, lb, ub) for (rxn, lb, ub)\
-                in itertools.izip(reaction, lb_iter, ub_iter)]
+                in zip(reaction, lb_iter, ub_iter)]
         if any(changes):
             self._model.update()
         if coefficients is None:
@@ -357,8 +360,8 @@ def _grb_add_reaction(self, reaction, coefficients=None, lb=None, ub=None):
         # need to find out if we are dealing with a nested list or not
         if not (isinstance(coefficients, list) and isinstance(coefficients[0],
                 list)):
-            coefficients = itertools.repeat(coefficients)
-        for (rxn, coeff_iter) in itertools.izip(reaction, coefficients):
+            coefficients = repeat(coefficients)
+        for (rxn, coeff_iter) in zip(reaction, coefficients):
             changes = [self._add_compound(pair[0]) for pair in coeff_iter]
             if any(changes):
                 self._model.update()
@@ -392,8 +395,8 @@ def _grb_modify_reaction_coefficients(self, reaction, coefficients):
     # we allow for lazy updating of the model here (better not be a bug)
     if hasattr(reaction, "__iter__"):
         if not hasattr(coefficients, "__iter__"):
-            coefficients = itertools.repeat(coefficients)
-        for (rxn, coeff_iter) in itertools.izip(reaction, coefficients):
+            coefficients = repeat(coefficients)
+        for (rxn, coeff_iter) in zip(reaction, coefficients):
             self._change_coefficients(rxn, coeff_iter)
     else:
         self._change_coefficients(reaction, coefficients)
@@ -439,9 +442,9 @@ def _grb_modify_reaction_bounds(self, reaction, lb=None, ub=None):
     # we allow for lazy updating of the model here (better not be a bug)
     if hasattr(reaction, "__iter__"):
         # we really modify multiple reactions
-        lb_iter = lb if hasattr(lb, "__iter__") else itertools.repeat(lb)
-        ub_iter = ub if hasattr(ub, "__iter__") else itertools.repeat(ub)
-        for (rxn, lb, ub) in itertools.izip(reaction, lb_iter, ub_iter):
+        lb_iter = lb if hasattr(lb, "__iter__") else repeat(lb)
+        ub_iter = ub if hasattr(ub, "__iter__") else repeat(ub)
+        for (rxn, lb, ub) in zip(reaction, lb_iter, ub_iter):
             self._adjust_bounds(rxn, lb, ub)
     else:
         self._adjust_bounds(reaction, lb, ub)
@@ -533,13 +536,13 @@ def _grb_add_source(self, compound, lb=None, ub=None):
         if hasattr(lb, "__iter__"):
             lb_iter = lb
         else:
-            lb_iter = itertools.repeat(lb)
+            lb_iter = repeat(lb)
         if hasattr(ub, "__iter__"):
             ub_iter = ub
         else:
-            ub_iter = itertools.repeat(ub)
+            ub_iter = repeat(ub)
         changes = [self._add_source(cmpd, lb, ub) for (cmpd, lb, ub)\
-                in itertools.izip(compound, lb_iter, ub_iter)]
+                in zip(compound, lb_iter, ub_iter)]
         if any(changes):
             self._model.update()
         # we allow for lazy updating of the model here (better not be a bug)
@@ -571,10 +574,10 @@ def _grb_modify_source_bounds(self, source, lb=None, ub=None):
     if hasattr(source, "__iter__"):
         # we really modify multiple reactions
         if not hasattr(lb, "__iter__"):
-            lb_iter = itertools.repeat(lb)
+            lb_iter = repeat(lb)
         if not hasattr(ub, "__iter__"):
-            ub_iter = itertools.repeat(ub)
-        for (src, lb, ub) in itertools.izip(source, lb_iter, ub_iter):
+            ub_iter = repeat(ub)
+        for (src, lb, ub) in zip(source, lb_iter, ub_iter):
             self._adjust_transport_bounds(self._sources[src], lb, ub)
     else:
         self._adjust_transport_bounds(self._sources[source], lb, ub)
@@ -608,13 +611,13 @@ def _grb_add_drain(self, compound, lb=None, ub=None):
         if hasattr(lb, "__iter__"):
             lb_iter = lb
         else:
-            lb_iter = itertools.repeat(lb)
+            lb_iter = repeat(lb)
         if hasattr(ub, "__iter__"):
             ub_iter = ub
         else:
-            ub_iter = itertools.repeat(ub)
+            ub_iter = repeat(ub)
         changes = [self._add_drain(cmpd, lb, ub) for (cmpd, lb, ub)\
-                in itertools.izip(compound, lb_iter, ub_iter)]
+                in zip(compound, lb_iter, ub_iter)]
         if any(changes):
             self._model.update()
         # we allow for lazy updating of the model here (better not be a bug)
@@ -635,10 +638,10 @@ def _grb_modify_drain_bounds(self, drain, lb=None, ub=None):
     if hasattr(drain, "__iter__"):
         # we really modify multiple reactions
         if not hasattr(lb, "__iter__"):
-            lb_iter = itertools.repeat(lb)
+            lb_iter = repeat(lb)
         if not hasattr(ub, "__iter__"):
-            ub_iter = itertools.repeat(ub)
-        for (drn, lb, ub) in itertools.izip(drain, lb_iter, ub_iter):
+            ub_iter = repeat(ub)
+        for (drn, lb, ub) in zip(drain, lb_iter, ub_iter):
             self._adjust_transport_bounds(self._drains[drn], lb, ub)
     else:
         self._adjust_transport_bounds(self._drains[drain], lb, ub)
@@ -662,8 +665,8 @@ def _grb_set_objective_reaction(self, reaction, factor):
         if hasattr(factor, "__iter__"):
             fctr_iter = factor
         else:
-            fctr_iter = itertools.repeat(factor)
-        for (rxn, factor) in itertools.izip(reaction, fctr_iter):
+            fctr_iter = repeat(factor)
+        for (rxn, factor) in zip(reaction, fctr_iter):
             self._objective[rxn] = factor
     else:
         self._objective[reaction] = factor
@@ -693,12 +696,12 @@ def _grb_set_medium(self, compound, lb=None, ub=None):
         if hasattr(lb, "__iter__"):
             lb_iter = lb
         else:
-            lb_iter = itertools.repeat(lb)
+            lb_iter = repeat(lb)
         if hasattr(ub, "__iter__"):
             ub_iter = ub
         else:
-            ub_iter = itertools.repeat(ub)
-        for (cmpd, lb, ub) in itertools.izip(compound, lb_iter, ub_iter):
+            ub_iter = repeat(ub)
+        for (cmpd, lb, ub) in zip(compound, lb_iter, ub_iter):
             var = self._sources[cmpd]
             var.lb = lb
             var.ub = ub
@@ -758,7 +761,7 @@ def _grb_parsimonious_fba(self):
         var.lb = var.x
     # now minimize all other variables
     minimize = list()
-    for var in itertools.chain(self._rxn2var.itervalues(),
+    for var in chain(self._rxn2var.itervalues(),
             self._rev2var.itervalues()):
         if not var in objective:
             minimize.append((1.0, var))
