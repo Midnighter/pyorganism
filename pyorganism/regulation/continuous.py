@@ -25,7 +25,7 @@ import warnings
 
 import numpy as np
 
-from . import _continuous as con
+from . import continuous_wrapper as con
 from .elements import (Gene, Regulator, TranscriptionUnit, Operon)
 from .shuffling import timeline_sample
 from .. import miscellaneous as misc

@@ -1,5 +1,5 @@
 ipython[zmq]
 networkx
 numpy
+Cython
 pandas
-fuzzywuzzy

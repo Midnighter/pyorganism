@@ -14,7 +14,7 @@
 #:Copyright:
 #    Copyright |c| 2014, Jacobs University Bremen gGmbH, all rights reserved.
 #:File:
-#    _continuous.pyx
+#    continuous_wrapper.pyx
 #
 #.. |c| unicode:: U+A9
 #"""
