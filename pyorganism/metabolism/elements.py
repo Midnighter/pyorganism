@@ -27,10 +27,10 @@ __all__ = ["BasicCompound", "BasicReaction", "BasicCompartment",
 
 
 import logging
-import itertools
 import re
+from itertools import chain
 
-from builtins import str
+from builtins import (str, dict)
 
 from .. import miscellaneous as misc
 from ..errors import PyOrganismError
@@ -124,13 +124,12 @@ class BasicReaction(UniqueBase):
         """
         if coefficients:
             educts_iter = ((cmpd, -factor) for (cmpd, factor) in
-                    self.substrates.iteritems())
+                    self.substrates.items())
             products_iter = ((cmpd, factor) for (cmpd, factor) in
-                    self.products.iteritems())
-            return itertools.chain(educts_iter, products_iter)
+                    self.products.items())
+            return chain(educts_iter, products_iter)
         else:
-            return itertools.chain(self.substrates.iterkeys(),
-                    self.products.iterkeys())
+            return chain(self.substrates.keys(), self.products.keys())
 
     def stoichiometric_coefficient(self, compound):
         """
@@ -480,16 +479,16 @@ class SBMLReaction(BasicReaction):
         if all(cmpd.mass for cmpd in self.substrates.keys() +
                 self.products.keys()):
             assert sum(cmpd.mass * coeff for (cmpd, coeff) in
-                    self.substrates.iteritems()) == sum(cmpd.mass * coeff
-                    for (cmpd, coeff) in self.products.iteritems()),\
+                    self.substrates.items()) == sum(cmpd.mass * coeff
+                    for (cmpd, coeff) in self.products.items()),\
                     "There is a mass imbalance in reaction '{0}'".format(\
                     self.unique_id)
         # charge balancing
         if all(cmpd.charge for cmpd in self.substrates.keys() +
                 self.products.keys()):
             assert sum(cmpd.charge * coeff for (cmpd, coeff) in
-                    self.substrates.iteritems()) == sum(cmpd.charge * coeff
-                    for (cmpd, coeff) in self.products.iteritems()),\
+                    self.substrates.items()) == sum(cmpd.charge * coeff
+                    for (cmpd, coeff) in self.products.items()),\
                     "There is a charge imbalance in reaction '{0}'".format(\
                     self.unique_id)
 

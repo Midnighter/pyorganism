@@ -30,7 +30,7 @@ import warnings
 import os
 import logging
 
-from builtins import range
+from builtins import (range, dict)
 
 from .. import miscellaneous as misc
 from ..metabolism import elements as pyel
@@ -111,7 +111,7 @@ class SBMLParser(object):
         self.reaction_ids = dict()
         self.exchange = pyel.SBMLCompartment(unique_id="EX", name="Exchange",
                 suffix=OPTIONS.exchange_suffix)
-        self._known_suffices = set(OPTIONS.compartment_suffixes.itervalues())
+        self._known_suffices = set(OPTIONS.compartment_suffixes.values())
         self._model = self.document.getModel()
         for compartment in self._model.getListOfCompartments():
             self._parse_compartment(compartment)
@@ -212,7 +212,7 @@ class SBMLParser(object):
             identifier = identifier[:-len(compartment.suffix)]
             slurped = True
         elif compartment is None:
-            for (unique, suffix) in OPTIONS.compartment_suffixes.iteritems():
+            for (unique, suffix) in OPTIONS.compartment_suffixes.items():
                 if identifier.endswith(suffix):
                     identifier = identifier[:-len(suffix)]
                     compartment = self.compartment_ids[unique]

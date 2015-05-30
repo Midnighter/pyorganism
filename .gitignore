@@ -1,0 +1,4 @@
+*.py[oc]
+build
+dist
+pyorganism.egg-info

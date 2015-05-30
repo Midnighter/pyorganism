@@ -39,7 +39,7 @@ if __name__ == "__main__":
 
     setup(
         name="pyorganism",
-        version="0.2.1",
+        version="0.2.2",
         license="BSD",
         description="analyze organisational principles in living organisms",
         author="Moritz Emanuel Beber",

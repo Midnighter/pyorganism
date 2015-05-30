@@ -29,7 +29,7 @@ import logging
 from itertools import product
 from operator import (itemgetter, attrgetter)
 from datetime import date
-from builtins import (zip, range)
+from builtins import (zip, range, dict)
 
 import numpy as np
 import networkx as nx
@@ -331,7 +331,7 @@ class GPNGenerator(object):
         proximity_threshold = int(proximity_threshold)
         length = self.distances.shape[0]
         gpn = nx.Graph(name=name, window=proximity_threshold, **kw_args)
-        gpn.add_nodes_from(self.i2name.itervalues())
+        gpn.add_nodes_from(self.i2name.values())
         valid = self.distances > -1
         for i in range(length - 1):
             for j in range(i + 1, length):

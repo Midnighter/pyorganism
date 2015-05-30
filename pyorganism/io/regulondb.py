@@ -22,9 +22,9 @@ RegulonDB Parsing and Web Services
 
 import logging
 import re
-import itertools
 
 import numpy as np
+from builtins import (zip, dict)
 
 from operator import attrgetter
 from lxml import etree
@@ -704,7 +704,7 @@ def read_tf_gene_network(filename, name2tf, name2gene, sep="\t",
 #    name2sigma = dict()
 #    for name in sigma_names:
 #        name2sigma[name] = find_element(name, sigma_factors)
-#    for (name, tar) in name2sigma.iteritems():
+#    for (name, tar) in name2sigma.items():
 #        if tar is None:
 #            LOGGER.warn("sigma factor '{0}' not found".format(name))
 #    # map gene names to objects
@@ -712,7 +712,7 @@ def read_tf_gene_network(filename, name2tf, name2gene, sep="\t",
 #    name2gene = dict()
 #    for name in gene_names:
 #        name2gene[name] = find_element(name, genes)
-#    for (name, tar) in name2gene.iteritems():
+#    for (name, tar) in name2gene.items():
 #        if tar is None:
 #            LOGGER.warn("gene '{0}' not found".format(name))
 #    # now apply the maps to the interactions
@@ -838,7 +838,7 @@ def draw_relationships(file_contents, emph=list(), ignore=["key_id_org"],
                 " greater than the number of colours available ({1:d})",
                 len(emph), len(misc.BREWER_SET1))
     pgv = misc.load_module("pygraphviz")
-    colour_choice = dict(itertools.izip(emph, misc.BREWER_SET1))
+    colour_choice = dict(zip(emph, misc.BREWER_SET1))
     graph = pgv.AGraph(name="RegulonDB File-Relationships", strict=True,
             directed=False, rankdir="TB")
     graph.graph_attr["labelloc"] = "t"
@@ -849,7 +849,7 @@ def draw_relationships(file_contents, emph=list(), ignore=["key_id_org"],
     graph.graph_attr["ratio"] = "compress"
     graph.node_attr["shape"] = "none"
     graph.node_attr["fontsize"] = font_size
-    for (name, attrs) in file_contents.iteritems():
+    for (name, attrs) in file_contents.items():
         label = ["<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\""\
                 " CELLPADDING=\"4\">"]
         label.append("<TR><TD BGCOLOR=\"#A4A4A4\"><B>{0}</B></TD></TR>".format(name))

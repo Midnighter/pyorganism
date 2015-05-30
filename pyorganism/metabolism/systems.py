@@ -26,7 +26,7 @@ __all__ = ["MetabolicSystem", "read_metabolic_model", "generate_fba_model"]
 
 import logging
 
-from builtins import str
+from builtins import (str, dict)
 from future.utils import python_2_unicode_compatible
 
 from .. import miscellaneous as misc
@@ -188,14 +188,14 @@ class MetabolicSystem(object):
     def decompartmentalize(self):
         for rxn in self.reactions:
             members = dict()
-            for (cmpd, factor) in rxn.substrates.iteritems():
+            for (cmpd, factor) in rxn.substrates.items():
                 if isinstance(cmpd, pymet.BasicCompartmentCompound):
                     members[cmpd.compound] = factor
                 else:
                     members[cmpd] = factor
             rxn.substrates = members
             members = dict()
-            for (cmpd, factor) in rxn.products.iteritems():
+            for (cmpd, factor) in rxn.products.items():
                 if isinstance(cmpd, pymet.BasicCompartmentCompound):
                     members[cmpd.compound] = factor
                 else:

@@ -30,7 +30,7 @@ import networkx as nx
 from itertools import count
 from collections import defaultdict
 
-from builtins import (str, zip)
+from builtins import (str, zip, dict)
 
 from ..errors import PyOrganismError
 from .. import miscellaneous as misc
@@ -278,7 +278,7 @@ class MetabolicNetwork(nx.DiGraph):
             pruned.add_node(cmpd)
         for rxn in self.reactions:
             pruned.add_node(rxn)
-        for (rxn, rpairs) in connections.iteritems():
+        for (rxn, rpairs) in connections.items():
             for (u, v) in rpairs:
                 pruned.add_edge(u, rxn, **self.edge[u][rxn].copy())
                 pruned.add_edge(rxn, v, **self.edge[rxn][v].copy())
@@ -291,7 +291,7 @@ class MetabolicNetwork(nx.DiGraph):
         for rxn in self.reactions:
             # substrates as reaction attribute
             members = dict()
-            for (cmpd, factor) in rxn.substrates.iteritems():
+            for (cmpd, factor) in rxn.substrates.items():
                 if isinstance(cmpd, pymet.BasicCompartmentCompound):
                     members[cmpd.compound] = factor
                 else:
@@ -305,7 +305,7 @@ class MetabolicNetwork(nx.DiGraph):
                     net.add_edge(cmpd, rxn, **self.edge[cmpd][rxn].copy())
             # products as reaction attribute
             members = dict()
-            for (cmpd, factor) in rxn.products.iteritems():
+            for (cmpd, factor) in rxn.products.items():
                 if isinstance(cmpd, pymet.BasicCompartmentCompound):
                     members[cmpd.compound] = factor
                 else:
@@ -363,7 +363,7 @@ class MetabolicNetwork(nx.DiGraph):
             network.add_node(cmpd)
         # if available, we only add reactant pairs to the network
         if self.rpairs:
-            for (rxn, rpairs) in self.rpairs.iteritems():
+            for (rxn, rpairs) in self.rpairs.items():
                 if bidirectional and rxn.reversible:
                     # add a bidirectional link
                     add_link = add_bi
@@ -397,7 +397,7 @@ class MetabolicNetwork(nx.DiGraph):
         for rxn in self.reactions:
             network.add_node(rxn)
         if self.rpairs:
-            for (rxn, rpairs) in self.rpairs.iteritems():
+            for (rxn, rpairs) in self.rpairs.items():
                 for (u, v) in rpairs:
         # check whether u is in a reactant pair of a preceeding reaction
                     for src_rxn in self.predecessors_iter(u):
@@ -472,7 +472,7 @@ class MetabolicNetwork(nx.DiGraph):
         link_attr= dict()
         # add compound nodes
         indeces = dict(zip(self.compounds, count()))
-        for (cmpd, i) in indeces.iteritems():
+        for (cmpd, i) in indeces.items():
             net.add_node(i, label=str(cmpd), shape="ellipse", **node_attr)
         # add reactions
         indeces.update(zip(self.reactions, count(len(self.compounds))))

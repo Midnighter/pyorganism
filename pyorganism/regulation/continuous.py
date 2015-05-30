@@ -24,6 +24,7 @@ import logging
 import warnings
 
 import numpy as np
+from builtins import dict
 
 from . import continuous_wrapper as con
 from .elements import (Gene, Regulator, TranscriptionUnit, Operon)
@@ -201,7 +202,7 @@ def form_series(net, df, feature2node, node2feature=None, nodes=None):
     Convert a pandas DataFrame to an expression matrix.
     """
     if node2feature is None:
-        node2feature = {val: key for (key, val) in feature2node.iteritems()}
+        node2feature = {val: key for (key, val) in feature2node.items()}
     if nodes is None:
         nodes = sorted(net.nodes_iter())
     data = dict()

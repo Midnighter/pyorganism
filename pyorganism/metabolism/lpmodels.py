@@ -27,7 +27,7 @@ import logging
 import tempfile
 from itertools import (repeat, chain)
 
-from builtins import (str, range, zip)
+from builtins import (str, range, zip, dict)
 
 from .. import miscellaneous as misc
 from ..errors import PyOrganismError
@@ -86,7 +86,7 @@ def _grb_populate(attrs):
 
     # set class attributes
     attrs["_grb"] = grb
-    for (key, value) in attrs.iteritems():
+    for (key, value) in attrs.items():
         if key.startswith("_"):
             continue
         try:
@@ -216,7 +216,7 @@ def _grb_add_compound(self, compound, coefficients=None):
 def _grb_iter_compounds(self, reaction=None, coefficients=False):
     # reports model data (may require update to be current)
     if reaction is None:
-        return self._cmpd2cnstrnt.iterkeys()
+        return self._cmpd2cnstrnt.keys()
     column = self._model.getCol(self._rxn2var[reaction])
     if coefficients:
         return ((self._cnstrnt2cmpd[column.getConstr(i)], column.getCoeff(i))\
@@ -382,7 +382,7 @@ def _grb_add_reaction(self, reaction, coefficients=None, lb=None, ub=None):
 def _grb_iter_reactions(self, compound=None, coefficients=False):
     # reports model data (may require update to be current)
     if not compound:
-        return self._rxn2var.iterkeys()
+        return self._rxn2var.keys()
     lin_expr = self._model.getRow(self._cmpd2cnstrnt[compound])
     if coefficients:
         return ((self._var2reaction(lin_expr.getVar(i)), lin_expr.getCoeff(i))\
@@ -463,7 +463,7 @@ def _grb_iter_reaction_bounds(self, reaction=None):
     # reports model data (may require update to be current)
     # we rely on reversible reactions being treated in unison
     if reaction is None:
-        reaction = self._rxn2var.iterkeys()
+        reaction = self._rxn2var.keys()
         return ((rxn, self._bounds(rxn)) for rxn in reaction)
     elif hasattr(reaction, "__iter__"):
         # we really get multiple reactions
@@ -483,7 +483,7 @@ def _grb_is_fixed(self, reaction=None):
     # updating is the only way currently to return newly added information
     self._model.update()
     if reaction is None:
-        reaction = self._rxn2var.iterkeys()
+        reaction = self._rxn2var.keys()
         return all(self._fixed(rxn) for rxn in reaction)
     elif hasattr(reaction, "__iter__"):
         # we really get multiple reactions
@@ -556,7 +556,7 @@ def _grb_add_source(self, compound, lb=None, ub=None):
             self._add_transport(compound, var, 1.0)
 
 def _grb_iter_sources(self):
-    return self._sources.iterkeys()
+    return self._sources.keys()
 
 def _grb__adjust_transport_bounds(self, compound, var, lb, ub):
     numeric_ub = not ub is None
@@ -631,7 +631,7 @@ def _grb_add_drain(self, compound, lb=None, ub=None):
             self._add_transport(compound, var, -1.0)
 
 def _grb_iter_drains(self):
-    return self._drains.iterkeys()
+    return self._drains.keys()
 
 def _grb_modify_drain_bounds(self, drain, lb=None, ub=None):
     # we allow for lazy updating of the model here (better not be a bug)
@@ -677,9 +677,9 @@ def _grb__var2reaction(self, var):
 
 def _grb_iter_objective_reaction(self, coefficients=False):
     if coefficients:
-        return self._objective.iteritems()
+        return self._objective.items()
     else:
-        return self._objective.iterkeys()
+        return self._objective.keys()
 
 def _grb_set_medium(self, compound, lb=None, ub=None):
     # we allow for lazy updating of the model here (better not be a bug)
@@ -688,7 +688,7 @@ def _grb_set_medium(self, compound, lb=None, ub=None):
     if ub is None:
         ub = OPTIONS.upper_bound
     # constrain all sources first
-    for source in self._sources.itervalues():
+    for source in self._sources.values():
         source.lb = 0.0
         source.ub = 0.0
     if hasattr(compound, "__iter__"):
@@ -712,7 +712,7 @@ def _grb_set_medium(self, compound, lb=None, ub=None):
 
 def _grb__reset_objective(self):
     objective = list()
-    for (rxn, factor) in self._objective.iteritems():
+    for (rxn, factor) in self._objective.items():
         var = self._rxn2var[rxn]
         var.lb = self._tmp_lb.get(var, var.lb)
         objective.append((factor, var))
@@ -729,7 +729,7 @@ def _grb__changed_objective(self):
     lin_expr = self._model.getObjective()
     current = set([lin_expr.getVar(i) for i in range(lin_expr.size())])
     objective = set()
-    for rxn in self._objective.iterkeys():
+    for rxn in self._objective.keys():
         var = self._rxn2var[rxn]
         objective.add(var)
         if rxn.reversible:
@@ -761,8 +761,8 @@ def _grb_parsimonious_fba(self):
         var.lb = var.x
     # now minimize all other variables
     minimize = list()
-    for var in chain(self._rxn2var.itervalues(),
-            self._rev2var.itervalues()):
+    for var in chain(self._rxn2var.values(),
+            self._rev2var.values()):
         if not var in objective:
             minimize.append((1.0, var))
     if minimize:
@@ -810,7 +810,7 @@ def _grb_get_objective_value(self, threshold=None):
     if threshold is None:
         threshold = OPTIONS.numeric_threshold
     return sum(self._flux(rxn, threshold) * factor for (rxn, factor)\
-            in self._objective.iteritems())
+            in self._objective.items())
 
 def _grb__flux(self, reaction, threshold):
     flux = self._rxn2var[reaction].x
@@ -825,7 +825,7 @@ def _grb_iter_flux(self, reaction=None, threshold=None):
         threshold = OPTIONS.numeric_threshold
     if reaction is None:
         return ((rxn, self._flux(rxn, threshold)) for rxn in\
-                self._rxn2var.iterkeys())
+                self._rxn2var.keys())
     elif hasattr(reaction, "__iter__"):
         return (self._flux(rxn, threshold) for rxn in reaction)
     else:
@@ -844,7 +844,7 @@ def _grb_iter_reduced_cost(self, reaction=None, threshold=None):
         threshold = OPTIONS.numeric_threshold
     if reaction is None:
         return ((rxn, self._reduced_cost(rxn, threshold)) for rxn in\
-                self._rxn2var.iterkeys())
+                self._rxn2var.keys())
     elif hasattr(reaction, "__iter__"):
         return (self._reduced_cost(rxn, threshold) for rxn in reaction)
     else:
@@ -854,9 +854,9 @@ def _grb_iter_shadow_price(self, compound=None):
     # _status should catch all problems (monitor this)
     self._status()
     if compound is None:
-        compound = self._rxn2var.iterkeys()
+        compound = self._rxn2var.keys()
         return ((cmpd, cnstrnt.pi) for (cmpd, cnstrnt) in\
-                self._cmpd2cnstrnt.iteritems())
+                self._cmpd2cnstrnt.items())
     elif hasattr(compound, "__iter__"):
         return (self._cmpd2cnstrnt[cmpd].pi for cmpd in compound)
     else:
@@ -881,7 +881,7 @@ def _cvx_populate(attrs):
 
     # set class attributes
     attrs["_cvx"] = cvxopt
-    for (key, value) in attrs.iteritems():
+    for (key, value) in attrs.items():
         if key.startswith("_"):
             continue
         try:
