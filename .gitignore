@@ -1,4 +1,6 @@
 *.py[oc]
+*~
+.*.swp
 build
 dist
 pyorganism.egg-info

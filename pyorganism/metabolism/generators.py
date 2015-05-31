@@ -27,17 +27,19 @@ import logging
 
 from builtins import (str, range)
 import numpy as np
-import numpy.random as npr
 
-from . import elements as pymet
-from . import networks as pynets
+from . import elements as met
+from .network import MetabolicNetwork
 from .. import miscellaneous as misc
-from ..errors import PyOrganismError
 
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(misc.NullHandler())
 
+OPTIONS = misc.OptionsManager.get_instance()
+
+
+#TODO: fix seed to use new numpy rng state
 
 def prune_network(network):
     """
@@ -49,7 +51,7 @@ def prune_network(network):
     network: MetabolicNetwork
         A MetabolicNetwork instance.
     """
-    rand_int = npr.random_integers
+    rand_int = np.random.random_integers
     num_rxns = len(network.reactions)
     num_cmpds = len(network.compounds)
     total = 0
@@ -133,30 +135,31 @@ def random_p_mn(num_compounds, num_reactions, num_reversible, p, seed=None):
     because isolated nodes are removed from the network.
     """
     # setup
-    rand_float = npr.random_sample
-    rand_int = npr.random_integers
+    rand_float = np.random.random_sample
+    rand_int = np.random.random_integers
+    cmpd_prefix = OPTIONS.compound_prefix
+    rxn_prefix = OPTIONS.reaction_prefix
     if seed:
-        npr.seed(int(seed))
+        np.random.seed(int(seed))
     num_compounds = int(num_compounds)
     num_reactions = int(num_reactions)
     num_reversible = int(num_reversible)
     p = float(p)
-    options = misc.OptionsManager.get_instance()
-    network = pynets.MetabolicNetwork()
+    network = MetabolicNetwork()
     # add compounds
     for i in range(num_compounds):
-        network.add_node(pymet.BasicCompound("%s%d" % (options.compound_prefix, i)))
+        network.add_node(met.BasicCompound("%s%d" % (cmpd_prefix, i)))
     # choose a number of reactions as reversible
     reversibles = set()
     while len(reversibles) < num_reversible:
         reversibles.add(rand_int(0, num_reactions - 1))
     for i in range(num_reactions):
         if i in reversibles:
-            network.add_node(pymet.BasicReaction(
-                    "%s%d" % (options.reaction_prefix, i), reversible=True))
+            network.add_node(met.BasicReaction(
+                    "%s%d" % (rxn_prefix, i), reversible=True))
         else:
-            network.add_node(pymet.BasicReaction(
-                "%s%d" % (options.reaction_prefix, i)))
+            network.add_node(met.BasicReaction(
+                "%s%d" % (rxn_prefix, i)))
     for src in network.compounds:
         for tar in network.reactions:
             if rand_float() < p:
@@ -192,21 +195,22 @@ def random_scale_free_mn(num_compounds, num_reactions, num_reversible,
         A specific seed for the random number generator for reproducible runs.
     """
     # setup
-    rand_int = npr.random_integers
-    rand_float = npr.random_sample
+    rand_int = np.random.random_integers
+    rand_float = np.random.random_sample
+    cmpd_prefix = OPTIONS.compound_prefix
+    rxn_prefix = OPTIONS.reaction_prefix
     if seed:
-        npr.seed(int(seed))
+        np.random.seed(int(seed))
     num_compounds = int(num_compounds)
     num_reactions = int(num_reactions)
     num_reversible = int(num_reversible)
     num_rxn_tar = int(num_rxn_tar)
     num_cmpd_tar = int(num_cmpd_tar)
-    options = misc.OptionsManager.get_instance()
-    network = pynets.MetabolicNetwork()
+    network = MetabolicNetwork()
     # target nodes for reactions
     rxn_targets = []
     for i in range(num_rxn_tar):
-        comp = pymet.BasicCompound("%s%d" % (options.compound_prefix, i))
+        comp = met.BasicCompound("%s%d" % (cmpd_prefix, i))
         network.add_node(comp)
         rxn_targets.append(comp)
     # target nodes for compounds
@@ -220,10 +224,10 @@ def random_scale_free_mn(num_compounds, num_reactions, num_reversible,
         reversibles.add(rand_int(0, num_reactions - 1))
     for i in range(num_cmpd_tar):
         if i in reversibles:
-            rxn = pymet.BasicReaction("%s%d" % (options.reaction_prefix, i),
+            rxn = met.BasicReaction("%s%d" % (rxn_prefix, i),
                     reversible=True)
         else:
-            rxn = pymet.BasicReaction("%s%d" % (options.reaction_prefix, i))
+            rxn = met.BasicReaction("%s%d" % (rxn_prefix, i))
         network.add_node(rxn)
         cmpd_targets.append(rxn)
         for cmpd in rxn_targets:
@@ -241,7 +245,7 @@ def random_scale_free_mn(num_compounds, num_reactions, num_reversible,
     current_cmpd = num_rxn_tar
     while (current_cmpd < num_compounds or current_rxn < num_reactions):
         if current_cmpd < num_compounds:
-            source = pymet.BasicCompound("%s%d" % (options.compound_prefix,
+            source = met.BasicCompound("%s%d" % (cmpd_prefix,
                     current_cmpd))
             network.add_node(source)
             for rxn in cmpd_targets:
@@ -260,10 +264,10 @@ def random_scale_free_mn(num_compounds, num_reactions, num_reversible,
             current_cmpd += 1
         if current_rxn < num_reactions:
             if current_rxn in reversibles:
-                source = pymet.BasicReaction("%s%d" % (options.reaction_prefix,
+                source = met.BasicReaction("%s%d" % (rxn_prefix,
                     current_rxn), reversible=True)
             else:
-                source = pymet.BasicReaction("%s%d" % (options.reaction_prefix,
+                source = met.BasicReaction("%s%d" % (rxn_prefix,
                     current_rxn))
             network.add_node(source)
             for cmpd in rxn_targets:
@@ -320,9 +324,11 @@ def random_normal_scale_free(num_compounds, num_reactions, num_reversible,
     deviation should be zero.
     """
     # setup
-    rand_float = npr.random_sample
+    rand_float = np.random.random_sample
+    cmpd_prefix = OPTIONS.compound_prefix
+    rxn_prefix = OPTIONS.reaction_prefix
     if seed:
-        npr.seed(int(seed))
+        np.random.seed(int(seed))
     num_compounds = int(num_compounds)
     num_reactions = int(num_reactions)
     num_reversible = int(num_reversible)
@@ -334,52 +340,57 @@ def random_normal_scale_free(num_compounds, num_reactions, num_reversible,
     prob = diff / reaction_mean
     compound_exponent = float(compound_exponent)
     #norm_std = int(norm_std)
-    options = misc.OptionsManager.get_instance()
-    network = pynets.MetabolicNetwork()
-    cmpd_distr = npr.zipf(compound_exponent, size=num_compounds)
-    cmpd_sum = sum(cmpd_distr)
-    rxn_distr = npr.binomial(num_trials, prob, size=num_reactions)
-    rxn_sum = sum(rxn_distr)
+    network = MetabolicNetwork()
+    distr_mets = np.random.zipf(pl_exponent_compounds, num_compounds)
+    distr_reacts = np.random.zipf(pl_exponent_reactions, num_reactions)
+    #distr_reacts = np.random.normal(sum(distr_mets) / num_reactions, norm_std, num_reactions)
     # make the sums of the 2 degree distributions equal
-    i = 0
-    samples = list()
-    while cmpd_sum != rxn_sum and i < 1000:
-#        LOGGER.debug("sum zipf = {0:d}, sum binomial = {1:d}".format(cmpd_sum,
-#                rxn_sum))
-        samples.append(cmpd_sum)
-        cmpd_distr = npr.zipf(compound_exponent, num_compounds)
-        cmpd_sum = sum(cmpd_distr)
-        i += 1
-    if sum(cmpd_distr) != sum(rxn_distr):
-        LOGGER.warn("failed to find degree distributions of equal sum")
-        return samples
+    distr_mets = np.asarray(distr_mets, dtype=int)
+    distr_reacts = np.asarray(distr_reacts, dtype=int)
+    if sum(distr_mets) > sum(distr_reacts):
+        deg_diff = sum(distr_mets) - sum(distr_reacts)
+        while not deg_diff == 0:
+            to_subtract_from = [n for n,i in enumerate(distr_mets) if i>2]
+            h = to_subtract_from[random.randint(0, len(to_subtract_from)-1)]
+            distr_mets[h] -= 1
+            deg_diff -= 1
+    elif sum(distr_mets) < sum(distr_reacts):
+        deg_diff = sum(distr_reacts) - sum(distr_mets)
+        while not deg_diff == 0:
+            h = random.randint(0, num_compounds-1)
+            distr_mets[h] += 1
+            deg_diff -= 1
+
     # add metabolite nodes + build lists of degree-repeated vertices
-    a_stubs = list()
+    stubs = []
     for i in range(num_compounds):
-        new_met = pymet.BasicCompound("%s%d" % (options.compound_prefix, i))
+        new_met = met.BasicCompound("%s%d" % (cmpd_prefix, i))
         network.add_node(new_met)
-        a_stubs.extend([new_met] * cmpd_distr[i])
+        stubs.extend([distr_mets[i]*[new_met]])
+    astubs = [x for subseq in stubs for x in subseq]
     # add reaction  nodes + build lists of degree-repeated vertices
-    b_stubs = list()
+    stubs = []
     for i in range(num_reversible):
-        new_react = pymet.BasicReaction("%s%d" % (options.reaction_prefix, i), reversible=True)
+        new_react = met.BasicReaction("%s%d" % (rxn_prefix, i),reversible=True)
         network.add_node(new_react)
-        b_stubs.extend([new_react] * rxn_distr[i])
+        stubs.extend([distr_reacts[i]*[new_react]])
     for i in range(num_reversible, num_reactions):
-        new_react = pymet.BasicReaction("%s%d" % (options.reaction_prefix, i))
+        new_react = met.BasicReaction("%s%d" % (rxn_prefix, i))
         network.add_node(new_react)
-        b_stubs.extend([new_react] * rxn_distr[i])
+        stubs.extend([distr_reacts[i]*[new_react]])
+    bstubs=[]
+    bstubs=[x for subseq in stubs for x in subseq]
     # shuffle lists
-    npr.shuffle(a_stubs)
-    npr.shuffle(b_stubs)
+    np.random.shuffle(astubs)
+    np.random.shuffle(bstubs)
     # add edges
-    for i in range(sum(cmpd_distr)):
-        u = a_stubs[i]
-        v = b_stubs[i]
+    for i in range(sum(distr_mets)):
         if rand_float() < 0.5:
-            network.add_edge(u, v, coefficient=0)
-            LOGGER.debug("added link %s -> %s", str(u), str(v))
+            network.add_edge(astubs[i], bstubs[i], coefficient=0)
+            LOGGER.debug("added link %s -> %s", str(astubs[i]), str(bstubs[i]))
         else:
+            network.add_edge(bstubs[i], astubs[i], coefficient=0)
+            LOGGER.debug("added link %s -> %s", str(bstubs[i]), str(astubs[i]))
             network.add_edge(u, v, coefficient=0)
             LOGGER.debug("added link %s -> %s", str(u), str(v))
     # clean up

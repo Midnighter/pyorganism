@@ -25,6 +25,7 @@ import warnings
 from .elements import *
 from .systems import *
 from .networks import *
+from .generators import *
 try:
     from .fba import *
     from .nullmodels import *
