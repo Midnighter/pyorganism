@@ -55,7 +55,7 @@ if __name__ == "__main__":
         packages=["pyorganism",
             "pyorganism.io",
             "pyorganism.metabolism",
-            "pyorganism.regulation"m ,
+            "pyorganism.regulation",
         ],
     #    package_data = {"pyorganism": ["data/*.xml", "data/*.txt", "data/*.tsv"]},
         ext_modules=[continuous],
