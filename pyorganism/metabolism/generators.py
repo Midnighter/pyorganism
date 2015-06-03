@@ -29,7 +29,7 @@ from builtins import (str, range)
 import numpy as np
 
 from . import elements as met
-from .network import MetabolicNetwork
+from .networks import MetabolicNetwork
 from .. import miscellaneous as misc
 
 
@@ -288,7 +288,7 @@ def random_scale_free_mn(num_compounds, num_reactions, num_reversible,
     return network
 
 def random_normal_scale_free(num_compounds, num_reactions, num_reversible,
-        compound_exponent, reaction_mean, reaction_sd, seed=None):
+        compound_exponent, reaction_mean, reaction_var, seed=None):
     """
     Creates a bipartite directed graph with a normal degree distribution for
     the reaction nodes and a scale free degree distribution for the
@@ -305,10 +305,10 @@ def random_normal_scale_free(num_compounds, num_reactions, num_reversible,
         The number of reactions that are reversible.
     compound_exponent: float
         The exponent of the compounds' power law degree distribution.
-    reaction_mean: int
+    reaction_mean: float
         The mean of the reactions' binomial degree distribution.
-    reaction_sd: float
-        The standard deviation of the reactions' binomial degree distribution.
+    reaction_var: float
+        The variance of the reactions' binomial degree distribution.
     seed: int (optional)
         A specific seed for the random number generator for reproducible runs.
 
@@ -324,6 +324,7 @@ def random_normal_scale_free(num_compounds, num_reactions, num_reversible,
     deviation should be zero.
     """
     # setup
+    rand_int = np.random.random_integers
     rand_float = np.random.random_sample
     cmpd_prefix = OPTIONS.compound_prefix
     rxn_prefix = OPTIONS.reaction_prefix
@@ -339,18 +340,15 @@ def random_normal_scale_free(num_compounds, num_reactions, num_reversible,
     num_trials = int(round(np.power(reaction_mean, 2) / diff))
     prob = diff / reaction_mean
     compound_exponent = float(compound_exponent)
-    #norm_std = int(norm_std)
-    network = MetabolicNetwork()
-    distr_mets = np.random.zipf(pl_exponent_compounds, num_compounds)
-    distr_reacts = np.random.zipf(pl_exponent_reactions, num_reactions)
-    #distr_reacts = np.random.normal(sum(distr_mets) / num_reactions, norm_std, num_reactions)
+    # TODO: this currently does not work
+    raise NotImplementedError
+    distr_mets = np.random.zipf(compound_exponent, num_compounds)
+    distr_reacts = np.random.binomial(num_trials, prob, num_reactions)
     # make the sums of the 2 degree distributions equal
-    distr_mets = np.asarray(distr_mets, dtype=int)
-    distr_reacts = np.asarray(distr_reacts, dtype=int)
     if sum(distr_mets) > sum(distr_reacts):
         deg_diff = sum(distr_mets) - sum(distr_reacts)
         while not deg_diff == 0:
-            to_subtract_from = [n for n,i in enumerate(distr_mets) if i>2]
+            to_subtract_from = [i for (i, k) in enumerate(distr_mets) if k > 2]
             h = to_subtract_from[random.randint(0, len(to_subtract_from)-1)]
             distr_mets[h] -= 1
             deg_diff -= 1
@@ -362,6 +360,7 @@ def random_normal_scale_free(num_compounds, num_reactions, num_reversible,
             deg_diff -= 1
 
     # add metabolite nodes + build lists of degree-repeated vertices
+    network = MetabolicNetwork()
     stubs = []
     for i in range(num_compounds):
         new_met = met.BasicCompound("%s%d" % (cmpd_prefix, i))

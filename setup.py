@@ -39,7 +39,7 @@ if __name__ == "__main__":
 
     setup(
         name="pyorganism",
-        version="0.2.3",
+        version="0.2.4",
         license="BSD",
         description="analyze organisational principles in living organisms",
         author="Moritz Emanuel Beber",
@@ -55,7 +55,7 @@ if __name__ == "__main__":
         packages=["pyorganism",
             "pyorganism.io",
             "pyorganism.metabolism",
-            "pyorganism.regulation",
+            "pyorganism.regulation"m ,
         ],
     #    package_data = {"pyorganism": ["data/*.xml", "data/*.txt", "data/*.tsv"]},
         ext_modules=[continuous],

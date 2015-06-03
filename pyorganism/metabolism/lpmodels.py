@@ -192,9 +192,9 @@ def _grb__change_participation(self, compound, coefficients):
             self._model.chgCoeff(cnstrnt, var, -factor)
 
 def _grb_add_compound(self, compound, coefficients=None):
-    if hasattr(compound, "__iter__"):
+    if hasattr(compound, "__iter__") and not isinstance(compound, str):
     # we really add multiple compounds
-        if hasattr(coefficients, "__iter__"):
+        if not hasattr(coefficients, "__iter__"):
             coefficients = repeat(coefficients)
         changes = [self._add_compound(cmpd) for cmpd in compound]
         if any(changes):
@@ -226,8 +226,8 @@ def _grb_iter_compounds(self, reaction=None, coefficients=False):
                 for i in range(column.size()))
 
 def _grb_modify_compound_coefficients(self, compound, coefficients):
-    if hasattr(compound, "__iter__"):
-        if hasattr(coefficients, "__iter__"):
+    if hasattr(compound, "__iter__") and not isinstance(compound, str):
+        if not hasattr(coefficients, "__iter__"):
             coefficients = repeat(coefficients)
         for (cmpd, coeff_iter) in zip(compound, coefficients):
             self._change_participation(cmpd, coeff_iter)
@@ -255,7 +255,7 @@ def _grb__del_compound(self, compound):
     self._model.remove(cnstrnt)
 
 def _grb_delete_compound(self, compound):
-    if hasattr(compound, "__iter__"):
+    if hasattr(compound, "__iter__") and not isinstance(compound, str):
         for cmpd in compound:
             self._del_compound(cmpd)
     else:
@@ -263,7 +263,7 @@ def _grb_delete_compound(self, compound):
     self._model.update()
 
 def _grb_make_binary(self, reaction):
-    if hasattr(reaction, "__iter__"):
+    if hasattr(reaction, "__iter__") and not isinstance(reaction, str):
         for rxn in reaction:
             var = self._rxn2var[rxn]
             var.vType = "B"
@@ -278,7 +278,7 @@ def _grb_make_binary(self, reaction):
             var.vType = "B"
 
 def _grb_make_integer(self, reaction):
-    if hasattr(reaction, "__iter__"):
+    if hasattr(reaction, "__iter__") and not isinstance(reaction, str):
         for rxn in reaction:
             var = self._rxn2var[rxn]
             var.vType = "I"
@@ -293,7 +293,7 @@ def _grb_make_integer(self, reaction):
             var.vType = "I"
 
 def _grb__add_reaction(self, reaction, lb, ub):
-    if self._rxn2var.has_key(reaction):
+    if reaction in self._rxn2var:
         return False
     lb = lb if not lb is None else OPTIONS.lower_bound
     ub = ub if not ub is None else OPTIONS.upper_bound
@@ -314,13 +314,15 @@ def _grb__add_reaction(self, reaction, lb, ub):
             var_rev = self._model.addVar(0.0, 0.0, name=str(reaction) +
                     OPTIONS.reversible_suffix)
             var = self._model.addVar(lb, ub, name=str(reaction))
-        self._rev2var[reaction] = var_rev
-        self._var2rev[var_rev] = reaction
+        self._model.update()
+        self._rev2var[var_rev] = var
+        self._var2rev[var] = var_rev
     else:
         if ub < 0.0 or lb < 0.0:
             raise PyOrganismError("trying to set a negative bound for an\
                     irreversible reaction '%s'.", str(reaction))
         var = self._model.addVar(lb, ub, name=str(reaction))
+        self._model.update()
     self._rxn2var[reaction] = var
     self._var2rxn[var] = reaction
     return True
@@ -341,7 +343,7 @@ def _grb_add_reaction(self, reaction, coefficients=None, lb=None, ub=None):
         lb = OPTIONS.lower_bound
     if ub is None:
         ub = OPTIONS.upper_bound
-    if hasattr(reaction, "__iter__"):
+    if hasattr(reaction, "__iter__") and not isinstance(reaction, str):
     # we really add multiple reactions
         if hasattr(lb, "__iter__"):
             lb_iter = lb
@@ -351,10 +353,8 @@ def _grb_add_reaction(self, reaction, coefficients=None, lb=None, ub=None):
             ub_iter = ub
         else:
             ub_iter = repeat(ub)
-        changes = [self._add_reaction(rxn, lb, ub) for (rxn, lb, ub)\
-                in zip(reaction, lb_iter, ub_iter)]
-        if any(changes):
-            self._model.update()
+        for (rxn, lb, ub) in zip(reaction, lb_iter, ub_iter):
+            self._add_reaction(rxn, lb, ub)
         if coefficients is None:
             return
         # need to find out if we are dealing with a nested list or not
@@ -393,7 +393,7 @@ def _grb_iter_reactions(self, compound=None, coefficients=False):
 
 def _grb_modify_reaction_coefficients(self, reaction, coefficients):
     # we allow for lazy updating of the model here (better not be a bug)
-    if hasattr(reaction, "__iter__"):
+    if hasattr(reaction, "__iter__") and not isinstance(reaction, str):
         if not hasattr(coefficients, "__iter__"):
             coefficients = repeat(coefficients)
         for (rxn, coeff_iter) in zip(reaction, coefficients):
@@ -440,7 +440,7 @@ def _grb__adjust_bounds(self, reaction, lb, ub):
 
 def _grb_modify_reaction_bounds(self, reaction, lb=None, ub=None):
     # we allow for lazy updating of the model here (better not be a bug)
-    if hasattr(reaction, "__iter__"):
+    if hasattr(reaction, "__iter__") and not isinstance(reaction, str):
         # we really modify multiple reactions
         lb_iter = lb if hasattr(lb, "__iter__") else repeat(lb)
         ub_iter = ub if hasattr(ub, "__iter__") else repeat(ub)
@@ -465,7 +465,7 @@ def _grb_iter_reaction_bounds(self, reaction=None):
     if reaction is None:
         reaction = self._rxn2var.keys()
         return ((rxn, self._bounds(rxn)) for rxn in reaction)
-    elif hasattr(reaction, "__iter__"):
+    elif hasattr(reaction, "__iter__") and not isinstance(reaction, str):
         # we really get multiple reactions
         return (self._bounds(rxn) for rxn in reaction)
     else:
@@ -485,7 +485,7 @@ def _grb_is_fixed(self, reaction=None):
     if reaction is None:
         reaction = self._rxn2var.keys()
         return all(self._fixed(rxn) for rxn in reaction)
-    elif hasattr(reaction, "__iter__"):
+    elif hasattr(reaction, "__iter__") and not isinstance(reaction, str):
         # we really get multiple reactions
         return all(self._fixed(rxn) for rxn in reaction)
     else:
@@ -505,7 +505,7 @@ def _grb__del_reaction(self, reaction):
         self._model.remove(var)
 
 def _grb_delete_reaction(self, reaction):
-    if hasattr(reaction, "__iter__"):
+    if hasattr(reaction, "__iter__") and not isinstance(reaction, str):
         for rxn in reaction:
             self._del_reaction(rxn)
     else:
@@ -531,7 +531,7 @@ def _grb_add_source(self, compound, lb=None, ub=None):
         lb = OPTIONS.lower_bound
     if ub is None:
         ub = OPTIONS.upper_bound
-    if hasattr(compound, "__iter__"):
+    if hasattr(compound, "__iter__") and not isinstance(compound, str):
     # we really add multiple compounds
         if hasattr(lb, "__iter__"):
             lb_iter = lb
@@ -571,7 +571,7 @@ def _grb__adjust_transport_bounds(self, compound, var, lb, ub):
 
 def _grb_modify_source_bounds(self, source, lb=None, ub=None):
     # we allow for lazy updating of the model here (better not be a bug)
-    if hasattr(source, "__iter__"):
+    if hasattr(source, "__iter__") and not isinstance(source, str):
         # we really modify multiple reactions
         if not hasattr(lb, "__iter__"):
             lb_iter = repeat(lb)
@@ -585,7 +585,7 @@ def _grb_modify_source_bounds(self, source, lb=None, ub=None):
     self._model.update()
 
 def _grb_delete_source(self, compound):
-    if hasattr(compound, "__iter__"):
+    if hasattr(compound, "__iter__") and not isinstance(compound, str):
         for cmpd in compound:
             var = self._sources.pop(cmpd)
             self._model.remove(var)
@@ -606,7 +606,7 @@ def _grb_add_drain(self, compound, lb=None, ub=None):
         lb = OPTIONS.lower_bound
     if ub is None:
         ub = OPTIONS.upper_bound
-    if hasattr(compound, "__iter__"):
+    if hasattr(compound, "__iter__") and not isinstance(compound, str):
     # we really add multiple compounds
         if hasattr(lb, "__iter__"):
             lb_iter = lb
@@ -635,7 +635,7 @@ def _grb_iter_drains(self):
 
 def _grb_modify_drain_bounds(self, drain, lb=None, ub=None):
     # we allow for lazy updating of the model here (better not be a bug)
-    if hasattr(drain, "__iter__"):
+    if hasattr(drain, "__iter__") and not isinstance(drain, str):
         # we really modify multiple reactions
         if not hasattr(lb, "__iter__"):
             lb_iter = repeat(lb)
@@ -649,7 +649,7 @@ def _grb_modify_drain_bounds(self, drain, lb=None, ub=None):
     self._model.update()
 
 def _grb_delete_drain(self, compound):
-    if hasattr(compound, "__iter__"):
+    if hasattr(compound, "__iter__") and not isinstance(compound, str):
         for cmpd in compound:
             var = self._drains.pop(cmpd)
             self._model.remove(var)
@@ -661,7 +661,7 @@ def _grb_delete_drain(self, compound):
 def _grb_set_objective_reaction(self, reaction, factor):
     # we allow for lazy updating of the model here (better not be a bug)
     self._objective = dict()
-    if hasattr(reaction, "__iter__"):
+    if hasattr(reaction, "__iter__") and not isinstance(reaction, str):
         if hasattr(factor, "__iter__"):
             fctr_iter = factor
         else:
@@ -691,7 +691,7 @@ def _grb_set_medium(self, compound, lb=None, ub=None):
     for source in self._sources.values():
         source.lb = 0.0
         source.ub = 0.0
-    if hasattr(compound, "__iter__"):
+    if hasattr(compound, "__iter__") and not isinstance(compound, str):
     # we really add multiple compounds
         if hasattr(lb, "__iter__"):
             lb_iter = lb
@@ -826,7 +826,7 @@ def _grb_iter_flux(self, reaction=None, threshold=None):
     if reaction is None:
         return ((rxn, self._flux(rxn, threshold)) for rxn in\
                 self._rxn2var.keys())
-    elif hasattr(reaction, "__iter__"):
+    elif hasattr(reaction, "__iter__") and not isinstance(reaction, str):
         return (self._flux(rxn, threshold) for rxn in reaction)
     else:
         return self._flux(reaction, threshold)
@@ -845,7 +845,7 @@ def _grb_iter_reduced_cost(self, reaction=None, threshold=None):
     if reaction is None:
         return ((rxn, self._reduced_cost(rxn, threshold)) for rxn in\
                 self._rxn2var.keys())
-    elif hasattr(reaction, "__iter__"):
+    elif hasattr(reaction, "__iter__") and not isinstance(reaction, str):
         return (self._reduced_cost(rxn, threshold) for rxn in reaction)
     else:
         return self._reduced_cost(reaction, threshold)
@@ -857,7 +857,7 @@ def _grb_iter_shadow_price(self, compound=None):
         compound = self._rxn2var.keys()
         return ((cmpd, cnstrnt.pi) for (cmpd, cnstrnt) in\
                 self._cmpd2cnstrnt.items())
-    elif hasattr(compound, "__iter__"):
+    elif hasattr(compound, "__iter__") and not isinstance(compound, str):
         return (self._cmpd2cnstrnt[cmpd].pi for cmpd in compound)
     else:
         return self._cmpd2cnstrnt[cmpd].pi
