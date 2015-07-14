@@ -26,9 +26,9 @@ import warnings
 import numpy as np
 from builtins import dict
 
+from . import shuffling
 from . import continuous_wrapper as con
 from .elements import (Gene, Regulator, TranscriptionUnit, Operon)
-from .shuffling import timeline_sample
 from .. import miscellaneous as misc
 
 
@@ -45,6 +45,11 @@ LOGGER.addHandler(misc.NullHandler())
 class ContinuousControl(object):
     """
     """
+    _sampling = {
+        "timeline": shuffling.timeline_sample,
+        "fork": shuffling.block_sample,
+        "fork-strand": shuffling.block_sample,
+    }
     _measures = {
         "absolute": con.abs_control_timeline,
         "difference": con.difference_control_timeline,
@@ -145,7 +150,8 @@ class ContinuousControl(object):
             self.sources[i] = self.node2id[u]
             self.targets[i] = self.node2id[v]
 
-    def series_ctc(self, expression, measure, random_num=1E04, delay=0):
+    def series_ctc(self, expression, sampling, measure, random_num=1E04, delay=0,
+            **extra_args):
         """
         Compute control type confidence for a series of expression levels.
 
@@ -160,6 +166,11 @@ class ContinuousControl(object):
             Two dimensional expression levels in the same order as nodes.
         """
         random_num = int(random_num)
+        try:
+            sample = self._sampling[sampling]
+        except KeyError:
+            raise ValueError("'{0}' is an unknown sampling"\
+                    " method.".format(sampling))
         try:
             func = self._measures[measure]
         except KeyError:
@@ -187,7 +198,8 @@ class ContinuousControl(object):
         kw_args["control"] = control
         func(**kw_args)
         # compute randomized control
-        for (i, rnd_series) in enumerate(timeline_sample(expression, random_num)):
+        for (i, rnd_series) in enumerate(sample(expression, random_num,
+            **extra_args)):
             kw_args["expression"] = rnd_series
             kw_args["control"] = random[i, :]
             func(**kw_args)
@@ -197,14 +209,63 @@ class ContinuousControl(object):
         z_scores /= np.nanstd(random, ddof=1, axis=1)
         return (z_scores, control, random)
 
-def form_series(net, df, feature2node, node2feature=None, nodes=None):
+
+def fork_info(i, node, oric, ter, left, right):
+    """
+    Regulators are ignored for now.
+    """
+    if isinstance(node, Gene):
+        start = node.position_start
+    elif isinstance(node, (TranscriptionUnit, Operon)):
+        start = min(gene.position_start for gene in node.genes)
+    else:
+        raise ValueError("unknown regulatory network node type %r" % (node,))
+    if start > ter and start < oric[0]:
+        right.append(i)
+    elif start < ter or start > oric[1]:
+        left.append(i)
+    else:
+        raise ValueError("unaccounted position for node %r" % (node,))
+
+def fork_strand_info(i, node, oric, ter, left_forward, left_reverse,
+        right_forward, right_reverse):
+    """
+    Regulators are ignored for now.
+    """
+    if isinstance(node, Gene):
+        start = node.position_start
+        direction = node.strand
+    elif isinstance(node, (TranscriptionUnit, Operon)):
+        start = min(gene.position_start for gene in node.genes)
+        direction = set(gene.strand for gene in node.genes)
+        if len(direction) > 1:
+            raise ValueError("conflicting strand information %r" % (node,))
+        direction = direction.pop()
+    else:
+        raise ValueError("unknown regulatory network node type %r" % (node,))
+    if start > ter and start < oric[0]:
+        if direction == "reverse":
+            right_reverse.append(i)
+        else:
+            right_forward.append(i)
+    elif start < ter or start > oric[1]:
+        if direction == "reverse":
+            left_reverse.append(i)
+        else:
+            left_forward.append(i)
+    else:
+        raise ValueError("unaccounted position for node %r" % (node,))
+
+def form_series(net, df, feature2node, node2feature=None, nodes=None,
+        include_fork=False, include_strand=False, oric=(3923767, 3923998),
+        size=4639675):
     """
     Convert a pandas DataFrame to an expression matrix.
     """
     if node2feature is None:
         node2feature = {val: key for (key, val) in feature2node.items()}
     if nodes is None:
-        nodes = sorted(net.nodes_iter())
+        nodes = sorted(net.nodes())
     data = dict()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)
@@ -231,7 +292,7 @@ def form_series(net, df, feature2node, node2feature=None, nodes=None):
                     features.remove(None)
                 series = np.nanmean(df.loc[features], axis=0)
             else:
-                raise ValueError("unknown regulatory network node type %r", node)
+                raise ValueError("unknown regulatory network node type %r" % (node,))
             if not np.isnan(series).all():
                 data[node] = series
     active = [n for n in nodes if n in data]
@@ -240,7 +301,37 @@ def form_series(net, df, feature2node, node2feature=None, nodes=None):
     denom = len(nodes)
     LOGGER.info("%d/%d active nodes (%.2f%%)", nom, denom, nom / denom * 100.0)
     expression = np.zeros((df.shape[1], len(active)))
-    for (i, node) in enumerate(active):
-        expression[:, i] = data[node]
-    return (sub, expression, df.columns)
+    if include_fork:
+        ter = int((np.mean(oric) + size / 2) % size)
+        if include_strand:
+            left_forward = list()
+            left_reverse = list()
+            right_forward = list()
+            right_reverse = list()
+            for (i, node) in enumerate(active):
+                expression[:, i] = data[node]
+                fork_strand_info(i, node, oric, ter, left_forward, left_reverse,
+                    right_forward, right_reverse)
+            blocks = [0, len(left_forward), len(left_reverse),
+                    len(right_forward), len(right_reverse)]
+            extra = dict(blocks=np.cumsum(blocks, dtype=np.int32))
+            # organize expression into complete blocks
+            expression = np.ascontiguousarray(expression[:, left_forward + left_reverse +
+                right_forward + right_reverse])
+        else:
+            left = list()
+            right = list()
+            for (i, node) in enumerate(active):
+                expression[:, i] = data[node]
+                fork_info(i, node, oric, ter, left, right)
+            blocks = [0, len(left), len(right)]
+            extra = dict(blocks=np.cumsum(blocks, dtype=np.int32))
+            # organize expression into complete blocks
+            expression = np.ascontiguousarray(expression[:, left + right])
+    else:
+        for (i, node) in enumerate(active):
+            expression[:, i] = data[node]
+        extra = dict()
+    expression[~np.isfinite(expression)] = 0.0
+    return (sub, expression, df.columns, extra)
 

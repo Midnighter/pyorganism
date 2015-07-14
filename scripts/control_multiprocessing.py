@@ -203,25 +203,29 @@ def normed(session, experiment):
 
 def shuffle_feature(session, experiment):
     series = normed(session, experiment)
+    # shuffles rows relative to index (the features)
     np.random.shuffle(series.values)
     return series
 
 def shuffle_series(session, experiment):
     series = normed(session, experiment)
+    # shuffles columns relative to column names (time points)
     np.random.shuffle(series.values.T)
     return series
 
 def shuffle_all(session, experiment):
     series = normed(session, experiment)
+    # reshuffles all values (flat iterator over all values in the 2D array)
     np.random.shuffle(series.values.flat)
     return series
 
-def continuous_exec((control, expression, points, measure, random_num, delay, job_id)):
+def continuous_exec((control, expression, points, extra_args, sampling, measure,
+    random_num, delay, job_id)):
     if "comparison" in measure:
         points = points[1:]
     # include points somehow in the results
-    (z_scores, ctrl_scores, samples) = control.series_ctc(expression, measure,
-            random_num, delay)
+    (z_scores, ctrl_scores, samples) = control.series_ctc(expression, sampling,
+            measure, random_num, delay, **extra_args)
     return (job_id, z_scores, ctrl_scores, samples, points)
 
 def main_continuous(args):
@@ -240,11 +244,19 @@ def main_continuous(args):
     control_configs = {job.control for job in tasks}
     experiments = {job.experiment for job in tasks}
     preparations = {job.preparation for job in tasks}
+    sampling = {job.sampling for job in tasks}
     projections = {job.projection for job in tasks}
+    LOGGER.debug("%d analysis configurations", len(analysis_configs))
+    LOGGER.debug("%d control configurations", len(control_configs))
+    LOGGER.debug("%d experiments", len(experiments))
+    LOGGER.debug("%d setup cases", len(preparations))
+    LOGGER.debug("%d sampling methods", len(sampling))
+    LOGGER.debug("%d network projections", len(projections))
+    num_prep = len(analysis_configs) * len(control_configs) * len(experiments)\
+            * len(preparations) * len(sampling) * len(projections)
+    LOGGER.debug("%d total configurations", num_prep)
     LOGGER.info("Preparing Data")
     task_args = dict()
-    num_prep = len(analysis_configs) * len(control_configs) * len(experiments)\
-            * len(preparations) * len(projections)
     bar = ProgressBar(maxval=num_prep, widgets=[Timer(), " ",
             SimpleProgress(), " ", Percentage(), " ", Bar(), " ",
             ETA()]).start()
@@ -261,31 +273,41 @@ def main_continuous(args):
                 for prep in preparations:
                     LOGGER.debug("    %s", prep)
                     series = glbls[prep](session, exp)
-                    for prj in projections:
-                        LOGGER.debug("     %s", prj)
-                        if prj == "tu":
-                            (subnet, expression, points) = pyreg.form_series(tu_net,
-                                    series, feature2node)
-                        elif prj == "operon":
-                            (subnet, expression, points) = pyreg.form_series(op_net,
-                                    series, feature2node)
+                    for sampl in sampling:
+                        LOGGER.debug("     %s", sampl)
+                        if sampl == "fork":
+                            kw_args = dict(include_fork=True)
+                        elif sampl == "fork-strand":
+                            kw_args = dict(include_fork=True,
+                                    include_strand=True)
                         else:
-                            (subnet, expression, points) = pyreg.form_series(net,
-                                    series, feature2node)
-                        control = pyreg.ContinuousControl()
-                        if cntrl.type == "analog":
-                            control.from_gpn(subnet)
-                        elif cntrl.type == "digital":
-                            control.from_trn(subnet)
-                        else:
-                            raise ValueError("'{}'".format(cntrl.type))
-                        task_args[(anal.id, cntrl.id, exp.id, prep, prj)] = (control,
-                                expression, points)
-                        bar += 1
+                            kw_args = dict()
+                        for prj in projections:
+                            LOGGER.debug("      %s", prj)
+                            if prj == "tu":
+                                (subnet, expression, points, extra_args) = pyreg.form_series(tu_net,
+                                        series, feature2node, **kw_args)
+                            elif prj == "operon":
+                                (subnet, expression, points, extra_args) = pyreg.form_series(op_net,
+                                        series, feature2node, **kw_args)
+                            else:
+                                (subnet, expression, points, extra_args) = pyreg.form_series(net,
+                                        series, feature2node, **kw_args)
+                            control = pyreg.ContinuousControl()
+                            if cntrl.type == "analog":
+                                control.from_gpn(subnet)
+                            elif cntrl.type == "digital":
+                                control.from_trn(subnet)
+                            else:
+                                raise ValueError("'{}'".format(cntrl.type))
+                            task_args[(anal.id, cntrl.id, exp.id, prep, sampl, prj)] = (control,
+                                    expression, points, extra_args)
+                            bar += 1
     bar.finish()
     LOGGER.info("Running Jobs")
-    tasks = [task_args[(job.analysis.id, job.control.id, job.experiment.id, job.preparation,
-        job.projection)] + (job.measure, job.random_num, job.delay, job.id) for job in tasks]
+    tasks = [task_args[(job.analysis.id, job.control.id, job.experiment.id,
+        job.preparation, job.sampling, job.projection)] + (job.sampling, job.measure,
+        job.random_num, job.delay, job.id) for job in tasks]
     pool = multiprocessing.Pool(args.nproc)
     result_it = pool.imap_unordered(continuous_exec, tasks)
     bar = ProgressBar(maxval=len(tasks), widgets=[Timer(), " ",

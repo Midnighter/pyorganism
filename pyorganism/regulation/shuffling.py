@@ -36,7 +36,8 @@ __all__ = [
     "continuous_sample",
     "continuous_fixed_regulator_sample",
     "delayed_continuous_sample",
-    "timeline_sample"
+    "timeline_sample",
+    "block_sample"
 ]
 
 
@@ -88,8 +89,18 @@ def delayed_continuous_sample(net, active, levels, delayed_levels, evaluate):
     return evaluate(net, node2level, node2delayed)
 
 def timeline_sample(series, num):
+    # features are columns and time points are rows
     rnd_cols = np.arange(series.shape[1])
     for i in range(num):
         shuffle(rnd_cols)
+        yield np.ascontiguousarray(series[:, rnd_cols])
+
+def block_sample(series, num, blocks):
+    rnd_cols = np.arange(series.shape[1])
+    for i in range(num):
+        # each block should be shuffled within itself
+        # blocks are supposed to be complete and follow one another from left to right
+        for j in range(len(blocks) - 1):
+            shuffle(rnd_cols[blocks[j]:blocks[j + 1]])
         yield np.ascontiguousarray(series[:, rnd_cols])
 

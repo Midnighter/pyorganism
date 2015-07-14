@@ -35,7 +35,7 @@ from sqlalchemy import (Table, Column, ForeignKey, Integer, String, Sequence,
 from sqlalchemy.orm import (sessionmaker, relationship)
 from sqlalchemy.ext.declarative import declarative_base
 from pandas import DataFrame
-from numpy import nan
+from numpy import (nan, argsort)
 
 from .. import miscellaneous as misc
 
@@ -77,12 +77,15 @@ class Expression(Base):
         """
         table = cls.__table__
         stmt = select([table.c.feature, table.c.point, table.c.level]).where(
-                cls.experiment == experiment)
+                table.c.experiment_id == experiment.id)
         result = session.execute(stmt)
         df = DataFrame(iter(result), columns=result.keys())
         df.set_index(["feature", "point"], inplace=True)
         series = df.unstack()
         series.columns = series.columns.droplevel()
+        # time points can become unsorted in database, sort them
+        series = series.reindex_axis(series.columns[argsort(series.columns.astype(int))],
+                axis=1, copy=False)
         if experiment.knockouts is not None:
             series.loc[[ko.feature for ko in experiment.knockouts]] =  nan
         return series
@@ -92,9 +95,10 @@ class ExpressionRatio(Base):
     __tablename__ = "expressionratio"
     id = Column(Integer, Sequence("expressionratio_id_seq"), primary_key=True)
     control_id = Column(Integer, ForeignKey("expression.id"))
-    control = relationship("Expression", uselist=False)
+    control = relationship("Expression", uselist=False, foreign_keys=[control_id])
     treatment_id = Column(Integer, ForeignKey("expression.id"))
-    treatment = relationship("Expression", uselist=False)
+    treatment = relationship("Expression", uselist=False,
+            foreign_keys=[treatment_id])
     log2_ratio = Column(Float)
     p_value = Column(Float)
 
@@ -137,6 +141,7 @@ class Job(Base):
     results = relationship("Result", backref="job")
     preparation = Column(String()) # e.g., simple
     projection = Column(String(30)) # usually just gene, tu, operon
+    sampling = Column(String(30)) # timeline, fork or fork-strand
     measure = Column(String()) # absolute, functional, fixed_tf and so on
     random_num = Column(Integer) # often 1E05
     delay = Column(Integer) # usually between 1 and 6 with delay measures
@@ -174,8 +179,9 @@ class Result(Base):
         experiment = Experiment.__table__
         stmt = select([result.c.id, result.c.control, result.c.ctc,
                 result.c.point, control.c.type, control.c.direction,
-                experiment.c.strain, job.c.preparation, job.c.projection,
-                job.c.measure, job.c.delay, analysis.c.version]).where(and_(
+                experiment.c.strain, job.c.preparation, job.c.sampling,
+                job.c.projection, job.c.measure, job.c.delay,
+                analysis.c.version]).where(and_(
                 result.c.job_id == job.c.id,
                 job.c.analysis_id == analysis.c.id,
                 job.c.control_id == control.c.id,
