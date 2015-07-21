@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 
 
-from __future__ import (division, print_function)
+from __future__ import (absolute_import, unicode_literals, division,
+        print_function)
 
 
 import sys
@@ -13,7 +14,7 @@ import multiprocessing
 from logging.config import dictConfig
 
 import numpy as np
-from sqlalchemy import (create_engine,)
+from sqlalchemy import create_engine
 from sqlalchemy.orm import joinedload
 from progressbar import (ProgressBar, Timer, SimpleProgress, Bar, Percentage, ETA)
 
@@ -219,8 +220,9 @@ def shuffle_all(session, experiment):
     np.random.shuffle(series.values.flat)
     return series
 
-def continuous_exec((control, expression, points, extra_args, sampling, measure,
-    random_num, delay, job_id)):
+def continuous_exec(args):
+    (control, expression, points, extra_args, sampling, measure, random_num,
+            delay, job_id) = args
     if "comparison" in measure:
         points = points[1:]
     # include points somehow in the results

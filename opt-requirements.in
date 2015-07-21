@@ -2,3 +2,6 @@ fuzzywuzzy
 tables
 python-libsbml-experimental
 lxml
+matplotlib
+bottleneck
+numexpr
