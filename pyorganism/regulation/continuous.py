@@ -216,7 +216,7 @@ class ContinuousControl(object):
         return (z_scores, control, random)
 
 
-def fork_info(i, node, oric, ter, left, right):
+def fork_info(i, node, oric, ter, left, right, rest):
     """
     Regulators are ignored for now.
     """
@@ -225,7 +225,8 @@ def fork_info(i, node, oric, ter, left, right):
     elif isinstance(node, (TranscriptionUnit, Operon)):
         start = min(gene.position_start for gene in node.genes)
     else:
-        raise ValueError("unknown regulatory network node type %r" % (node,))
+        rest.append(i)
+        return
     if start > ter and start < oric[0]:
         right.append(i)
     elif start < ter or start > oric[1]:
@@ -234,7 +235,7 @@ def fork_info(i, node, oric, ter, left, right):
         raise ValueError("unaccounted position for node %r" % (node,))
 
 def fork_strand_info(i, node, oric, ter, left_forward, left_reverse,
-        right_forward, right_reverse):
+        right_forward, right_reverse, rest):
     """
     Regulators are ignored for now.
     """
@@ -248,7 +249,8 @@ def fork_strand_info(i, node, oric, ter, left_forward, left_reverse,
             raise ValueError("conflicting strand information %r" % (node,))
         direction = direction.pop()
     else:
-        raise ValueError("unknown regulatory network node type %r" % (node,))
+        rest.append(i)
+        return
     if start > ter and start < oric[0]:
         if direction == "reverse":
             right_reverse.append(i)
@@ -271,7 +273,7 @@ def form_series(net, df, feature2node, node2feature=None, nodes=None,
     if nodes is None:
         nodes = sorted(net.nodes())
     if node2feature is None:
-        node2feature = {n: feature2node[key] for n in nodes}
+        node2feature = {n: feat for (feat, n) in feature2node.items()}
     data = dict()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)
@@ -309,6 +311,7 @@ def form_series(net, df, feature2node, node2feature=None, nodes=None,
     expression = np.zeros((df.shape[1], len(active)))
     if include_fork:
         ter = int((np.mean(oric) + size / 2) % size)
+        rest = list()
         if include_strand:
             left_forward = list()
             left_reverse = list()
@@ -317,23 +320,23 @@ def form_series(net, df, feature2node, node2feature=None, nodes=None,
             for (i, node) in enumerate(active):
                 expression[:, i] = data[node]
                 fork_strand_info(i, node, oric, ter, left_forward, left_reverse,
-                    right_forward, right_reverse)
+                    right_forward, right_reverse, rest)
             blocks = [0, len(left_forward), len(left_reverse),
-                    len(right_forward), len(right_reverse)]
+                    len(right_forward), len(right_reverse), len(rest)]
             extra = dict(blocks=np.cumsum(blocks, dtype=np.int32))
             # organize expression into complete blocks
             expression = np.ascontiguousarray(expression[:, left_forward + left_reverse +
-                right_forward + right_reverse])
+                right_forward + right_reverse + rest])
         else:
             left = list()
             right = list()
             for (i, node) in enumerate(active):
                 expression[:, i] = data[node]
-                fork_info(i, node, oric, ter, left, right)
-            blocks = [0, len(left), len(right)]
+                fork_info(i, node, oric, ter, left, right, rest)
+            blocks = [0, len(left), len(right), len(rest)]
             extra = dict(blocks=np.cumsum(blocks, dtype=np.int32))
             # organize expression into complete blocks
-            expression = np.ascontiguousarray(expression[:, left + right])
+            expression = np.ascontiguousarray(expression[:, left + right + rest])
     else:
         for (i, node) in enumerate(active):
             expression[:, i] = data[node]

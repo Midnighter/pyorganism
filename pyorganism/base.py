@@ -214,9 +214,10 @@ class UniqueBase(with_metaclass(MetaBase, object)):
     def __lt__(self, other):
         # asking whether instances of UniqueBase are lesser than another does
         # not make sense but allows for ordering
-        if type(self) is type(other):
+        if isinstance(other, UniqueBase):
             return self.unique_id < other.unique_id
-        return NotImplemented
+        else:
+            return NotImplemented
 
 
 def _unpickle_call(cls, unique_id, name_space):
