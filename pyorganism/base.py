@@ -204,20 +204,19 @@ class UniqueBase(with_metaclass(MetaBase, object)):
         return hash((self.__class__, self.unique_id))
 
     def __eq__(self, other):
-        if type(self) is type(other):
-            return self.unique_id == other.unique_id
+        # since all class instances are unique it has to be the same
+        # instances of subclasses are automaticcaly not equal
+        return self is other
 
     def __ne__(self, other):
-        if type(self) is type(other):
-            return self.unique_id != other.unique_id
+        return not self == other
 
     def __lt__(self, other):
+        # asking whether instances of UniqueBase are lesser than another does
+        # not make sense but allows for ordering
         if type(self) is type(other):
             return self.unique_id < other.unique_id
-
-    def __gt__(self, other):
-        if type(self) is type(other):
-            return self.unique_id > other.unique_id
+        return NotImplemented
 
 
 def _unpickle_call(cls, unique_id, name_space):

@@ -70,7 +70,7 @@ class ContinuousControl(object):
         self.targets = None
         self.functions = None
 
-    def from_trn(self, trn, node2id=None, function="regulatory"):
+    def from_trn(self, trn, nodes=None, node2id=None, function="regulatory"):
         """
         Prepare data structures for continuous control analysis using a
         transcriptional regulatory network.
@@ -87,7 +87,10 @@ class ContinuousControl(object):
         """
         if len(trn) < 2 or trn.size() < 1:
             raise ValueError("aborting due to small network size")
-        self.nodes = sorted(trn.nodes())
+        if nodes is None:
+            self.nodes = sorted(trn.nodes())
+        else:
+            self.nodes = nodes
         self.num_nodes = len(self.nodes)
         if node2id is None:
             self.node2id = {n: i for (i, n) in enumerate(self.nodes)}
@@ -122,7 +125,7 @@ class ContinuousControl(object):
         self.targets = np.asarray(targets, dtype=np.int32)
         self.functions = np.asarray(functions, dtype=np.int32)
 
-    def from_gpn(self, gpn, node2id=None):
+    def from_gpn(self, gpn, nodes=None, node2id=None):
         """
         Prepare data structures for continuous control analysis using a
         gene proximity network.
@@ -136,7 +139,10 @@ class ContinuousControl(object):
         """
         if len(gpn) < 2 or gpn.size() < 1:
             raise ValueError("aborting due to small network size")
-        self.nodes = sorted(gpn.nodes())
+        if nodes is None:
+            self.nodes = sorted(gpn.nodes())
+        else:
+            self.nodes = nodes
         self.num_nodes = len(self.nodes)
         if node2id is None:
             self.node2id = {n: i for (i, n) in enumerate(self.nodes)}
@@ -262,10 +268,10 @@ def form_series(net, df, feature2node, node2feature=None, nodes=None,
     """
     Convert a pandas DataFrame to an expression matrix.
     """
-    if node2feature is None:
-        node2feature = {val: key for (key, val) in feature2node.items()}
     if nodes is None:
         nodes = sorted(net.nodes())
+    if node2feature is None:
+        node2feature = {n: feature2node[key] for n in nodes}
     data = dict()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)
