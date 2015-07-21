@@ -14,6 +14,7 @@ import multiprocessing
 from logging.config import dictConfig
 
 import numpy as np
+from future.utils import raise_
 from sqlalchemy import create_engine
 from sqlalchemy.orm import joinedload
 from progressbar import (ProgressBar, Timer, SimpleProgress, Bar, Percentage, ETA)
@@ -384,7 +385,7 @@ if __name__ == "__main__":
     except: # we want to catch everything
         (err, msg, trace) = sys.exc_info()
         # do something
-        raise err, msg, trace
+        raise_(err, msg, trace)
     finally:
         logging.shutdown()
 
