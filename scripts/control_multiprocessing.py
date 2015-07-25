@@ -222,14 +222,14 @@ def shuffle_all(session, experiment):
     return series
 
 def continuous_exec(args):
-    (control, sampling, measure, random_num, delay, job_id) = args
+    (control, measure, random_num, delay, job_id) = args
     if "comparison" in measure:
         points = control.expression.columns[1:]
     else:
         points = control.expression.columns
     # include points somehow in the results
-    (z_scores, ctrl_scores, samples) = control.series_ctc(expression, sampling,
-            measure, random_num, delay, **extra_args)
+    (z_scores, ctrl_scores, samples) = control.series_ctc(measure, random_num,
+            delay)
     return (job_id, z_scores, ctrl_scores, samples, points)
 
 def main_continuous(args):
@@ -290,11 +290,13 @@ def main_continuous(args):
                             LOGGER.debug("      %s", prj)
                             control = pyreg.ContinuousControl()
                             if prj == "tu":
-                                control.setup(tu_net, series, feature2node, **kw_args)
+                                control.setup(tu_net, series, feature2node,
+                                        sampl, **kw_args)
                             elif prj == "operon":
-                                control.setup(op_net, series, feature2node, **kw_args)
+                                control.setup(op_net, series, feature2node,
+                                        sampl, **kw_args)
                             else:
-                                control.setup(net, series, feature2node, **kw_args)
+                                control.setup(net, series, feature2node, sampl, **kw_args)
                             if cntrl.type == "analog":
                                 control.from_gpn()
                             elif cntrl.type == "digital":
@@ -306,7 +308,7 @@ def main_continuous(args):
     bar.finish()
     LOGGER.info("Running Jobs")
     tasks = [task_args[(job.analysis.id, job.control.id, job.experiment.id,
-        job.preparation, job.sampling, job.projection)] + (job.sampling, job.measure,
+        job.preparation, job.sampling, job.projection)] + (job.measure,
         job.random_num, job.delay, job.id) for job in tasks]
     pool = multiprocessing.Pool(args.nproc)
     result_it = pool.imap_unordered(continuous_exec, tasks)
