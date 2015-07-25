@@ -84,7 +84,8 @@ class Expression(Base):
         series = df.unstack()
         series.columns = series.columns.droplevel()
         # time points can become unsorted in database, sort them
-        series = series.reindex_axis(series.columns[argsort(series.columns.astype(int))],
+        series = series.reindex_axis(
+                series.columns[ argsort(series.columns.astype(int).values)],
                 axis=1, copy=False)
         if experiment.knockouts is not None:
             series.loc[[ko.feature for ko in experiment.knockouts]] =  nan

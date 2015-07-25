@@ -59,7 +59,7 @@ def print_dict(dic, level=0):
 def load_discrete(organism, config):
     LOGGER.info("Loading differentially expressed genes:")
     experiments = config["experiments"]
-    for (filename, name, reader, extra) in izip(experiments["paths"],
+    for (filename, name, reader, extra) in zip(experiments["paths"],
             experiments["names"], experiments["readers"],
             experiments["args"]):
         reader_func = getattr(pymicro, reader)
@@ -115,7 +115,7 @@ def discrete_jobs(organism, config, *args):
     for version in config["versions"]:
         for (cntrl_name, experiments, setups,
                 control, ctc, measures, random_num, robustness_num,
-                rob_extra, projections) in izip(analysis["control_types"],
+                rob_extra, projections) in zip(analysis["control_types"],
                 analysis["experimental_sets"], analysis["experimental_setups"],
                 analysis["control"], analysis["ctc"],
                 analysis["measures"], analysis["random_num"],
@@ -124,7 +124,7 @@ def discrete_jobs(organism, config, *args):
             for method in ctc:
                 for basis in projections:
                     for ms_name in measures:
-                        for (exp_name, exp_setup) in izip(experiments, setups):
+                        for (exp_name, exp_setup) in zip(experiments, setups):
                             if exp_setup == "ratio_discrete":
                                 for direction in ["up", "down"]:
                                     spec = dict()
@@ -222,10 +222,11 @@ def shuffle_all(session, experiment):
     return series
 
 def continuous_exec(args):
-    (control, expression, points, extra_args, sampling, measure, random_num,
-            delay, job_id) = args
+    (control, sampling, measure, random_num, delay, job_id) = args
     if "comparison" in measure:
-        points = points[1:]
+        points = control.expression.columns[1:]
+    else:
+        points = control.expression.columns
     # include points somehow in the results
     (z_scores, ctrl_scores, samples) = control.series_ctc(expression, sampling,
             measure, random_num, delay, **extra_args)
@@ -287,24 +288,20 @@ def main_continuous(args):
                             kw_args = dict()
                         for prj in projections:
                             LOGGER.debug("      %s", prj)
-                            if prj == "tu":
-                                (subnet, expression, points, extra_args) = pyreg.form_series(tu_net,
-                                        series, feature2node, **kw_args)
-                            elif prj == "operon":
-                                (subnet, expression, points, extra_args) = pyreg.form_series(op_net,
-                                        series, feature2node, **kw_args)
-                            else:
-                                (subnet, expression, points, extra_args) = pyreg.form_series(net,
-                                        series, feature2node, **kw_args)
                             control = pyreg.ContinuousControl()
+                            if prj == "tu":
+                                control.setup(tu_net, series, feature2node, **kw_args)
+                            elif prj == "operon":
+                                control.setup(op_net, series, feature2node, **kw_args)
+                            else:
+                                control.setup(net, series, feature2node, **kw_args)
                             if cntrl.type == "analog":
-                                control.from_gpn(subnet)
+                                control.from_gpn()
                             elif cntrl.type == "digital":
-                                control.from_trn(subnet)
+                                control.from_trn()
                             else:
                                 raise ValueError("'{}'".format(cntrl.type))
-                            task_args[(anal.id, cntrl.id, exp.id, prep, sampl, prj)] = (control,
-                                    expression, points, extra_args)
+                            task_args[(anal.id, cntrl.id, exp.id, prep, sampl, prj)] = control
                             bar += 1
     bar.finish()
     LOGGER.info("Running Jobs")

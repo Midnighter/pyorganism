@@ -22,6 +22,7 @@ Regulatory Control Measures
 
 import logging
 import warnings
+from itertools import chain
 
 import numpy as np
 from builtins import dict
@@ -33,8 +34,7 @@ from .. import miscellaneous as misc
 
 
 __all__ = [
-    "ContinuousControl",
-    "form_series"
+    "ContinuousControl"
 ]
 
 
@@ -69,41 +69,126 @@ class ContinuousControl(object):
         self.sources = None
         self.targets = None
         self.functions = None
+        self.expression = None
+        self.sample = None
+        self.sample_args = None
+        self.subnet = None
 
-    def from_trn(self, trn, nodes=None, node2id=None, function="regulatory"):
+    def setup(self, net, df, feature2node, sampling, node2feature=None, nodes=None,
+            oric=(3923767, 3923998),
+            size=4639675):
+        """
+        Convert a pandas DataFrame to an expression matrix.
+        """
+        if len(net) < 2 or net.size() < 1:
+            raise ValueError("aborting due to small network size")
+        try:
+            self.sample = self._sampling[sampling]
+        except KeyError:
+            raise ValueError("'{0}' is an unknown sampling"\
+                    " method.".format(sampling))
+        if nodes is None:
+            nodes = sorted(net.nodes())
+        if node2feature is None:
+            node2feature = {n: feat for (feat, n) in feature2node.items()}
+        data = dict()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            for node in nodes:
+                if node not in net:
+                    continue
+                elif isinstance(node, Gene):
+                    try:
+                        series = df.loc[node2feature[node]].copy()
+                    except KeyError:
+                        continue
+                elif isinstance(node, Regulator):
+                    features = {node2feature[gene] for gene in node.coded_from\
+                            if gene in node2feature}
+                    # unmapped features are None
+                    if None in features:
+                        features.remove(None)
+                    series = np.nanmean(df.loc[features], axis=0)
+                elif isinstance(node, (TranscriptionUnit, Operon)):
+                    features = {node2feature[gene] for gene in node.genes\
+                            if gene in node2feature}
+                    # unmapped features are None
+                    if None in features:
+                        features.remove(None)
+                    series = np.nanmean(df.loc[features], axis=0)
+                else:
+                    raise ValueError("unknown regulatory network node type %r" % (node,))
+                if not np.isnan(series).all():
+                    data[node] = series
+        active = [n for n in nodes if n in data]
+        self.subnet = net.subgraph(active)
+        nom = len(active)
+        denom = len(nodes)
+        LOGGER.info("%d/%d active nodes (%.2f%%)", nom, denom, nom / denom * 100.0)
+        expression = np.zeros((df.shape[1], len(active)))
+        if sampling == "fork":
+            ter = int((np.mean(oric) + size / 2) % size)
+            rest = list()
+            left = list()
+            right = list()
+            for (i, node) in enumerate(active):
+                expression[:, i] = data[node]
+                fork_info(i, node, oric, ter, left, right, rest)
+            blocks = [0, len(left), len(right), len(rest)]
+            self.sample_args = {"blocks": np.cumsum(blocks, dtype=np.int32)}
+            # organize expression into complete blocks
+            expression = np.ascontiguousarray(expression[:, left + right + rest])
+            # reorder nodes to correspond to expression
+            self.nodes = [active[i] for i in chain(left, right, rest)]
+        elif sampling == "fork-strand":
+            ter = int((np.mean(oric) + size / 2) % size)
+            rest = list()
+            left_forward = list()
+            left_reverse = list()
+            right_forward = list()
+            right_reverse = list()
+            for (i, node) in enumerate(active):
+                expression[:, i] = data[node]
+                fork_strand_info(i, node, oric, ter, left_forward, left_reverse,
+                    right_forward, right_reverse, rest)
+            blocks = [0, len(left_forward), len(left_reverse),
+                    len(right_forward), len(right_reverse), len(rest)]
+            self.sample_args = {"blocks": np.cumsum(blocks, dtype=np.int32)}
+            # organize expression into complete blocks
+            expression = np.ascontiguousarray(expression[:, left_forward + left_reverse +
+                right_forward + right_reverse + rest])
+            # reorder nodes to correspond to expression
+            self.nodes = [active[i] for i in chain(left_forward,
+                left_reverse, right_forward, right_reverse, rest)]
+        elif sampling == "timeline":
+            for (i, node) in enumerate(active):
+                expression[:, i] = data[node]
+            self.sample_args = dict()
+            self.nodes = active
+        expression[~np.isfinite(expression)] = 0.0
+        self.expression = expression
+        self.node2id = {n: i for (i, n) in enumerate(self.nodes)}
+
+    def from_trn(self, function="regulatory"):
         """
         Prepare data structures for continuous control analysis using a
         transcriptional regulatory network.
 
         Parameters
         ----------
-        trn: nx.(Multi-)DiGraph
-            The transcriptional regulatory network (TRN).
-        node2id: dict (optional)
-            A mapping from nodes in the network to indices running from 0 to (N - 1).
         function: hashable (optional)
             In case of a DiGraph, the keyword for edge data that describes the
             regulatory function. For a MultiDiGraph the key is used.
         """
-        if len(trn) < 2 or trn.size() < 1:
-            raise ValueError("aborting due to small network size")
-        if nodes is None:
-            self.nodes = sorted(trn.nodes())
-        else:
-            self.nodes = nodes
         self.num_nodes = len(self.nodes)
-        if node2id is None:
-            self.node2id = {n: i for (i, n) in enumerate(self.nodes)}
-        else:
-            self.node2id = node2id
         sources = list()
         targets = list()
         functions = list()
-        if trn.is_multigraph():
-            edge_iter = ((u, v, k) for (u, v, k) in trn.edges_iter(keys=True))
+        if self.subnet.is_multigraph():
+            edge_iter = ((u, v, k) for (u, v, k) in self.subnet.edges_iter(keys=True))
         else:
             edge_iter = ((u, v, data[function]) for (u, v, data) in\
-                    trn.edges_iter(data=True))
+                    self.subnet.edges_iter(data=True))
         for (u, v, func) in edge_iter:
             # filter unknown links
             if func == 0:
@@ -125,39 +210,20 @@ class ContinuousControl(object):
         self.targets = np.asarray(targets, dtype=np.int32)
         self.functions = np.asarray(functions, dtype=np.int32)
 
-    def from_gpn(self, gpn, nodes=None, node2id=None):
+    def from_gpn(self):
         """
         Prepare data structures for continuous control analysis using a
         gene proximity network.
-
-        Parameters
-        ----------
-        gpn: nx.Graph
-            The gene proximity network (GPN).
-        node2id: dict (optional)
-            A mapping from nodes in the network to indices running from 0 to (N - 1).
         """
-        if len(gpn) < 2 or gpn.size() < 1:
-            raise ValueError("aborting due to small network size")
-        if nodes is None:
-            self.nodes = sorted(gpn.nodes())
-        else:
-            self.nodes = nodes
         self.num_nodes = len(self.nodes)
-        if node2id is None:
-            self.node2id = {n: i for (i, n) in enumerate(self.nodes)}
-        else:
-            self.node2id = node2id
-        self.num_links = gpn.size()
+        self.num_links = self.subnet.size()
         self.sources = np.zeros(self.num_links, dtype=np.int32)
         self.targets = np.zeros(self.num_links, dtype=np.int32)
-        self.functions = None
-        for (i, (u, v)) in enumerate(gpn.edges_iter()):
+        for (i, (u, v)) in enumerate(self.subnet.edges_iter()):
             self.sources[i] = self.node2id[u]
             self.targets[i] = self.node2id[v]
 
-    def series_ctc(self, expression, sampling, measure, random_num=1E04, delay=0,
-            **extra_args):
+    def series_ctc(self, measure, random_num=1E04, delay=0):
         """
         Compute control type confidence for a series of expression levels.
 
@@ -173,20 +239,17 @@ class ContinuousControl(object):
         """
         random_num = int(random_num)
         try:
-            sample = self._sampling[sampling]
-        except KeyError:
-            raise ValueError("'{0}' is an unknown sampling"\
-                    " method.".format(sampling))
-        try:
             func = self._measures[measure]
         except KeyError:
             raise ValueError("'{0}' is an unknown control measure."\
                     " Please try one of:\n{1}".format(measure,
                     "\n* ".join(self._measures.keys())))
         if "comparison" in measure:
-            expression = np.diff(expression, axis=0) # expression was transposed for C code
-        num_points = expression.shape[0]
-        num_features = expression.shape[1]
+            expression = np.diff(self.expression, axis=0) # expression was transposed for C code
+        else:
+            expression = self.expression
+        num_points = self.expression.shape[0]
+        num_features = self.expression.shape[1]
         assert num_features == self.num_nodes
         control = np.zeros(num_points, dtype=np.double)
         random = np.zeros((random_num, num_points), dtype=np.double)
@@ -204,8 +267,8 @@ class ContinuousControl(object):
         kw_args["control"] = control
         func(**kw_args)
         # compute randomized control
-        for (i, rnd_series) in enumerate(sample(expression, random_num,
-            **extra_args)):
+        for (i, rnd_series) in enumerate(self.sample(expression, random_num,
+            **self.sample_args)):
             kw_args["expression"] = rnd_series
             kw_args["control"] = random[i, :]
             func(**kw_args)
@@ -263,84 +326,4 @@ def fork_strand_info(i, node, oric, ter, left_forward, left_reverse,
             left_forward.append(i)
     else:
         raise ValueError("unaccounted position for node %r" % (node,))
-
-def form_series(net, df, feature2node, node2feature=None, nodes=None,
-        include_fork=False, include_strand=False, oric=(3923767, 3923998),
-        size=4639675):
-    """
-    Convert a pandas DataFrame to an expression matrix.
-    """
-    if nodes is None:
-        nodes = sorted(net.nodes())
-    if node2feature is None:
-        node2feature = {n: feat for (feat, n) in feature2node.items()}
-    data = dict()
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)
-        for node in nodes:
-            if node not in net:
-                continue
-            elif isinstance(node, Gene):
-                try:
-                    series = df.loc[node2feature[node]].copy()
-                except KeyError:
-                    continue
-            elif isinstance(node, Regulator):
-                features = {node2feature[gene] for gene in node.coded_from\
-                        if gene in node2feature}
-                # unmapped features are None
-                if None in features:
-                    features.remove(None)
-                series = np.nanmean(df.loc[features], axis=0)
-            elif isinstance(node, (TranscriptionUnit, Operon)):
-                features = {node2feature[gene] for gene in node.genes\
-                        if gene in node2feature}
-                # unmapped features are None
-                if None in features:
-                    features.remove(None)
-                series = np.nanmean(df.loc[features], axis=0)
-            else:
-                raise ValueError("unknown regulatory network node type %r" % (node,))
-            if not np.isnan(series).all():
-                data[node] = series
-    active = [n for n in nodes if n in data]
-    sub = net.subgraph(active)
-    nom = len(active)
-    denom = len(nodes)
-    LOGGER.info("%d/%d active nodes (%.2f%%)", nom, denom, nom / denom * 100.0)
-    expression = np.zeros((df.shape[1], len(active)))
-    if include_fork:
-        ter = int((np.mean(oric) + size / 2) % size)
-        rest = list()
-        if include_strand:
-            left_forward = list()
-            left_reverse = list()
-            right_forward = list()
-            right_reverse = list()
-            for (i, node) in enumerate(active):
-                expression[:, i] = data[node]
-                fork_strand_info(i, node, oric, ter, left_forward, left_reverse,
-                    right_forward, right_reverse, rest)
-            blocks = [0, len(left_forward), len(left_reverse),
-                    len(right_forward), len(right_reverse), len(rest)]
-            extra = dict(blocks=np.cumsum(blocks, dtype=np.int32))
-            # organize expression into complete blocks
-            expression = np.ascontiguousarray(expression[:, left_forward + left_reverse +
-                right_forward + right_reverse + rest])
-        else:
-            left = list()
-            right = list()
-            for (i, node) in enumerate(active):
-                expression[:, i] = data[node]
-                fork_info(i, node, oric, ter, left, right, rest)
-            blocks = [0, len(left), len(right), len(rest)]
-            extra = dict(blocks=np.cumsum(blocks, dtype=np.int32))
-            # organize expression into complete blocks
-            expression = np.ascontiguousarray(expression[:, left + right + rest])
-    else:
-        for (i, node) in enumerate(active):
-            expression[:, i] = data[node]
-        extra = dict()
-    expression[~np.isfinite(expression)] = 0.0
-    return (sub, expression, df.columns, extra)
 
