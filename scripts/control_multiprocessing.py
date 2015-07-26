@@ -298,8 +298,8 @@ def main_continuous(args):
                             bar += 1
     bar.finish()
     LOGGER.info("Running Jobs")
-    tasks = [task_args[(job.analysis.id, job.control.id, job.experiment.id,
-        job.preparation, job.sampling, job.projection)] + (job.measure,
+    tasks = [(task_args[(job.analysis.id, job.control.id, job.experiment.id,
+        job.preparation, job.sampling, job.projection)],) + (job.measure,
         job.random_num, job.delay, job.id) for job in tasks]
     pool = multiprocessing.Pool(args.nproc)
     result_it = pool.imap_unordered(continuous_exec, tasks)
