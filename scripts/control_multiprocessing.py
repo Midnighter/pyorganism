@@ -279,24 +279,15 @@ def main_continuous(args):
                     series = glbls[prep](session, exp)
                     for sampl in sampling:
                         LOGGER.debug("     %s", sampl)
-                        if sampl == "fork":
-                            kw_args = dict(include_fork=True)
-                        elif sampl == "fork-strand":
-                            kw_args = dict(include_fork=True,
-                                    include_strand=True)
-                        else:
-                            kw_args = dict()
                         for prj in projections:
                             LOGGER.debug("      %s", prj)
                             control = pyreg.ContinuousControl()
                             if prj == "tu":
-                                control.setup(tu_net, series, feature2node,
-                                        sampl, **kw_args)
+                                control.setup(tu_net, series, feature2node, sampl)
                             elif prj == "operon":
-                                control.setup(op_net, series, feature2node,
-                                        sampl, **kw_args)
+                                control.setup(op_net, series, feature2node, sampl)
                             else:
-                                control.setup(net, series, feature2node, sampl, **kw_args)
+                                control.setup(net, series, feature2node, sampl)
                             if cntrl.type == "analog":
                                 control.from_gpn()
                             elif cntrl.type == "digital":
