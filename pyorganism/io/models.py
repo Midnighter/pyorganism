@@ -78,8 +78,8 @@ class Expression(Base):
         table = cls.__table__
         stmt = select([table.c.feature, table.c.point, table.c.level]).where(
                 table.c.experiment_id == experiment.id)
-        result = session.execute(stmt)
-        df = DataFrame(iter(result), columns=result.keys())
+        query = session.execute(stmt)
+        df = DataFrame(iter(query), columns=query.keys())
         df.set_index(["feature", "point"], inplace=True)
         series = df.unstack()
         series.columns = series.columns.droplevel()
@@ -156,6 +156,34 @@ class RandomSample(Base):
     control = Column(Float)
     result_id = Column(Integer, ForeignKey("result.id"))
 
+    @classmethod
+    def load_frame(cls, session):
+        """
+        Load part of the table into a well-formatted pandas.DataFrame.
+
+        session can be any object with the execute method.
+        """
+        sample = cls.__table__
+        job = Job.__table__
+        result = Result.__table__
+        analysis = AnalysisConfiguration.__table__
+        control = ControlConfiguration.__table__
+        experiment = Experiment.__table__
+        stmt = select([sample.c.id, sample.c.control,
+                result.c.point, control.c.type, control.c.direction,
+                experiment.c.strain, job.c.preparation, job.c.sampling,
+                job.c.projection, job.c.measure, job.c.delay,
+                analysis.c.version]).where(and_(
+                sample.c.result_id == result.c.id,
+                result.c.job_id == job.c.id,
+                job.c.analysis_id == analysis.c.id,
+                job.c.control_id == control.c.id,
+                job.c.experiment_id == experiment.c.id))
+        query = session.execute(stmt)
+        df = DataFrame(iter(query), columns=query.keys())
+        df.set_index("id", inplace=True)
+        return df
+
 
 class Result(Base):
     __tablename__ = "result"
@@ -187,8 +215,8 @@ class Result(Base):
                 job.c.analysis_id == analysis.c.id,
                 job.c.control_id == control.c.id,
                 job.c.experiment_id == experiment.c.id))
-        result = session.execute(stmt)
-        df = DataFrame(iter(result), columns=result.keys())
+        query = session.execute(stmt)
+        df = DataFrame(iter(query), columns=query.keys())
         df.set_index("id", inplace=True)
         return df
 
