@@ -5,3 +5,4 @@ lxml
 matplotlib
 bottleneck
 numexpr
+progressbar2
